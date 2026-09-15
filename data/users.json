@@ -1,0 +1,65 @@
+[
+  {
+    "id": "1787051838692",
+    "name": "SUJITH S",
+    "mobile": "9003912721",
+    "email": "demo@aanzara.com",
+    "password": "87654321",
+    "accountType": "customer",
+    "createdAt": "2026-08-18T11:17:18.692Z"
+  },
+  {
+    "id": "1787052194099",
+    "name": "Subin",
+    "mobile": "9003922323",
+    "email": "sujithrbz@gmail.com",
+    "password": "Subin#123",
+    "accountType": "customer",
+    "createdAt": "2026-08-18T11:23:14.099Z"
+  },
+  {
+    "id": "1787122854118",
+    "name": "SUJITH S",
+    "mobile": "9629633572",
+    "email": "mrsujith.it@gmail.com",
+    "password": "Sujith@123",
+    "accountType": "customer",
+    "createdAt": "2026-08-19T07:00:54.119Z"
+  },
+  {
+    "id": "1787381445423",
+    "name": "suji",
+    "mobile": "1223245245",
+    "email": "demo@aanzar.com",
+    "password": "12345678",
+    "accountType": "customer",
+    "createdAt": "2026-08-22T06:50:45.423Z"
+  },
+  {
+    "id": "1788497783455",
+    "name": "Sam",
+    "mobile": "9099877677",
+    "email": "mrsujith@gmail.com",
+    "password": "Sujith@123",
+    "accountType": "customer",
+    "createdAt": "2026-09-04T04:56:23.455Z"
+  },
+  {
+    "id": "1788506177847",
+    "name": "test",
+    "mobile": "8976543235",
+    "email": "testaanzara@gmail.com",
+    "password": "12345678",
+    "accountType": "customer",
+    "createdAt": "2026-09-04T07:16:17.847Z"
+  },
+  {
+    "id": "1788593317932",
+    "name": "TestAzA",
+    "mobile": "1234567890",
+    "email": "testaza@gmail.com",
+    "password": "12345678",
+    "accountType": "customer",
+    "createdAt": "2026-09-05T07:28:37.932Z"
+  }
+]

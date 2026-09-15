@@ -1,0 +1,457 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   GLOBAL
+========================================================= */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #f6f8fb;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+input::placeholder {
+  opacity: 1;
+}
+
+/* =========================================================
+   TEXT SELECTION
+========================================================= */
+
+::selection {
+  background: rgba(23, 105, 245, 0.18);
+  color: #10265b;
+}
+
+/* =========================================================
+   RANGE INPUT
+========================================================= */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 999px;
+  background: #2448c4;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(11, 30, 75, 0.4);
+  cursor: pointer;
+  margin-top: -6px;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: #dce2ee;
+}
+
+/* Firefox */
+
+input[type="range"]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 999px;
+  background: #2448c4;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(11, 30, 75, 0.4);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: #dce2ee;
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* =========================================================
+   GENERAL ANIMATIONS
+========================================================= */
+
+@keyframes iconFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* =========================================================
+   AANZARA PROFILE PAGE
+========================================================= */
+
+/* Input */
+
+.profileInput {
+  width: 100%;
+  box-sizing: border-box;
+  height: 53px;
+  border: 1px solid #cfdae9;
+  border-radius: 10px;
+  outline: none;
+  padding: 0 15px;
+  color: #183864;
+  background: #ffffff;
+  font-size: 14px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.profileInput:focus {
+  border-color: #2873ed;
+  box-shadow: 0 0 0 4px rgba(40, 115, 237, 0.1);
+}
+
+.profileInput::placeholder {
+  color: #8ca0ba;
+}
+
+/* =========================================================
+   INPUT ERROR
+========================================================= */
+
+.inputError {
+  border-color: #ef4444 !important;
+  background: #fff8f8 !important;
+}
+
+.inputError:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+}
+
+.errorText {
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+
+/* =========================================================
+   VALIDATION MESSAGE
+========================================================= */
+
+.validationBox {
+  margin: 5px 0 15px;
+  padding: 12px 15px;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   SUCCESS MESSAGE
+========================================================= */
+
+.successBox {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 15px;
+  border: 1px solid #b7e4c7;
+  border-radius: 9px;
+  background: #ecfdf3;
+  color: #159447;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   SAVE BUTTON
+========================================================= */
+
+.saveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+/* =========================================================
+   BACK LINK
+========================================================= */
+
+.backLink {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.backLink:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* =========================================================
+   SIDEBAR BUTTONS
+========================================================= */
+
+.sideMenu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 49px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #173a6e;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sideMenu button:hover {
+  background: #f5f8fd;
+}
+
+.sideMenu button.active {
+  background: #edf4ff;
+  color: #0d56c9;
+  box-shadow: inset 4px 0 #1f70ef;
+}
+
+.sideMenu button svg {
+  color: #547397;
+  flex-shrink: 0;
+}
+
+.sideMenu button.active svg {
+  color: #1268eb;
+}
+
+/* =========================================================
+   BRAND
+========================================================= */
+
+.brand {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+.nav button {
+  border: 0;
+  background: transparent;
+  color: #294c78;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.nav button:hover {
+  color: #1769ed;
+}
+
+/* =========================================================
+   BREADCRUMB
+========================================================= */
+
+.breadcrumb button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #58759b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+
+.breadcrumb button:hover {
+  color: #1769ed;
+}
+
+/* =========================================================
+   PROFILE PAGE FOCUS
+========================================================= */
+
+.profileInput:focus-visible,
+.sideMenu button:focus-visible,
+.nav button:focus-visible,
+.breadcrumb button:focus-visible,
+.backLink:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid #1769f5;
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   AANZARA REGISTER PAGE ANIMATIONS
+============================================================ */
+
+@keyframes aanzaraHeroZoom {
+  from {
+    transform: scale(1.06);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes aanzaraHeroContent {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes aanzaraLogoEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-35px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes aanzaraFeatureEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes aanzaraCardEnter {
+  from {
+    opacity: 0;
+    transform: translateX(35px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.aanzara-hero-bg {
+  animation: aanzaraHeroZoom 1.8s ease-out both;
+}
+
+.aanzara-hero-logo {
+  animation: aanzaraLogoEnter 0.8s ease-out 0.15s both;
+}
+
+.aanzara-hero-content {
+  animation: aanzaraHeroContent 0.9s ease-out 0.35s both;
+}
+
+.aanzara-hero-feature-1 {
+  animation: aanzaraFeatureEnter 0.7s ease-out 0.7s both;
+}
+
+.aanzara-hero-feature-2 {
+  animation: aanzaraFeatureEnter 0.7s ease-out 0.85s both;
+}
+
+.aanzara-hero-feature-3 {
+  animation: aanzaraFeatureEnter 0.7s ease-out 1s both;
+}
+
+.aanzara-register-card {
+  animation: aanzaraCardEnter 0.8s ease-out 0.25s both;
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .aanzara-hero-bg,
+  .aanzara-hero-logo,
+  .aanzara-hero-content,
+  .aanzara-hero-feature-1,
+  .aanzara-hero-feature-2,
+  .aanzara-hero-feature-3,
+  .aanzara-register-card,
+  .aanzara-floating-one,
+  .aanzara-floating-two {
+    animation: none;
+  }
+}

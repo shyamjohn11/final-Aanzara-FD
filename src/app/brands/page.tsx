@@ -1,0 +1,915 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  Award,
+  ChevronDown,
+  Search,
+  ShieldCheck,
+  Star,
+  Truck,
+} from "lucide-react";
+
+import Header from "@/app/components/Header";
+import MainNav from "@/app/MainNav";
+import TopBar from "../components/Dashboard/TopBar";
+import { brandsApi } from "@/app/api/services";
+
+type Brand = {
+  name: string;
+  category: string;
+  logo: string;
+  logoClass?: string;
+};
+
+const categories = [
+  "All Brands",
+  "Food & Beverages",
+  "Personal Care",
+  "Home Care",
+  "Health Care",
+  "Baby Care",
+  "Snacks & Branded Foods",
+  "Dairy & Bakery",
+];
+
+const brands: Brand[] = [
+  {
+    name: "Amul",
+    category: "Dairy & Bakery",
+    logo: "Amul",
+    logoClass: "font-serif font-bold text-red-700 text-[30px]",
+  },
+  {
+    name: "Parle",
+    category: "Biscuits & Snacks",
+    logo: "PARLE",
+    logoClass:
+      "bg-[#df3030] px-5 py-2 text-[17px] font-black text-white skew-x-[-8deg]",
+  },
+  {
+    name: "Nestlé",
+    category: "Food & Beverages",
+    logo: "Nestlé",
+    logoClass: "font-serif font-bold text-[#4b4744] text-[24px]",
+  },
+  {
+    name: "Tata",
+    category: "Beverages & Foods",
+    logo: "TATA",
+    logoClass: "font-bold text-[#245a93] text-[26px]",
+  },
+  {
+    name: "Hindustan Unilever",
+    category: "Personal Care",
+    logo: "U",
+    logoClass: "font-serif font-bold text-[#183c79] text-[42px]",
+  },
+  {
+    name: "P&G",
+    category: "Personal Care",
+    logo: "P&G",
+    logoClass:
+      "flex h-14 w-14 items-center justify-center rounded-full bg-[#174c8b] text-[18px] font-bold text-white shadow-md",
+  },
+  {
+    name: "Colgate",
+    category: "Oral Care",
+    logo: "Colgate",
+    logoClass: "font-bold italic text-[#d71920] text-[25px]",
+  },
+  {
+    name: "Dabur",
+    category: "Health Care",
+    logo: "Dabur",
+    logoClass: "font-serif font-bold text-[#38733d] text-[24px]",
+  },
+  {
+    name: "Real",
+    category: "Beverages",
+    logo: "Real",
+    logoClass:
+      "font-bold italic text-[#1d5b9e] text-[28px] underline decoration-green-600 decoration-2 underline-offset-4",
+  },
+  {
+    name: "Britannia",
+    category: "Biscuits & Snacks",
+    logo: "BRITANNIA",
+    logoClass:
+      "bg-[#e21b23] px-4 py-1.5 font-bold text-[13px] text-white",
+  },
+  {
+    name: "Surf Excel",
+    category: "Home Care",
+    logo: "Surf\nExcel",
+    logoClass:
+      "whitespace-pre-line font-bold text-[#173d82] text-[22px] leading-5",
+  },
+  {
+    name: "Vim",
+    category: "Home Care",
+    logo: "Vim",
+    logoClass: "font-black italic text-[#e21d26] text-[31px]",
+  },
+  {
+    name: "Lifebuoy",
+    category: "Personal Care",
+    logo: "Lifebuoy",
+    logoClass:
+      "rounded-full bg-[#d51e27] px-3 py-1.5 font-bold italic text-[14px] text-white",
+  },
+  {
+    name: "Patanjali",
+    category: "Health Care",
+    logo: "PATANJALI",
+    logoClass:
+      "font-serif text-[#854136] text-[19px] tracking-wide",
+  },
+  {
+    name: "Boost",
+    category: "Health Drinks",
+    logo: "Boost",
+    logoClass:
+      "bg-[#d92922] px-4 py-1.5 font-bold italic text-[23px] text-white skew-x-[-10deg]",
+  },
+  {
+    name: "Horlicks",
+    category: "Health Drinks",
+    logo: "Horlicks",
+    logoClass:
+      "font-bold italic text-[#294f94] text-[24px]",
+  },
+  {
+    name: "Kellogg's",
+    category: "Breakfast Foods",
+    logo: "Kellogg's",
+    logoClass:
+      "font-serif italic text-[#c71926] text-[26px]",
+  },
+  {
+    name: "Lay's",
+    category: "Snacks",
+    logo: "Lay's",
+    logoClass:
+      "rounded-full bg-[#e82d21] px-3 py-2 font-bold italic text-[20px] text-white shadow-[inset_0_0_0_6px_#f4ce2a]",
+  },
+  {
+    name: "Maggi",
+    category: "Food & Beverages",
+    logo: "Maggi",
+    logoClass:
+      "rounded-md bg-[#ffdf00] px-4 py-2 font-bold text-[17px] text-red-600",
+  },
+  {
+    name: "Dove",
+    category: "Personal Care",
+    logo: "Dove",
+    logoClass:
+      "font-serif italic text-[#263c65] text-[28px]",
+  },
+  {
+    name: "Veet",
+    category: "Personal Care",
+    logo: "Veet",
+    logoClass:
+      "font-serif italic text-[#263c65] text-[26px]",
+  },
+];
+
+const heroBrands = [
+  "Surf\nExcel",
+  "Parle",
+  "Dove",
+  "Boost",
+  "Tide",
+  "Colgate",
+  "Vim",
+];
+
+/* ---------------------------------------------------------
+   VALIDATION HELPERS
+--------------------------------------------------------- */
+
+const MAX_SEARCH_LENGTH = 50;
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isValidBrand(brand: Brand): boolean {
+  if (!brand) return false;
+
+  if (
+    typeof brand.name !== "string" ||
+    typeof brand.category !== "string" ||
+    typeof brand.logo !== "string"
+  ) {
+    return false;
+  }
+
+  const name = normalizeText(brand.name);
+  const category = normalizeText(brand.category);
+  const logo = normalizeText(brand.logo);
+
+  if (!name || !category || !logo) {
+    return false;
+  }
+
+  if (name.length > 100) {
+    return false;
+  }
+
+  if (category.length > 100) {
+    return false;
+  }
+
+  if (logo.length > 100) {
+    return false;
+  }
+
+  return true;
+}
+
+function sanitizeSearch(value: string): string {
+  return normalizeText(value)
+    .slice(0, MAX_SEARCH_LENGTH);
+}
+
+/* ---------------------------------------------------------
+   CATEGORY MAP
+--------------------------------------------------------- */
+
+const categoryMap: Record<string, string[]> = {
+  "Food & Beverages": [
+    "Food & Beverages",
+    "Beverages",
+    "Beverages & Foods",
+  ],
+
+  "Personal Care": [
+    "Personal Care",
+    "Oral Care",
+  ],
+
+  "Home Care": [
+    "Home Care",
+  ],
+
+  "Health Care": [
+    "Health Care",
+    "Health Drinks",
+  ],
+
+  "Baby Care": [
+    "Baby Care",
+  ],
+
+  "Snacks & Branded Foods": [
+    "Snacks",
+    "Biscuits & Snacks",
+    "Breakfast Foods",
+  ],
+
+  "Dairy & Bakery": [
+    "Dairy & Bakery",
+  ],
+};
+
+/* ---------------------------------------------------------
+   PAGE
+--------------------------------------------------------- */
+
+export default function BrandsPage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [activeCategory, setActiveCategory] =
+    useState<string>("All Brands");
+
+  const [searchQuery, setSearchQuery] =
+    useState<string>("");
+
+  const [visibleCount, setVisibleCount] =
+    useState<number>(21);
+
+  /* -------------------------------------------------------
+     LIVE CATALOG (#43) + SERVER SEARCH (#48) merged over
+     static catalogue
+  ------------------------------------------------------- */
+
+  const [catalogBrands, setCatalogBrands] = useState<Brand[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCatalog = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogError("");
+        // #43 GET /api/admin/brands — full brand catalogue
+        const response = await brandsApi.list();
+        const payload: unknown = response.data;
+        const items: unknown[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(
+              (payload as Record<string, unknown>)?.items,
+            )
+            ? ((payload as Record<string, unknown>).items as unknown[])
+            : [];
+
+        if (cancelled) return;
+
+        const mapped: Brand[] = [];
+
+        items.forEach((entry) => {
+          if (typeof entry !== "object" || entry === null) return;
+          const raw = entry as Record<string, unknown>;
+          const name = String(
+            raw.brandName ?? raw.name ?? "",
+          ).trim();
+          if (!name) return;
+
+          mapped.push({
+            name,
+            category: String(
+              raw.categoryName ?? raw.category ?? "General",
+            ),
+            // Static rows render text logos; catalog rows reuse the
+            // brand name as logo text until CDN logos land.
+            logo: name.slice(0, 24),
+          });
+        });
+
+        setCatalogBrands(mapped.filter(isValidBrand));
+      } catch {
+        // Keep static catalogue when the brand API is unreachable.
+        if (!cancelled) {
+          setCatalogError("Live brand catalogue is currently unavailable.");
+          setCatalogBrands([]);
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    };
+
+    loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [serverBrands, setServerBrands] =
+    useState<Brand[]>([]);
+
+  useEffect(() => {
+    const query = sanitizeSearch(searchQuery).trim();
+
+    if (!query) {
+      setServerBrands([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        // #48 GET /api/admin/brands/search?query=&limit= (backend binds
+        // query/keyword/q + limit, max 50)
+        const response = await brandsApi.search(query, 21);
+        const payload: unknown = response.data;
+        const rawItems: unknown[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(
+              (payload as Record<string, unknown>)?.items,
+            )
+            ? ((payload as Record<string, unknown>).items as unknown[])
+            : [];
+
+        if (cancelled) return;
+
+        const mapped: Brand[] = [];
+
+        rawItems.forEach((entry) => {
+          if (typeof entry !== "object" || entry === null) return;
+          const raw = entry as Record<string, unknown>;
+          const name = String(
+            raw.brandName ?? raw.name ?? "",
+          ).trim();
+          if (!name) return;
+
+          mapped.push({
+            name,
+            category: String(
+              raw.categoryName ?? raw.category ?? "General",
+            ),
+            // Static rows render text logos; server rows reuse the
+            // brand name as logo text until CDN logos land.
+            logo: name.slice(0, 24),
+          });
+        });
+
+        setServerBrands(
+          mapped.filter(isValidBrand).slice(0, 21),
+        );
+      } catch {
+        // Keep static catalogue when search API is unreachable.
+        if (!cancelled) setServerBrands([]);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  /* -------------------------------------------------------
+     VALIDATED BRAND LIST
+  ------------------------------------------------------- */
+
+  const validBrands = useMemo(() => {
+    const uniqueBrands = new Map<string, Brand>();
+
+    [...serverBrands, ...catalogBrands, ...brands].forEach((brand) => {
+      if (!isValidBrand(brand)) {
+        return;
+      }
+
+      const normalizedName = normalizeText(
+        brand.name
+      ).toLowerCase();
+
+      if (!uniqueBrands.has(normalizedName)) {
+        uniqueBrands.set(normalizedName, {
+          ...brand,
+          name: normalizeText(brand.name),
+          category: normalizeText(brand.category),
+          logo: brand.logo,
+        });
+      }
+    });
+
+    return Array.from(uniqueBrands.values());
+  }, [serverBrands, catalogBrands]);
+
+  /* -------------------------------------------------------
+     SEARCH + CATEGORY FILTER
+  ------------------------------------------------------- */
+
+  const filteredBrands = useMemo(() => {
+    const query = sanitizeSearch(searchQuery).toLowerCase();
+
+    return validBrands.filter((brand) => {
+      const brandName = brand.name.toLowerCase();
+      const brandCategory = brand.category.toLowerCase();
+
+      const matchesSearch =
+        !query ||
+        brandName.includes(query) ||
+        brandCategory.includes(query);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      if (activeCategory === "All Brands") {
+        return true;
+      }
+
+      const allowedCategories =
+        categoryMap[activeCategory];
+
+      if (!allowedCategories) {
+        return false;
+      }
+
+      return allowedCategories.includes(
+        brand.category
+      );
+    });
+  }, [
+    validBrands,
+    searchQuery,
+    activeCategory,
+  ]);
+
+  /* -------------------------------------------------------
+     VISIBLE BRANDS
+  ------------------------------------------------------- */
+
+  const visibleBrands = useMemo(() => {
+    return filteredBrands.slice(
+      0,
+      Math.max(0, visibleCount)
+    );
+  }, [filteredBrands, visibleCount]);
+
+  /* -------------------------------------------------------
+     HANDLERS
+  ------------------------------------------------------- */
+
+  const handleSearchChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = event.target.value;
+
+    const sanitizedValue =
+      sanitizeSearch(value);
+
+    setSearchQuery(sanitizedValue);
+
+    // Reset pagination whenever search changes.
+    setVisibleCount(21);
+  };
+
+  const handleCategoryChange = (
+    category: string
+  ) => {
+    // Validate category before setting state.
+    if (!categories.includes(category)) {
+      return;
+    }
+
+    setActiveCategory(category);
+    setVisibleCount(21);
+  };
+
+  const handleLoadMore = () => {
+    setVisibleCount((current) => {
+      const nextCount = current + 14;
+
+      return Math.min(
+        nextCount,
+        filteredBrands.length
+      );
+    });
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setActiveCategory("All Brands");
+    setVisibleCount(21);
+  };
+
+  /* -------------------------------------------------------
+     COUNTS
+  ------------------------------------------------------- */
+
+  const hasFilters =
+    searchQuery.trim().length > 0 ||
+    activeCategory !== "All Brands";
+
+  const hasMore =
+    visibleCount < filteredBrands.length;
+
+  return (
+    <div className="min-h-screen bg-paper text-ink">
+      {/* TOP BAR */}
+      <TopBar />
+
+      {/* HEADER */}
+      <Header
+        onMenuClick={() =>
+          setMobileMenuOpen(true)
+        }
+      />
+
+      {/* MOBILE NAV */}
+      <MainNav
+        open={mobileMenuOpen}
+        onClose={() =>
+          setMobileMenuOpen(false)
+        }
+      />
+
+      <main className="mx-auto w-full max-w-[1360px] px-4 py-6 sm:px-6">
+                {/* =================================================
+            HERO
+        ================================================= */}
+
+        <section
+          aria-labelledby="brands-page-title"
+          className="relative min-h-[400px] w-full overflow-hidden rounded-xl shadow-lg"
+        >
+          {/* Background Image - Changed to object-contain with a clean background so it fits entirely */}
+          <img
+            src="/images/Brand/Brand.png"
+            alt="Brands hero background"
+            className="absolute inset-0 h-full w-full object-cover object-center"
+          />
+
+          {/* Overlay - Added a radial gradient to darken the center for readability */}
+          <div
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.65)_0%,rgba(0,0,0,0.2)_70%)]"
+            aria-hidden="true"
+          />
+
+          {/* Content - Narrower max-width to avoid covering side logos */}
+          <div className="relative z-10 flex min-h-[400px] flex-col items-center justify-center px-6 text-center">
+            
+            {/* Title */}
+            <h1
+              id="brands-page-title"
+              className="text-[36px] font-bold text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] sm:text-[44px] md:text-[48px]"
+            >
+              Shop by Brands
+            </h1>
+
+            {/* Description - Added max-width to keep it centered and clean */}
+            <p className="mt-3 max-w-[450px] text-[15px] font-medium leading-6 text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] sm:text-[16px]">
+              Partnering with India&apos;s most trusted brands to bring quality products to your business.
+            </p>
+          </div>
+        </section>
+
+        {/* =================================================
+            TRUST CARDS
+        ================================================= */}
+
+        <section
+          aria-label="Brand trust benefits"
+          className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <TrustCard
+            icon={
+              <Award
+                size={31}
+                strokeWidth={1.6}
+              />
+            }
+            title="100+ Trusted Brands"
+            text="Top national & international brands"
+          />
+
+          <TrustCard
+            icon={
+              <ShieldCheck
+                size={31}
+                strokeWidth={1.6}
+              />
+            }
+            title="100% Original Products"
+            text="Genuine products, always"
+          />
+
+          <TrustCard
+            icon={
+              <Truck
+                size={31}
+                strokeWidth={1.6}
+              />
+            }
+            title="Direct from Distributors"
+            text="Best prices, direct access"
+          />
+
+          <TrustCard
+            icon={
+              <Star
+                size={31}
+                strokeWidth={1.6}
+              />
+            }
+            title="Quality You Can Trust"
+            text="Verified & quality assured"
+          />
+        </section>
+
+        {/* =================================================
+            TITLE + SEARCH
+        ================================================= */}
+
+        <section className="mt-7 flex flex-col gap-5 border-b border-line pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-[25px] font-bold">
+              All Brands
+            </h2>
+
+            <p className="mt-1 text-[14px] text-ink-soft">
+              Explore products from 100+ trusted
+              brands
+            </p>
+          </div>
+
+          <div className="relative w-full lg:w-[310px]">
+            <Search
+              size={18}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-soft"
+              aria-hidden="true"
+            />
+
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              maxLength={MAX_SEARCH_LENGTH}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Search brands..."
+              aria-label="Search brands"
+              className="h-[42px] w-full rounded-lg border border-line bg-white pl-11 pr-4 text-[13px] outline-none transition focus:border-navy focus:ring-2 focus:ring-navy/10"
+            />
+          </div>
+        </section>
+
+        {/* =================================================
+            CATEGORY BUTTONS
+        ================================================= */}
+
+        <section
+          aria-label="Brand categories"
+          className="mt-5 flex gap-3 overflow-x-auto pb-2"
+        >
+          {categories.map(
+            (category) => {
+              const isActive =
+                activeCategory === category;
+
+              return (
+                <button
+                  type="button"
+                  key={category}
+                  onClick={() =>
+                    handleCategoryChange(
+                      category
+                    )
+                  }
+                  aria-pressed={isActive}
+                  className={`shrink-0 rounded-lg border px-4 py-2 text-[12px] font-medium transition ${
+                    isActive
+                      ? "border-navy bg-navy text-white"
+                      : "border-line bg-white text-ink-soft hover:border-[#94a3b8]"
+                  }`}
+                >
+                  {category}
+                </button>
+              );
+            }
+          )}
+        </section>
+
+        {/* =================================================
+            RESULT INFO
+        ================================================= */}
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p
+            className="text-[12px] text-ink-soft"
+            aria-live="polite"
+          >
+            {catalogLoading && filteredBrands.length === 0
+              ? "Loading brands…"
+              : filteredBrands.length === 0
+                ? (catalogError || "No brands found")
+                : `Showing ${Math.min(
+                  visibleCount,
+                  filteredBrands.length
+                )} of ${
+                  filteredBrands.length
+                } brands`}
+          </p>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="text-[12px] font-semibold text-navy underline underline-offset-2 hover:opacity-80"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {/* =================================================
+            BRAND GRID
+        ================================================= */}
+
+        {visibleBrands.length > 0 ? (
+          <section
+            aria-label="Brand list"
+            className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7"
+          >
+            {visibleBrands.map(
+              (brand) => (
+                <button
+                  type="button"
+                  key={`${brand.name}-${brand.category}`}
+                  aria-label={`View ${brand.name} brand`}
+                  className="group flex min-h-[114px] flex-col items-center justify-center rounded-xl border border-line bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition duration-200 hover:-translate-y-1 hover:border-[#b8c7dc] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-navy/20"
+                >
+                  <div className="flex h-[52px] items-center justify-center text-center">
+                    <span
+                      className={
+                        brand.logoClass ||
+                        "font-semibold text-ink"
+                      }
+                    >
+                      {brand.logo}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-center text-[11px] text-ink-soft">
+                    {brand.category}
+                  </p>
+                </button>
+              )
+            )}
+          </section>
+        ) : (
+          /* =================================================
+             EMPTY STATE
+          ================================================= */
+
+          <div className="mt-6 rounded-xl border border-dashed border-line bg-white py-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-paper">
+              <Search
+                size={22}
+                className="text-ink-soft"
+              />
+            </div>
+
+            <h3 className="mt-4 text-lg font-semibold">
+              No brands found
+            </h3>
+
+            <p className="mt-2 text-sm text-ink-soft">
+              Try searching for another brand or
+              category.
+            </p>
+
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="mt-5 rounded-lg bg-navy px-5 py-2.5 text-xs font-semibold text-white transition hover:opacity-90"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* =================================================
+            LOAD MORE
+        ================================================= */}
+
+        {hasMore && (
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              aria-label="Load more brands"
+              className="flex items-center gap-2 rounded-xl border border-line bg-white px-8 py-3 text-[13px] font-semibold text-navy shadow-sm transition hover:bg-paper focus:outline-none focus:ring-2 focus:ring-navy/20"
+            >
+              Load More Brands
+
+              <ChevronDown
+                size={17}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/* =========================================================
+   TRUST CARD
+========================================================= */
+
+function TrustCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex min-h-[78px] items-center gap-4 rounded-xl border border-line bg-white px-6 shadow-sm">
+      <div
+        className="text-navy"
+        aria-hidden="true"
+      >
+        {icon}
+      </div>
+
+      <div>
+        <h3 className="text-[14px] font-bold">
+          {title}
+        </h3>
+
+        <p className="mt-1 text-[12px] text-ink-soft">
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
