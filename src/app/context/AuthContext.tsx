@@ -10,14 +10,14 @@ import React, {
 import { clearSession } from "../api/api";
 
 interface AuthContextProps {
-  token: string | null;
-  refreshKey: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
   userName: string | null;
 
-  setToken: (token: string | null, rememberMe: boolean) => void;
+  setAccessToken: (token: string | null, rememberMe: boolean) => void;
 
-  setRefreshKey: (
-    refreshKey: string | null,
+  setRefreshToken: (
+    refreshToken: string | null,
     rememberMe: boolean
   ) => void;
 
@@ -38,9 +38,9 @@ export const AuthProvider = ({
 }: {
   children: ReactNode;
 }) => {
-  const [token, setTokenState] = useState<string | null>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
 
-  const [refreshKey, setRefreshKeyState] =
+  const [refreshToken, setRefreshTokenState] =
     useState<string | null>(null);
 
   const [userName, setUserNameState] =
@@ -55,39 +55,35 @@ export const AuthProvider = ({
 
     try {
       // Remember Me authentication
-      const savedToken =
-        localStorage.getItem("token");
+      const savedAccessToken =
+        localStorage.getItem("accessToken");
 
-      const savedRefreshKey =
-        localStorage.getItem("refreshKey");
+      const savedRefreshToken =
+        localStorage.getItem("refreshToken");
 
       const savedUserName =
         localStorage.getItem("userName");
 
       // Session authentication
-      const sessionToken =
-        sessionStorage.getItem("token");
+      const sessionAccessToken =
+        sessionStorage.getItem("accessToken");
 
-      const sessionRefreshKey =
-        sessionStorage.getItem("refreshKey");
+      const sessionRefreshToken =
+        sessionStorage.getItem("refreshToken");
 
       const sessionUserName =
         sessionStorage.getItem("userName");
 
-      setTokenState(
-        savedToken || sessionToken || null
+      setAccessTokenState(
+        savedAccessToken || sessionAccessToken || null
       );
 
-      setRefreshKeyState(
-        savedRefreshKey ||
-          sessionRefreshKey ||
-          null
+      setRefreshTokenState(
+        savedRefreshToken || sessionRefreshToken || null
       );
 
       setUserNameState(
-        savedUserName ||
-          sessionUserName ||
-          null
+        savedUserName || sessionUserName || null
       );
     } catch (error) {
       console.error(
@@ -95,72 +91,72 @@ export const AuthProvider = ({
         error
       );
 
-      setTokenState(null);
-      setRefreshKeyState(null);
+      setAccessTokenState(null);
+      setRefreshTokenState(null);
       setUserNameState(null);
     }
   }, []);
 
   // ==========================================
-  // SET TOKEN
+  // SET ACCESS TOKEN
   // ==========================================
 
-  const setToken = (
+  const setAccessToken = (
     newToken: string | null,
     rememberMe: boolean
   ) => {
     if (typeof window !== "undefined") {
       // Remove old values first
-      localStorage.removeItem("token");
-      sessionStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
+      sessionStorage.removeItem("accessToken");
 
       if (newToken) {
         if (rememberMe) {
           localStorage.setItem(
-            "token",
+            "accessToken",
             newToken
           );
         } else {
           sessionStorage.setItem(
-            "token",
+            "accessToken",
             newToken
           );
         }
       }
     }
 
-    setTokenState(newToken);
+    setAccessTokenState(newToken);
   };
 
   // ==========================================
-  // SET REFRESH KEY
+  // SET REFRESH TOKEN
   // ==========================================
 
-  const setRefreshKey = (
-    newRefreshKey: string | null,
+  const setRefreshToken = (
+    newRefreshToken: string | null,
     rememberMe: boolean
   ) => {
     if (typeof window !== "undefined") {
       // Remove old values first
-      localStorage.removeItem("refreshKey");
-      sessionStorage.removeItem("refreshKey");
+      localStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("refreshToken");
 
-      if (newRefreshKey) {
+      if (newRefreshToken) {
         if (rememberMe) {
           localStorage.setItem(
-            "refreshKey",
-            newRefreshKey
+            "refreshToken",
+            newRefreshToken
           );
         } else {
           sessionStorage.setItem(
-            "refreshKey",
-            newRefreshKey
+            "refreshToken",
+            newRefreshToken
           );
         }
       }
     }
 
-    setRefreshKeyState(newRefreshKey);
+    setRefreshTokenState(newRefreshToken);
   };
 
   // ==========================================
@@ -201,13 +197,13 @@ export const AuthProvider = ({
   const logout = () => {
     if (typeof window !== "undefined") {
       // Local storage
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshKey");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
       localStorage.removeItem("userName");
 
       // Session storage
-      sessionStorage.removeItem("token");
-      sessionStorage.removeItem("refreshKey");
+      sessionStorage.removeItem("accessToken");
+      sessionStorage.removeItem("refreshToken");
       sessionStorage.removeItem("userName");
 
       // Existing application auth values
@@ -229,8 +225,8 @@ export const AuthProvider = ({
       clearSession();
     }
 
-    setTokenState(null);
-    setRefreshKeyState(null);
+    setAccessTokenState(null);
+    setRefreshTokenState(null);
     setUserNameState(null);
   };
 
@@ -241,11 +237,11 @@ export const AuthProvider = ({
   return (
     <AuthContext.Provider
       value={{
-        token,
-        refreshKey,
+        accessToken,
+        refreshToken,
         userName,
-        setToken,
-        setRefreshKey,
+        setAccessToken,
+        setRefreshToken,
         setUserName,
         logout,
       }}

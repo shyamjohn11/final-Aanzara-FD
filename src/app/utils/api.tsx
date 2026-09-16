@@ -14,12 +14,12 @@ const useApi = () => {
    */
   const getToken = (): string => {
     if (typeof window === "undefined") {
-      return authContext?.token ?? "";
+      return authContext?.accessToken ?? "";
     }
 
     return (
-      window.localStorage.getItem("token") ??
-      authContext?.token ??
+      window.localStorage.getItem("accessToken") ??
+      authContext?.accessToken ??
       ""
     );
   };

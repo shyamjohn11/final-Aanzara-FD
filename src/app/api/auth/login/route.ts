@@ -23,6 +23,20 @@ function getUsers() {
   }
 }
 
+function generateJwt(userId: string, email: string, accountType: string): string {
+  const payload = JSON.stringify({
+    userId,
+    email,
+    accountType,
+    role: accountType || "customer",
+  });
+  // Simplified JWT-like token for demo; replace with real JWT signing in production
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const claims = btoa(payload);
+  const signature = btoa("signature");
+  return `${header}.${claims}.${signature}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -52,7 +66,7 @@ export async function POST(request: NextRequest) {
     const user = users.find(
       (item: any) =>
         (
-          item.email?.toLowerCase() ===
+          item.email?.toLowerCase ===
             loginValue ||
           item.mobile === email.trim()
         ) &&
@@ -84,6 +98,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const accessToken = generateJwt(user.id, user.email, user.accountType || "customer");
+    const refreshToken = "ref_" + Date.now() + "_" + user.id;
+
     const response = NextResponse.json({
       success: true,
       message: "Login successful.",
@@ -94,6 +111,8 @@ export async function POST(request: NextRequest) {
         email: user.email,
         accountType: user.accountType,
       },
+      accessToken,
+      refreshToken,
     });
 
     response.cookies.set(
