@@ -8,6 +8,7 @@ import {
   Package,
   BadgePercent,
   Store,
+  Warehouse,
   UserRoundCheck,
   ShoppingBag,
   Users,
@@ -68,7 +69,7 @@ const MENU_ITEMS: MenuItem[] = [
      CATALOG
   ========================================================== */
 
-  {
+ {
     label: "Catalog",
     icon: Package,
     children: [
@@ -87,10 +88,6 @@ const MENU_ITEMS: MenuItem[] = [
       {
         label: "Products",
         href: "/admin/products",
-      },
-      {
-        label: "Bulk Product Import",
-        href: "/admin/products/bulk-import",
       },
       {
         label: "Inventory",
@@ -147,6 +144,16 @@ const MENU_ITEMS: MenuItem[] = [
         href: "/admin/store-offers",
       },
     ],
+  },
+
+  /* ==========================================================
+     WAREHOUSE
+  ========================================================== */
+
+  {
+    label: "Warehouse",
+    href: "/admin/warehouse",
+    icon: Warehouse,
   },
 
   /* ==========================================================
