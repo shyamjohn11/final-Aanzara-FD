@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { toast } from "react-toastify";
 import { Button } from "@nextui-org/react";
-import {
-  ArrowLeft,
-  Download,
-  FileText,
-  Package,
-  X,
-} from "lucide-react";
+import { Download, FileText, Package, X, ArrowLeft } from "lucide-react";
 
 type ImportError = {
   rowNumber: number;
@@ -91,10 +85,8 @@ export default function BulkImportPage() {
   const downloadTemplate = async () => {
     try {
       const response = await api.get(
-        "/products/bulk-import/template",
-        {
-          responseType: "blob",
-        }
+        "/api/admin/products/bulk-import/template",
+        { responseType: "blob", }
       );
 
       const blob = response.data as Blob;
@@ -145,7 +137,7 @@ export default function BulkImportPage() {
       formData.append("file", file);
 
       const response = await api.post(
-        "/products/bulk-import",
+        "/api/admin/products/bulk-import",
         formData,
         {
           headers: {
@@ -342,6 +334,7 @@ export default function BulkImportPage() {
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2"
+              disabled={isImporting}
             >
               <FileText size={16} />
               Select Excel File
@@ -350,6 +343,21 @@ export default function BulkImportPage() {
             <p className="mt-2 text-[10px] text-[color:var(--muted)]">
               Maximum file size: 10 MB. Only .xlsx files are supported.
             </p>
+
+            {/* IMPORT BUTTON - Explicit button to push file to backend */}
+            {file && (
+              <Button
+                variant="solid"
+                size="sm"
+                onClick={handleImport}
+                className="mt-4 w-full bg-[color:var(--primary)] text-white"
+                disabled={isImporting}
+              >
+                {isImporting
+                  ? "Importing..."
+                  : "Import Products"}
+              </Button>
+            )}
           </div>
 
           {/* IMPORT RESULT */}
@@ -571,54 +579,45 @@ export default function BulkImportPage() {
                   <div>
                     <span className="font-medium">
                       Product Name
-                    </span>{" "}
-                    - Product name
+                    </span>{" "} - Product name
                   </div>
 
                   <div>
                     <span className="font-medium">
                       Category
-                    </span>{" "}
-                    - Category name
+                    </span>{" "} - Category name
                   </div>
 
                   <div>
                     <span className="font-medium">
                       Sub-Category
-                    </span>{" "}
-                    - Sub-category name
+                    </span>{" "} - Sub-category name
                   </div>
 
                   <div>
-                    <span className="font-medium">Brand</span> -
-                    Brand name
+                    <span className="font-medium">Brand</span> - Brand name
                   </div>
 
                   <div>
                     <span className="font-medium">
                       Description
-                    </span>{" "}
-                    - Product description
+                    </span>{" "} - Product description
                   </div>
 
                   <div>
-                    <span className="font-medium">Price</span> -
-                    Product price
+                    <span className="font-medium">Price</span> - Product price
                   </div>
 
                   <div>
-                    <span className="font-medium">GST %</span> -
-                    GST percentage
+                    <span className="font-medium">GST %</span> - GST percentage
                   </div>
 
                   <div>
-                    <span className="font-medium">Stock</span> -
-                    Initial stock quantity
+                    <span className="font-medium">Stock</span> - Initial stock quantity
                   </div>
 
                   <div>
-                    <span className="font-medium">Status</span> -
-                    active/inactive
+                    <span className="font-medium">Status</span> - active/inactive
                   </div>
                 </div>
               </div>
