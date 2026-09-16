@@ -20,14 +20,17 @@ export default function ContactPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* TOP BAR */}
-      <TopBar />
+      {/* STICKY TOP: TOPBAR + HEADER + MAIN NAV */}
+      <div className="sticky top-0 z-50 bg-white">
+        {/* TOP BAR */}
+        <TopBar />
 
-      {/* HEADER */}
-      <Header onMenuClick={() => setNavOpen(true)} />
+        {/* HEADER */}
+        <Header onMenuClick={() => setNavOpen(true)} />
 
-      {/* MOBILE / MAIN NAV */}
-      <MainNav open={navOpen} onClose={() => setNavOpen(false)} />
+        {/* MOBILE / MAIN NAV */}
+        <MainNav open={navOpen} onClose={() => setNavOpen(false)} />
+      </div>
 
       {/* HERO */}
       <ContactHero />

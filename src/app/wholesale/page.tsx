@@ -28,22 +28,27 @@ export default function WholesalePage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* =========================
-          TOP BAR
+          STICKY TOP: TOPBAR + HEADER + MAIN NAV
       ========================== */}
-      <TopBar />
+      <div className="sticky top-0 z-50 bg-white">
+        {/* =========================
+            TOP BAR
+        ========================== */}
+        <TopBar />
 
-      {/* =========================
-          HEADER
-      ========================== */}
-      <Header onMenuClick={handleOpenMenu} />
+        {/* =========================
+            HEADER
+        ========================== */}
+        <Header onMenuClick={handleOpenMenu} />
 
-      {/* =========================
-          MAIN NAVIGATION
-      ========================== */}
-      <MainNav
-        open={navOpen}
-        onClose={handleCloseMenu}
-      />
+        {/* =========================
+            MAIN NAVIGATION
+        ========================== */}
+        <MainNav
+          open={navOpen}
+          onClose={handleCloseMenu}
+        />
+      </div>
 
       {/* =========================
           MAIN CONTENT

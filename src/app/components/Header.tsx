@@ -13,6 +13,7 @@ import {
   UserRound,
   Package,
   LogOut,
+  CheckCheck,
 } from "lucide-react";
 
 import {
@@ -43,6 +44,69 @@ type AanzaraUser = {
   accountType?: string;
   loginMethod?: string;
 };
+
+type AlertNotification = {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+};
+
+/* =========================================================
+   MOCK NOTIFICATIONS
+   TODO: replace with a real API call (e.g. GET /api/notifications)
+   once the backend endpoint is ready. Keep the same shape
+   (id, title, message, time, read) so the dropdown below
+   doesn't need to change.
+========================================================= */
+
+const MOCK_NOTIFICATIONS: AlertNotification[] = [
+  {
+    id: "n1",
+    title: "Order Shipped",
+    message: "Your order #AZ10234 has been dispatched.",
+    time: "2h ago",
+    read: false,
+  },
+  {
+    id: "n2",
+    title: "Price Drop",
+    message: "An item in your wishlist just got cheaper.",
+    time: "5h ago",
+    read: false,
+  },
+  {
+    id: "n3",
+    title: "Welcome to Aanzara",
+    message: "Explore wholesale pricing on top FMCG brands.",
+    time: "1d ago",
+    read: true,
+  },
+  {
+    id: "n4",
+    title: "Bulk Quote Approved",
+    message: "Your quote request #BQ4821 has been approved.",
+    time: "2d ago",
+    read: true,
+  },
+  {
+    id: "n5",
+    title: "New Arrivals",
+    message: "Fresh stock just landed in Wholesale.",
+    time: "3d ago",
+    read: true,
+  },
+  {
+    id: "n6",
+    title: "Payment Received",
+    message: "Payment for invoice #INV9021 was confirmed.",
+    time: "4d ago",
+    read: true,
+  },
+];
+
+const ALERTS_PREVIEW_COUNT = 3;
 
 /* =========================================================
    HEADER
@@ -82,6 +146,47 @@ export default function Header({
 
   const [userMenuOpen, setUserMenuOpen] =
     useState(false);
+
+  /* =======================================================
+     ALERTS / NOTIFICATIONS
+  ======================================================= */
+
+  const [notifications, setNotifications] =
+    useState<AlertNotification[]>(MOCK_NOTIFICATIONS);
+
+  const [alertsOpen, setAlertsOpen] =
+    useState(false);
+
+  const [showAllAlerts, setShowAllAlerts] =
+    useState(false);
+
+  const unreadCount = notifications.filter(
+    (item) => !item.read
+  ).length;
+
+  const closeAlerts = () => {
+    setAlertsOpen(false);
+    setShowAllAlerts(false);
+  };
+
+  const toggleAlerts = () => {
+    setUserMenuOpen(false);
+    setAlertsOpen((previous) => !previous);
+  };
+
+  const markAllAsRead = () => {
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, read: true }))
+    );
+  };
+
+  const markOneAsRead = (id: string) => {
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, read: true } : item
+      )
+    );
+  };
 
   /* =========================================================
      LOAD LOGGED-IN USER
@@ -461,48 +566,245 @@ export default function Header({
 
           {/* =================================================
               ALERTS
+              Dynamic dropdown: the red dot only renders when
+              unreadCount > 0. Data is mock for now (see
+              MOCK_NOTIFICATIONS above) — swap in a real API
+              call later without changing this markup.
+              "View all alerts" expands the SAME panel in
+              place (no navigation) to show every notification
+              in the existing scrollable list.
           ================================================= */}
 
-          <Link
-            href="/alerts"
-            aria-label="View alerts"
-            className="
-              relative
-              flex
-              flex-col
-              items-center
-              gap-0.5
-              text-ink-soft
-              transition-colors
-              hover:text-navy
-            "
-          >
+          <div className="relative">
 
-            <Bell
-              size={20}
-              strokeWidth={1.7}
-            />
-
-            <span
+            <button
+              type="button"
+              onClick={toggleAlerts}
+              aria-haspopup="menu"
+              aria-expanded={alertsOpen}
+              aria-label={`Alerts${
+                unreadCount > 0
+                  ? `, ${unreadCount} unread`
+                  : ""
+              }`}
               className="
-                absolute
-                right-0
-                top-0
-                h-2.5
-                w-2.5
-                rounded-full
-                bg-red-500
-                ring-2
-                ring-white
+                relative
+                flex
+                flex-col
+                items-center
+                gap-0.5
+                text-ink-soft
+                transition-colors
+                hover:text-navy
               "
-              aria-hidden="true"
-            />
+            >
 
-            <span className="text-[10.5px]">
-              Alerts
-            </span>
+              <Bell
+                size={20}
+                strokeWidth={1.7}
+              />
 
-          </Link>
+              {unreadCount > 0 && (
+                <span
+                  className="
+                    absolute
+                    right-0
+                    top-0
+                    h-2.5
+                    w-2.5
+                    rounded-full
+                    bg-red-500
+                    ring-2
+                    ring-white
+                  "
+                  aria-hidden="true"
+                />
+              )}
+
+              <span className="text-[10.5px]">
+                Alerts
+              </span>
+
+            </button>
+
+            {/* ===============================================
+                ALERTS DROPDOWN
+            =============================================== */}
+
+            {alertsOpen && (
+              <>
+                {/* BACKDROP */}
+
+                <button
+                  type="button"
+                  aria-label="Close alerts menu"
+                  onClick={closeAlerts}
+                  className="
+                    fixed
+                    inset-0
+                    z-40
+                    cursor-default
+                  "
+                />
+
+                {/* PANEL */}
+
+                <div
+                  role="menu"
+                  className="
+                    absolute
+                    right-0
+                    top-[48px]
+                    z-50
+                    w-[340px]
+                    overflow-hidden
+                    rounded-xl
+                    border
+                    border-[#E2E7EE]
+                    bg-white
+                    shadow-xl
+                  "
+                >
+
+                  {/* HEADER */}
+
+                  <div
+                    className="
+                      flex
+                      items-center
+                      justify-between
+                      border-b
+                      border-[#EDF1F5]
+                      px-4
+                      py-3
+                    "
+                  >
+                    <p className="text-[13px] font-bold text-[#33415A]">
+                      Notifications
+                    </p>
+
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        className="
+                          flex
+                          items-center
+                          gap-1
+                          text-[11px]
+                          font-semibold
+                          text-[#1769F5]
+                          hover:underline
+                        "
+                      >
+                        <CheckCheck size={13} />
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* LIST */}
+
+                  <div className="max-h-[320px] overflow-y-auto">
+
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <p className="text-[12px] text-[#8A96A7]">
+                          You're all caught up.
+                        </p>
+                      </div>
+                    ) : (
+                      (showAllAlerts
+                        ? notifications
+                        : notifications.slice(0, ALERTS_PREVIEW_COUNT)
+                      ).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => markOneAsRead(item.id)}
+                          className={`
+                            flex
+                            w-full
+                            items-start
+                            gap-3
+                            border-b
+                            border-[#F1F4F8]
+                            px-4
+                            py-3
+                            text-left
+                            transition
+                            hover:bg-[#F8FAFC]
+                            ${
+                              item.read
+                                ? ""
+                                : "bg-[#F5F9FF]"
+                            }
+                          `}
+                        >
+                          <span
+                            className={`
+                              mt-1.5
+                              h-2
+                              w-2
+                              shrink-0
+                              rounded-full
+                              ${
+                                item.read
+                                  ? "bg-transparent"
+                                  : "bg-[#1769F5]"
+                              }
+                            `}
+                            aria-hidden="true"
+                          />
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12.5px] font-semibold text-[#33415A]">
+                              {item.title}
+                            </p>
+
+                            <p className="mt-0.5 line-clamp-2 text-[11.5px] text-[#71809B]">
+                              {item.message}
+                            </p>
+
+                            <p className="mt-1 text-[10px] text-[#9AA5B4]">
+                              {item.time}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+
+                  </div>
+
+                  {/* FOOTER */}
+
+                  {!showAllAlerts && notifications.length > ALERTS_PREVIEW_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllAlerts(true)}
+                      className="
+                        block
+                        w-full
+                        border-t
+                        border-[#EDF1F5]
+                        px-4
+                        py-3
+                        text-center
+                        text-[12px]
+                        font-semibold
+                        text-[#1769F5]
+                        hover:bg-[#F8FAFC]
+                      "
+                    >
+                      View all alerts
+                    </button>
+                  )}
+
+                </div>
+              </>
+            )}
+
+          </div>
 
           {/* =================================================
               USER ACCOUNT
@@ -613,12 +915,13 @@ export default function Header({
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setAlertsOpen(false);
                   setUserMenuOpen(
                     (previous) =>
                       !previous
-                  )
-                }
+                  );
+                }}
                 aria-expanded={
                   userMenuOpen
                 }
@@ -713,8 +1016,7 @@ export default function Header({
                     className="
                       border-b
                       border-[#EDF1F5]
-                      px-4
-                      py-4
+                      p-4
                     "
                   >
 
