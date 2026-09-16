@@ -100,9 +100,9 @@ export default function AccountSidebar({
     );
     clearSession();
 
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("aanzara-profile");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userName");
 
     router.push("/login");
   };

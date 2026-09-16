@@ -467,6 +467,22 @@ export const productsApi = {
       `/api/v1/products/category/${categoryId}?page=${page}&pageSize=${pageSize}`
     );
   },
+
+  // B3 GET /api/admin/products/bulk-import/template — download Excel template
+  downloadBulkProductTemplate() {
+    return api.get("/api/admin/products/bulk-import/template", {
+      responseType: "blob",
+    });
+  },
+
+  // B4 POST /api/admin/products/bulk-import — import products from Excel file
+  bulkImportProducts(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/api/admin/products/bulk-import", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
 };
 
 // ============================================================
