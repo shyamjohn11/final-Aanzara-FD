@@ -13,24 +13,23 @@ import IndustrySolutions from "@/app/components/Dashboard/IndustrySolutions";
 import Testimonials from "@/app/components/Dashboard/Testimonials";
 import NewsletterCentered from "@/app/components/Dashboard/NewsletterCentered";
 import Footer from "@/app/components/Footer";
-import DashboardIntroOverlay from "@/app/components/Dashboard/DashboardIntroOverlay";
-
 
 export default function DashboardPage() {
   const [navOpen, setNavOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <DashboardIntroOverlay />
 
-      <TopBar />
+      <div className="sticky top-0 z-50 bg-white">
+        <TopBar />
 
-      <Header onMenuClick={() => setNavOpen(true)} />
+        <Header onMenuClick={() => setNavOpen(true)} />
 
-      <MainNav
-        open={navOpen}
-        onClose={() => setNavOpen(false)}
-      />
+        <MainNav
+          open={navOpen}
+          onClose={() => setNavOpen(false)}
+        />
+      </div>
 
       <FeatureStrip />
 

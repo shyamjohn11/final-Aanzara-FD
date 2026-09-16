@@ -192,25 +192,31 @@ export default function CategoryPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* =================================================
-          HEADER
+          STICKY TOP: HEADER + MAIN NAV
       ================================================= */}
 
-      <Header
-        onMenuClick={
-          handleOpenNavigation
-        }
-      />
+      <div className="sticky top-0 z-50 bg-white">
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
-      {/* =================================================
-          MAIN NAVIGATION
-      ================================================= */}
+        <Header
+          onMenuClick={
+            handleOpenNavigation
+          }
+        />
 
-      <MainNav
-        open={navOpen}
-        onClose={
-          handleCloseNavigation
-        }
-      />
+        {/* =================================================
+            MAIN NAVIGATION
+        ================================================= */}
+
+        <MainNav
+          open={navOpen}
+          onClose={
+            handleCloseNavigation
+          }
+        />
+      </div>
 
       {/* =================================================
           MAIN CONTENT

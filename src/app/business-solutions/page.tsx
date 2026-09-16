@@ -34,25 +34,31 @@ export default function BusinessSolutionsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* =================================================
-          TOP BAR
+          STICKY TOP: TOPBAR + HEADER + MAIN NAV
       ================================================= */}
 
-      <TopBar />
+      <div className="sticky top-0 z-50 bg-white">
+        {/* =================================================
+            TOP BAR
+        ================================================= */}
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+        <TopBar />
 
-      <Header onMenuClick={handleOpenNav} />
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
-      {/* =================================================
-          MOBILE / MAIN NAV
-      ================================================= */}
+        <Header onMenuClick={handleOpenNav} />
 
-      <MainNav
-        open={navOpen}
-        onClose={handleCloseNav}
-      />
+        {/* =================================================
+            MOBILE / MAIN NAV
+        ================================================= */}
+
+        <MainNav
+          open={navOpen}
+          onClose={handleCloseNav}
+        />
+      </div>
 
       {/* =================================================
           MAIN CONTENT
