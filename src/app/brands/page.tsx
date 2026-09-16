@@ -568,23 +568,26 @@ export default function BrandsPage() {
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      {/* TOP BAR */}
-      <TopBar />
+      {/* STICKY TOP: TOPBAR + HEADER + MOBILE NAV */}
+      <div className="sticky top-0 z-50 bg-paper">
+        {/* TOP BAR */}
+        <TopBar />
 
-      {/* HEADER */}
-      <Header
-        onMenuClick={() =>
-          setMobileMenuOpen(true)
-        }
-      />
+        {/* HEADER */}
+        <Header
+          onMenuClick={() =>
+            setMobileMenuOpen(true)
+          }
+        />
 
-      {/* MOBILE NAV */}
-      <MainNav
-        open={mobileMenuOpen}
-        onClose={() =>
-          setMobileMenuOpen(false)
-        }
-      />
+        {/* MOBILE NAV */}
+        <MainNav
+          open={mobileMenuOpen}
+          onClose={() =>
+            setMobileMenuOpen(false)
+          }
+        />
+      </div>
 
       <main className="mx-auto w-full max-w-[1360px] px-4 py-6 sm:px-6">
                 {/* =================================================

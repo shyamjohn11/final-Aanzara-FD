@@ -192,22 +192,28 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink">
       {/* =====================================================
-          TOP BAR
+          STICKY TOP: TOPBAR + HEADER + MOBILE NAV
       ====================================================== */}
 
-      <TopBar />
+      <div className="sticky top-0 z-50 bg-[#f8fafc]">
+        {/* =====================================================
+            TOP BAR
+        ====================================================== */}
 
-      {/* =====================================================
-          HEADER
-      ====================================================== */}
+        <TopBar />
 
-      <Header onMenuClick={() => setMobileMenuOpen(true)} />
+        {/* =====================================================
+            HEADER
+        ====================================================== */}
 
-      {/* =====================================================
-          MOBILE NAV
-      ====================================================== */}
+        <Header onMenuClick={() => setMobileMenuOpen(true)} />
 
-      <MainNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+        {/* =====================================================
+            MOBILE NAV
+        ====================================================== */}
+
+        <MainNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      </div>
 
       {/* =====================================================
           MAIN

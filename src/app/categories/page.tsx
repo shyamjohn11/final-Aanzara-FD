@@ -87,31 +87,37 @@ export default function AllCategoriesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* =================================================
-          TOP BAR
+          STICKY TOP: TOPBAR + HEADER + MAIN NAV
       ================================================= */}
 
-      <TopBar />
+      <div className="sticky top-0 z-50 bg-white">
+        {/* =================================================
+            TOP BAR
+        ================================================= */}
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+        <TopBar />
 
-      <Header
-        onMenuClick={
-          handleOpenNavigation
-        }
-      />
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
-      {/* =================================================
-          MAIN NAVIGATION
-      ================================================= */}
+        <Header
+          onMenuClick={
+            handleOpenNavigation
+          }
+        />
 
-      <MainNav
-        open={safeNavOpen}
-        onClose={
-          handleCloseNavigation
-        }
-      />
+        {/* =================================================
+            MAIN NAVIGATION
+        ================================================= */}
+
+        <MainNav
+          open={safeNavOpen}
+          onClose={
+            handleCloseNavigation
+          }
+        />
+      </div>
 
       {/* =================================================
           MAIN CONTENT
