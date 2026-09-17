@@ -171,6 +171,24 @@ export default function AdminWarehousePage() {
     }
   };
 
+  // PATCH /api/admin/warehouses/{warehouseId}/status (activate/deactivate)
+  const toggleStatus = async (id: string, current: WarehouseStatus) => {
+    if (!id) return;
+    const next: WarehouseStatus =
+      current === "Active" ? "Inactive" : "Active";
+    setWarehouses((rows) =>
+      rows.map((w) => (w.id === id ? { ...w, status: next } : w))
+    );
+    try {
+      await warehousesApi.setStatus(id, next);
+    } catch (err) {
+      setError(
+        extractErrorMessage(err, "Failed to update warehouse status. Please try again.")
+      );
+      await fetchWarehouses();
+    }
+  };
+
   useEffect(() => {
     fetchWarehouses();
   }, []);
@@ -585,12 +603,17 @@ export default function AdminWarehousePage() {
 
                           <td className="px-5 py-4">
 
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[8px] font-semibold ${badge}`}
+                            <button
+                              type="button"
+                              title={`Mark ${warehouse.status === "Active" ? "Inactive" : "Active"}`}
+                              onClick={() =>
+                                toggleStatus(warehouse.id, warehouse.status)
+                              }
+                              className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-[8px] font-semibold transition hover:opacity-80 ${badge}`}
                             >
                               <StatusIcon size={10} />
                               {warehouse.status}
-                            </span>
+                            </button>
 
                           </td>
 

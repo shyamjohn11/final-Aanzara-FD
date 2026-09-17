@@ -1,7 +1,7 @@
 // File: src/app/admin/products/page.tsx
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { extractErrorMessage } from "@/app/api/api";
@@ -82,6 +82,10 @@ type ProductErrors = Partial<Record<
   string
 >>;
 
+type SortBy = "productName" | "price" | "newest" | "oldest" | "";
+
+const SEARCH_DEBOUNCE_MS = 400;
+
 /* ============================================================
    PAGE
 ============================================================ */
@@ -141,40 +145,70 @@ export default function ProductsAdminPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  type SortBy = "productName" | "price" | "newest" | "oldest" | "";
   const [sortDescending, setSortDescending] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>("");
+  // Background refresh indicator (table keeps old rows; no full spinner).
+  const [isFetching, setIsFetching] = useState(false);
+  // Debounced search text actually sent to the API.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Monotonic id: only the latest request may write state (kills races).
+  const requestIdRef = useRef(0);
+  // True after the first successful load; distinguishes initial
+  // full-page spinner from silent background refreshes.
+  const hasLoadedRef = useRef(false);
 
-  const fetchProducts = async () => {
-    try {
+  // Debounce keystrokes so typing does not fire a request per character.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Stable across renders: depending on it cannot cause a fetch loop.
+  const fetchProducts = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+    if (isInitial) {
       setLoading(true);
-      setError("");
+    } else {
+      setIsFetching(true);
+    }
+    setError("");
+    try {
       // GET /api/v1/products?page=&pageSize=&search=&categoryId=&status=&sortBy=&sortDescending=
       const response = await productsApi.list({
         page,
         pageSize,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         categoryId: categoryFilter !== "All" ? categoryFilter : undefined,
         status: statusFilter !== "All" ? statusFilter : undefined,
         sortBy: sortBy || undefined,
         sortDescending,
       });
+      // A newer request has started; drop this stale response.
+      if (requestIdRef.current !== requestId) return;
       const data = response.data as ProductApiResponse;
       setProducts(data.items || []);
       setTotalCount(data.totalCount || 0);
       setTotalPages(data.totalPages || 1);
+      hasLoadedRef.current = true;
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       const message = extractErrorMessage(err, "Failed to load products.");
       setError(message);
       console.error("Error fetching products:", err);
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+        setIsFetching(false);
+      }
     }
-  };
+  }, [page, pageSize, debouncedSearch, categoryFilter, statusFilter, sortBy, sortDescending]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await categoriesApi.list();
       setCategories(
@@ -183,31 +217,27 @@ export default function ProductsAdminPage() {
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
-  };
+  }, []);
 
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     try {
       const response = await brandsApi.list();
       setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
-  };
+  }, []);
 
+  // Reference data loads once on mount.
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
     fetchBrands();
-  }, [
-    fetchProducts,
-    search,
-    categoryFilter,
-    statusFilter,
-    page,
-    pageSize,
-    sortBy,
-    sortDescending,
-  ]);
+  }, [fetchCategories, fetchBrands]);
+
+  // Product list reloads only when a real input changes.
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   /* ==========================================================
      FILTER PRODUCTS
@@ -827,14 +857,20 @@ export default function ProductsAdminPage() {
                 <input
                   type="search"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Search products, SKU, brand..."
                   className="h-full w-full bg-transparent px-2.5 text-[11px] text-[#263A59] outline-none placeholder:text-[#A0AAB8]"
                 />
                 {search && (
                   <button
                     type="button"
-                    onClick={() => setSearch("")}
+                    onClick={() => {
+                      setSearch("");
+                      setPage(1);
+                    }}
                     className="text-[#8995A5]"
                   >
                     <X size={14} />
@@ -845,7 +881,10 @@ export default function ProductsAdminPage() {
               {/* CATEGORY */}
               <select
                 value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
+                onChange={(event) => {
+                  setCategoryFilter(event.target.value);
+                  setPage(1);
+                }}
                 className="h-10 rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] px-3 text-[10px] text-[#5D6C80] outline-none focus:border-[#1769F5]"
               >
                 <option value="All">All Categories</option>
@@ -864,7 +903,10 @@ export default function ProductsAdminPage() {
                     <button
                       key={status}
                       type="button"
-                      onClick={() => setStatusFilter(status)}
+                      onClick={() => {
+                        setStatusFilter(status);
+                        setPage(1);
+                      }}
                       className={`rounded-md px-3 py-1.5 text-[9px] font-semibold transition ${
                         statusFilter === status
                           ? "bg-[#173B7A] text-white"
@@ -896,6 +938,7 @@ export default function ProductsAdminPage() {
                             const newDesc = mappedField === sortBy ? !sortDescending : direction === "desc";
                             setSortBy(mappedField);
                             setSortDescending(newDesc);
+                            setPage(1);
                           }}
                           className={`rounded-md px-3 py-1.5 text-[9px] font-semibold transition ${isActive ? "bg-[#173B7A] text-white" : "text-[#65748A] hover:bg-white"}`}>
                           {sort}
@@ -914,7 +957,11 @@ export default function ProductsAdminPage() {
               <div>
                 <h2 className="text-[13px] font-bold text-[#263650]">All Products</h2>
                 <p className="mt-1 text-[9px] text-[#8A96A7]">
-                  {loading ? "Loading..." : `${filteredProducts.length} products found`}
+                  {loading
+                    ? "Loading..."
+                    : isFetching
+                      ? "Updating..."
+                      : `${filteredProducts.length} products found`}
                 </p>
               </div>
 
