@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   ChevronRight,
@@ -23,18 +22,18 @@ import MainNav from "@/app/MainNav";
 import { useCart } from "@/app/context/cartcontext";
 import { useWishlist } from "@/app/context/wishlistcontext";
 
+import ShoppingListSavePopup from "@/app/components/ShoppingListSavePopup";
+
 import { productsApi } from "@/app/api/services";
 import { mapProductSummaries } from "@/app/api/productmap";
 import { type Product } from "@/app/data/products";
 
 export default function RetailPage() {
-  const router = useRouter();
-
   /* =========================================================
      STATE
   ========================================================= */
 
-const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -43,8 +42,18 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
 
   /* =========================================================
-     PRODUCTS — from the catalog API (admin-managed catalog)
-   ========================================================= */
+     SHOPPING LIST POPUP
+  ========================================================= */
+
+  const [showShoppingListPopup, setShowShoppingListPopup] =
+    useState(false);
+
+  const [shoppingListProduct, setShoppingListProduct] =
+    useState<Product | null>(null);
+
+  /* =========================================================
+     PRODUCTS — from the catalog API
+  ========================================================= */
 
   const filterToStatus: Record<string, string> = {
     All: "",
@@ -57,6 +66,8 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     let cancelled = false;
 
     const loadProducts = async () => {
+      setLoading(true);
+
       try {
         const response = await productsApi.list({
           page: 1,
@@ -64,6 +75,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
           search: searchQuery,
           status: filterToStatus[activeFilter],
         });
+
         const mapped = mapProductSummaries(response.data);
 
         if (!cancelled) {
@@ -105,7 +117,12 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
      STOCK FILTERS
   ========================================================= */
 
-  const stockFilters = ["All", "In Stock", "Low Stock", "Out of Stock"];
+  const stockFilters = [
+    "All",
+    "In Stock",
+    "Low Stock",
+    "Out of Stock",
+  ];
 
   /* =========================================================
      FILTERED PRODUCTS
@@ -125,7 +142,8 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
         return product.stockStatus === "low_stock";
       }
 
-      // In Stock: everything purchasable (low stock is still purchasable).
+      // In Stock: everything purchasable.
+      // Low stock is still purchasable.
       return product.inStock !== false;
     });
   }, [products, activeFilter]);
@@ -145,7 +163,18 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleWishlist = (product: Product) => {
     try {
+      const wasSaved = isInWishlist(product.id);
+
       toggleWishlist(product);
+
+      /*
+       * Show Shopping List popup only when the product
+       * is newly added to the Wishlist.
+       */
+      if (!wasSaved) {
+        setShoppingListProduct(product);
+        setShowShoppingListPopup(true);
+      }
     } catch (error) {
       console.error("Failed to update wishlist:", error);
     }
@@ -159,6 +188,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     if (product.inStock === false) {
       return;
     }
+
     addToCart(product, 1);
   };
 
@@ -170,6 +200,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     if (product.inStock === false) {
       return;
     }
+
     updateQty(product.id, quantity + 1);
   };
 
@@ -182,6 +213,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
       removeFromCart(product.id);
       return;
     }
+
     updateQty(product.id, quantity - 1);
   };
 
@@ -195,24 +227,18 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
           STICKY TOP: TOPBAR + HEADER + MOBILE NAV
       ====================================================== */}
 
-      <div className="sticky top-0 z-50">
-        {/* =====================================================
-            TOP BAR
-        ====================================================== */}
-
+      <div className="sticky top-0 z-50 bg-[#f8fafc]">
+        {/* TOP BAR */}
         <TopBar />
 
-        {/* =====================================================
-            HEADER
-        ====================================================== */}
-
+        {/* HEADER */}
         <Header onMenuClick={() => setMobileMenuOpen(true)} />
 
-        {/* =====================================================
-            MOBILE NAV
-        ====================================================== */}
-
-        <MainNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+        {/* MOBILE NAV */}
+        <MainNav
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        />
       </div>
 
       {/* =====================================================
@@ -220,17 +246,16 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
       ====================================================== */}
 
       <main className="mx-auto max-w-[1360px] px-4 py-6 sm:px-6">
-
         {/* ===================================================
-            RETAIL HERO - Clean Flat Design
+            RETAIL HERO
         ==================================================== */}
 
         <section
           className="
             relative
+            min-h-[400px]
             overflow-hidden
             rounded-2xl
-            min-h-[400px]
             shadow-md
           "
         >
@@ -253,7 +278,12 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
             className="absolute inset-0"
             style={{
               background: `
-                linear-gradient(to left, rgba(8, 14, 17, 0.94) 0%, rgba(0, 0, 0, 0.53) 60%, rgba(0, 0, 0, 0.13) 100%)
+                linear-gradient(
+                  to left,
+                  rgba(8, 14, 17, 0.94) 0%,
+                  rgba(0, 0, 0, 0.53) 60%,
+                  rgba(0, 0, 0, 0.13) 100%
+                )
               `,
             }}
           />
@@ -274,10 +304,8 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
               lg:px-20
             "
           >
-            {/* Inner container holding all text elements */}
             <div className="flex max-w-[680px] flex-col items-end text-right">
-
-              {/* 1. Badge */}
+              {/* BADGE */}
               <div
                 className="
                   inline-flex
@@ -296,7 +324,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                 Special Offers
               </div>
 
-              {/* 2. Main Heading */}
+              {/* HEADING */}
               <h1
                 className="
                   mt-4
@@ -316,30 +344,35 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                 </span>
               </h1>
 
-              {/* 3. Features Grid */}
+              {/* FEATURES */}
               <div
                 className="
                   mt-5
                   grid
+                  w-full
+                  max-w-[620px]
                   grid-cols-2
                   gap-2
                   sm:grid-cols-4
                   sm:gap-3
-                  w-full
-                  max-w-[620px]
                 "
               >
-                {["Wide Range", "Great Quality", "Best Prices", "For Every Home"].map((label) => (
+                {[
+                  "Wide Range",
+                  "Great Quality",
+                  "Best Prices",
+                  "For Every Home",
+                ].map((label) => (
                   <div
                     key={label}
                     className="
                       rounded-lg
+                      border
+                      border-white/20
                       bg-white/10
                       px-3
                       py-2
                       text-center
-                      border
-                      border-white/20
                     "
                   >
                     <p className="text-[11px] font-bold text-white sm:text-[12px]">
@@ -349,7 +382,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                 ))}
               </div>
 
-              {/* 4. Description */}
+              {/* DESCRIPTION */}
               <p
                 className="
                   mt-4
@@ -361,16 +394,19 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                   sm:leading-6
                 "
               >
-                Shop groceries, beverages, personal care, household essentials and more from trusted brands.
+                Shop groceries, beverages, personal care, household
+                essentials and more from trusted brands.
               </p>
 
-              {/* 5. Buttons */}
+              {/* BUTTONS */}
               <div className="mt-5 flex flex-wrap justify-end gap-3">
-                {/* Primary Button */}
+                {/* SHOP NOW */}
                 <button
                   type="button"
                   onClick={() =>
-                    document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })
+                    document
+                      .getElementById("products")
+                      ?.scrollIntoView({ behavior: "smooth" })
                   }
                   className="
                     group
@@ -390,17 +426,24 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                   "
                 >
                   Shop Now
+
                   <ChevronRight
                     size={14}
-                    className="transition-transform duration-200 group-hover:translate-x-0.5"
+                    className="
+                      transition-transform
+                      duration-200
+                      group-hover:translate-x-0.5
+                    "
                   />
                 </button>
 
-                {/* Secondary Button */}
+                {/* EXPLORE CATEGORIES */}
                 <button
                   type="button"
                   onClick={() =>
-                    document.getElementById("categories")?.scrollIntoView({ behavior: "smooth" })
+                    document
+                      .getElementById("categories")
+                      ?.scrollIntoView({ behavior: "smooth" })
                   }
                   className="
                     group
@@ -422,30 +465,45 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                   "
                 >
                   Explore Categories
+
                   <ChevronRight
                     size={14}
-                    className="transition-transform duration-200 group-hover:translate-x-0.5"
+                    className="
+                      transition-transform
+                      duration-200
+                      group-hover:translate-x-0.5
+                    "
                   />
                 </button>
               </div>
 
-              {/* 6. Trust Indicators */}
+              {/* TRUST INDICATORS */}
               <div className="mt-5 flex flex-wrap items-center justify-end gap-4">
                 {[
                   { label: "1000+ Brands" },
                   { label: "Free Delivery" },
                   { label: "Secure Payments" },
                 ].map((item, idx) => (
-                  <div key={item.label} className="flex items-center gap-4">
+                  <div
+                    key={item.label}
+                    className="flex items-center gap-4"
+                  >
                     <div className="flex items-center gap-2">
-                      <span className="text-[#A8D8FF] text-sm">✓</span>
-                      <span className="text-[10px] text-white/80 sm:text-[11px]">{item.label}</span>
+                      <span className="text-sm text-[#A8D8FF]">
+                        ✓
+                      </span>
+
+                      <span className="text-[10px] text-white/80 sm:text-[11px]">
+                        {item.label}
+                      </span>
                     </div>
-                    {idx < 2 && <div className="hidden h-4 w-px bg-white/20 sm:block" />}
+
+                    {idx < 2 && (
+                      <div className="hidden h-4 w-px bg-white/20 sm:block" />
+                    )}
                   </div>
                 ))}
               </div>
-
             </div>
           </div>
         </section>
@@ -514,28 +572,50 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
             "
           >
             <div>
-              <h2 className="text-[26px] font-bold">Best Deals Right Now</h2>
+              <h2 className="text-[26px] font-bold">
+                Best Deals Right Now
+              </h2>
+
               <p className="mt-1 text-[13px] text-ink-soft">
                 Don&apos;t miss today&apos;s best offers
               </p>
             </div>
 
             {/* SEARCH */}
+
             <div className="mb-3">
-              <label className="sr-only">Search products</label>
+              <label className="sr-only">
+                Search products
+              </label>
+
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products, SKU, brand…"
-                className="w-full rounded-lg border border-line px-3 py-2 focus-outline focus:outline-none focus:border-navy"
+                className="
+                  w-full
+                  rounded-lg
+                  border
+                  border-line
+                  px-3
+                  py-2
+                  focus-outline
+                  focus:border-navy
+                  focus:outline-none
+                "
               />
             </div>
 
             {/* FILTER */}
-            <div id="categories" className="flex gap-2 overflow-x-auto pb-1">
+
+            <div
+              id="categories"
+              className="flex gap-2 overflow-x-auto pb-1"
+            >
               {stockFilters.map((filter) => {
                 const isActive = activeFilter === filter;
+
                 return (
                   <button
                     type="button"
@@ -600,6 +680,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                     "
                   >
                     {/* PRODUCT IMAGE */}
+
                     <div
                       className="
                         relative
@@ -613,6 +694,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       "
                     >
                       {/* DISCOUNT */}
+
                       {product.discount ? (
                         <span
                           className="
@@ -633,6 +715,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       ) : null}
 
                       {/* WISHLIST */}
+
                       <button
                         type="button"
                         aria-label={
@@ -668,7 +751,8 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                         />
                       </button>
 
-                      {/* PRODUCT IMAGE (streaming API URL) or swatch fallback */}
+                      {/* PRODUCT IMAGE */}
+
                       {product.image ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
@@ -698,7 +782,8 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                             shadow-md
                           "
                           style={{
-                            background: product.swatch || undefined,
+                            background:
+                              product.swatch || undefined,
                           }}
                         >
                           {product.brand}
@@ -707,13 +792,16 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                     </div>
 
                     {/* PRODUCT INFO */}
+
                     <div className="p-4">
                       {/* BRAND */}
+
                       <p className="text-[11px] font-semibold text-ink-soft">
                         {product.brand}
                       </p>
 
                       {/* NAME */}
+
                       <h3
                         className="
                           mt-1
@@ -724,19 +812,24 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                         "
                       >
                         {product.name}
-                        {product.pack ? ` (${product.pack})` : ""}
+                        {product.pack
+                          ? ` (${product.pack})`
+                          : ""}
                       </h3>
 
-                      {/* RATING — only when real review data exists */}
+                      {/* RATING / MOQ */}
+
                       {product.rating > 0 ? (
                         <div className="mt-2 flex items-center gap-1">
                           <Star
                             size={14}
                             className="fill-[#fbbf24] text-[#fbbf24]"
                           />
+
                           <span className="text-[11px] font-medium">
                             {product.rating}
                           </span>
+
                           {product.reviews ? (
                             <span className="text-[10px] text-ink-faint">
                               ({product.reviews})
@@ -746,17 +839,21 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       ) : (
                         <div className="mt-2 flex items-center gap-1">
                           <span className="text-[10px] text-ink-faint">
-                            MOQ: {product.moq} unit{product.moq === 1 ? "" : "s"}
+                            MOQ: {product.moq} unit
+                            {product.moq === 1 ? "" : "s"}
                           </span>
                         </div>
                       )}
 
                       {/* PRICE */}
+
                       <div className="mt-3 flex items-end gap-2">
                         <span className="text-[21px] font-bold text-navy">
                           ₹{product.price}
                         </span>
-                        {product.mrp && product.mrp > product.price ? (
+
+                        {product.mrp &&
+                        product.mrp > product.price ? (
                           <span
                             className="
                               pb-1
@@ -771,6 +868,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       </div>
 
                       {/* STOCK */}
+
                       {isOutOfStock ? (
                         <p className="mt-1 text-[10px] font-medium text-[#dc2626]">
                           Out of stock
@@ -782,11 +880,14 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       )}
 
                       {/* CART */}
+
                       {quantity === 0 ? (
                         <button
                           type="button"
                           disabled={isOutOfStock}
-                          onClick={() => handleAddToCart(product)}
+                          onClick={() =>
+                            handleAddToCart(product)
+                          }
                           className="
                             mt-4
                             flex
@@ -807,7 +908,10 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                           "
                         >
                           <ShoppingCart size={16} />
-                          {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+
+                          {isOutOfStock
+                            ? "Out of Stock"
+                            : "Add to Cart"}
                         </button>
                       ) : (
                         <div
@@ -822,10 +926,13 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                           "
                         >
                           {/* DECREASE */}
+
                           <button
                             type="button"
                             aria-label={`Decrease ${product.name} quantity`}
-                            onClick={() => decreaseQty(product, quantity)}
+                            onClick={() =>
+                              decreaseQty(product, quantity)
+                            }
                             className="
                               flex
                               h-10
@@ -840,6 +947,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                           </button>
 
                           {/* QUANTITY */}
+
                           <span
                             className="
                               min-w-[30px]
@@ -852,11 +960,14 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                           </span>
 
                           {/* INCREASE */}
+
                           <button
                             type="button"
                             aria-label={`Increase ${product.name} quantity`}
                             disabled={isOutOfStock}
-                            onClick={() => increaseQty(product, quantity)}
+                            onClick={() =>
+                              increaseQty(product, quantity)
+                            }
                             className="
                               flex
                               h-10
@@ -897,7 +1008,11 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
               role="status"
               aria-live="polite"
             >
-              <ShoppingBag size={36} className="mx-auto text-ink-faint" />
+              <ShoppingBag
+                size={36}
+                className="mx-auto text-ink-faint"
+              />
+
               <h3 className="mt-3 text-lg font-semibold">
                 {loading
                   ? "Loading products…"
@@ -905,6 +1020,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                     ? "Products could not be loaded"
                     : "No products found"}
               </h3>
+
               <p className="mt-1 text-sm text-ink-soft">
                 {loading
                   ? "Fetching the latest catalog from Aanzara."
@@ -914,29 +1030,47 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
                       ? "Products will appear here as soon as they are added to the catalog."
                       : `No products are currently ${activeFilter.toLowerCase()}.`}
               </p>
-              {activeFilter !== "All" && !loading && !loadFailed && (
-                <button
-                  type="button"
-                  onClick={() => setActiveFilter("All")}
-                  className="
-                    mt-4
-                    inline-flex
-                    items-center
-                    gap-1
-                    text-[12px]
-                    font-semibold
-                    text-blue
-                    hover:underline
-                  "
-                >
-                  View all products
-                  <ChevronRight size={14} />
-                </button>
-              )}
+
+              {activeFilter !== "All" &&
+                !loading &&
+                !loadFailed && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilter("All")}
+                    className="
+                      mt-4
+                      inline-flex
+                      items-center
+                      gap-1
+                      text-[12px]
+                      font-semibold
+                      text-blue
+                      hover:underline
+                    "
+                  >
+                    View all products
+                    <ChevronRight size={14} />
+                  </button>
+                )}
             </div>
           )}
         </section>
       </main>
+
+      {/* =====================================================
+          SHOPPING LIST POPUP
+      ====================================================== */}
+
+      {showShoppingListPopup && shoppingListProduct && (
+        <ShoppingListSavePopup
+          productId={shoppingListProduct.id}
+          productName={shoppingListProduct.name}
+          onClose={() => {
+            setShowShoppingListPopup(false);
+            setShoppingListProduct(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -987,7 +1121,10 @@ function Benefit({
 
       <div>
         <h3 className="text-[14px] font-bold">{title}</h3>
-        <p className="mt-1 text-[11px] text-ink-soft">{text}</p>
+
+        <p className="mt-1 text-[11px] text-ink-soft">
+          {text}
+        </p>
       </div>
     </div>
   );

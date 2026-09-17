@@ -9,6 +9,7 @@ import {
   Loader2,
 } from "lucide-react";
 import jsPDF from "jspdf";
+import { toast } from "react-toastify";
 
 // ==========================================
 // PRODUCT TYPE
@@ -1419,9 +1420,7 @@ export default function InvoiceDocumentsCard() {
         error
       );
 
-      alert(
-        "Unable to download invoice PDF."
-      );
+      toast.error("Unable to download invoice PDF.");
     } finally {
       setIsDownloading(false);
     }

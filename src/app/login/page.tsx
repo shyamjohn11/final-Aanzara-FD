@@ -32,7 +32,8 @@ import {
 } from "lucide-react";
 
 import ForgotPasswordForm from "../forgot-password/ForgotPasswordForm";
-import { api, saveSession, resolveUserRole, extractErrorMessage, type LoginPayload, AuthResponse } from '@/app/api/api';
+import { saveSession, resolveUserRole, extractErrorMessage, type LoginPayload, AuthResponse } from '@/app/api/api';
+import { authApi } from "@/app/api/services";
 
 // =============================================================
 // HERO BACKGROUND (LOGIN STATE)
@@ -211,7 +212,7 @@ function LoginPageContent() {
         passphrase: password,
       };
 
-      const response = await api.post<AuthResponse>("/api/v1/auth/login", payload);
+      const response = await authApi.login(payload);
       const authData = response.data;
 
       console.log("Login response:", authData);

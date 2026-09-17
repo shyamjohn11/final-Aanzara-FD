@@ -15,6 +15,7 @@ import {
   hasSession,
   SESSION_CHANGED_EVENT,
 } from "@/app/api/api";
+import { toast } from "react-toastify";
 
 // =====================================================
 // ICONS
@@ -843,9 +844,7 @@ export default function DeliveryAddressSection({
             );
 
             setSaved(false);
-            alert(
-              "Could not save your address. Please try again."
-            );
+            toast.error("Could not save your address. Please try again.");
           } finally {
             setIsSaving(false);
           }

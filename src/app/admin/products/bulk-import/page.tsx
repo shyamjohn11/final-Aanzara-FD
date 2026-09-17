@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import { productsApi } from "@/app/api/services";
 import { toast } from "react-toastify";
 import { Button } from "@nextui-org/react";
-import { ArrowLeft, Download, FileText, Package, X } from "lucide-react";
+import { ArrowLeft, Download, FileText, Package, Upload, X } from "lucide-react";
 
 import AdminSidebar from "@/app/components/Admin/AdminSidebar";
 import AdminHeader from "@/app/components/Admin/AdminHeader";
@@ -27,13 +28,13 @@ type ImportResult = {
 
 const REQUIRED_COLUMNS = [
   "SKU",
-  "Product Name",
+  "ProductName",
   "Category",
-  "Sub-Category",
+  "SubCategory",
   "Brand",
   "Description",
   "Price",
-  "GST %",
+  "GSTPercentage",
   "Stock",
   "Status",
 ];
@@ -45,6 +46,7 @@ export default function BulkImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,12 +96,10 @@ export default function BulkImportPage() {
     toast.success("Excel file selected successfully.");
   };
 
-  // Download Excel template
+  // Download Excel template — GET /api/admin/products/bulk-import/template
   const downloadTemplate = async () => {
     try {
-      const response = await api.get("/products/bulk-import/template", {
-        responseType: "blob",
-      });
+      const response = await productsApi.downloadBulkProductTemplate();
 
       const blob = response.data as Blob;
 
@@ -125,6 +125,39 @@ export default function BulkImportPage() {
     }
   };
 
+  // Export all products to Excel — GET /api/admin/products/bulk-import/export
+  const handleExport = async () => {
+    setIsExporting(true);
+
+    try {
+      const response = await productsApi.exportBulkProducts();
+
+      const blob = response.data as Blob;
+
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `ProductsExport-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Products exported successfully.");
+    } catch (err) {
+      console.error("Bulk export error:", err);
+
+      toast.error(extractErrorMessage(err, "Failed to export products."));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Import products
   const handleImport = async () => {
     if (!file) {
@@ -137,11 +170,8 @@ export default function BulkImportPage() {
     setImportResult(null);
 
     try {
-      const formData = new FormData();
-
-      formData.append("file", file);
-
-      const response = await api.post("/products/bulk-import", formData);
+      // POST /api/admin/products/bulk-import (multipart, field "file")
+      const response = await productsApi.bulkImportProducts(file);
 
       const result: ImportResult = {
         success: response.data?.success ?? true,
@@ -199,11 +229,11 @@ export default function BulkImportPage() {
 
             <div>
               <h1 className="font-sora text-[20px] font-bold text-[#1D2D49] sm:text-[22px]">
-                Bulk Product Import
+                Bulk Import &amp; Export
               </h1>
 
               <p className="text-[11px] text-[#7B8798]">
-                Upload an Excel file to import multiple products at once
+                Upload an Excel file to import products, or export the full catalog
               </p>
             </div>
           </div>
@@ -230,8 +260,39 @@ export default function BulkImportPage() {
 
             <span>/</span>
 
-            <span className="font-medium text-[#253650]">Bulk Import</span>
+            <span className="font-medium text-[#253650]">Bulk Import &amp; Export</span>
           </div>
+
+          {/* EXPORT SECTION */}
+          <section className="mb-5 rounded-2xl border border-[#E4E8EF] bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EAF0FF] text-[#3260B4]">
+                <Upload size={18} />
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <h2 className="font-sora text-[14px] font-semibold text-[#253650]">
+                  Export Products to Excel
+                </h2>
+
+                <p className="text-[11px] text-[#7B8798]">
+                  Download the full product catalog (.xlsx) with the same columns
+                  as the import template — edit it and re-import to update in bulk.
+                </p>
+              </div>
+
+              <Button
+                variant="solid"
+                size="sm"
+                isDisabled={isExporting}
+                onPress={handleExport}
+                className="flex shrink-0 items-center gap-2 bg-[#249357] text-white hover:bg-[#1E7A48] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={14} />
+                {isExporting ? "Exporting..." : "Export Excel"}
+              </Button>
+            </div>
+          </section>
 
           {/* IMPORT SECTION */}
           <section className="rounded-2xl border border-[#E4E8EF] bg-white p-6 shadow-sm">
@@ -301,6 +362,9 @@ export default function BulkImportPage() {
 
                     <p className="text-[11px] text-[#7B8798]">
                       Maximum file size: 10 MB. Only .xlsx files are supported.
+                      Accepts the import template or a supplier price-list
+                      (PRODUCT NUMBER, ITEMS, Qty, MRP Price, Discount %,
+                      OUR MRP Price).
                     </p>
                   </div>
                 </div>
@@ -400,7 +464,7 @@ export default function BulkImportPage() {
                 </div>
 
                 {/* ERRORS */}
-                {importResult.failedRows > 0 ? (
+                {importResult.errors.length > 0 ? (
                   <div className="overflow-x-auto rounded-lg border border-[#E4E8EF] bg-white">
                     <table className="w-full text-left">
                       <thead className="bg-[#FAFBFD]">

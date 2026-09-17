@@ -3,7 +3,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import { authApi } from "@/app/api/services";
 
 import {
   ArrowLeft,
@@ -455,7 +456,7 @@ export default function ChangePasswordPage() {
 
     try {
       // POST /api/v1/auth/change-passphrase (Bearer attached by the api client)
-      await api.post("/api/v1/auth/change-passphrase", {
+      await authApi.changePassphrase({
         currentPassphrase: currentPassword,
         newPassphrase: newPassword,
         confirmPassphrase: confirmPassword,

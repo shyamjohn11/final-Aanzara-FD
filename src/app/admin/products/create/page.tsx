@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import {
+  brandsApi,
+  categoriesApi,
+  productsApi,
+  subcategoriesApi,
+} from "@/app/api/services";
 
 import {
   ArrowLeft,
@@ -75,8 +81,10 @@ export default function CreateProductPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get<{ items: Category[] }>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories(
+        (response.data as { items: Category[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
@@ -84,8 +92,10 @@ export default function CreateProductPage() {
 
   const fetchSubCategories = async () => {
     try {
-      const response = await api.get<{ items: SubCategory[] }>("/api/v1/subcategories");
-      setSubCategories(response.data.items || []);
+      const response = await subcategoriesApi.list();
+      setSubCategories(
+        (response.data as { items: SubCategory[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching subcategories:", err);
     }
@@ -93,8 +103,8 @@ export default function CreateProductPage() {
 
   const fetchBrands = async () => {
     try {
-      const response = await api.get<{ items: Brand[] }>("/api/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
@@ -264,7 +274,7 @@ export default function CreateProductPage() {
         status: "active",
       };
 
-      await api.post("/api/v1/products", payload);
+      await productsApi.create(payload);
 
       setSaved(true);
 

@@ -3,7 +3,8 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import { categoriesApi, subcategoriesApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -129,8 +130,10 @@ export default function SubCategoriesAdminPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get<CategoryWithSubCategories[]>("/api/v1/categories/with-subcategories");
-      setCategories(response.data);
+      const response = await categoriesApi.withSubcategories();
+      setCategories(
+        (response.data as CategoryWithSubCategories[]) ?? []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
@@ -140,8 +143,10 @@ export default function SubCategoriesAdminPage() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get<SubCategoryApiResponse>("/api/v1/subcategories");
-      setSubcategories(response.data.items || []);
+      const response = await subcategoriesApi.list();
+      setSubcategories(
+        (response.data as SubCategoryApiResponse)?.items || []
+      );
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load subcategories.");
       setError(message);
@@ -391,18 +396,13 @@ export default function SubCategoriesAdminPage() {
 
       if (editingSubCategory) {
         // UPDATE
-        await api.put(`/api/v1/subcategories/${editingSubCategory.subCategoryId}`, formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+        await subcategoriesApi.update(
+          editingSubCategory.subCategoryId,
+          formData
+        );
       } else {
         // CREATE
-        await api.post("/api/v1/subcategories", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+        await subcategoriesApi.create(formData);
       }
 
       closeModal();
@@ -430,11 +430,7 @@ export default function SubCategoriesAdminPage() {
       formData.append("Description", subcategory.description || "");
       formData.append("IsActive", String(!currentStatus));
 
-      await api.put(`/api/v1/subcategories/${id}`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      await subcategoriesApi.update(id, formData);
       fetchSubCategories();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update subcategory status.");
@@ -450,7 +446,7 @@ export default function SubCategoriesAdminPage() {
     if (deleteId === null) return;
 
     try {
-      await api.delete(`/api/v1/subcategories/${deleteId}`);
+      await subcategoriesApi.remove(deleteId);
       setDeleteId(null);
       fetchSubCategories();
     } catch (err) {

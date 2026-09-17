@@ -1,11 +1,16 @@
 // File: src/app/admin/products/page.tsx
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
-import { productImagesApi } from "@/app/api/services";
+import { extractErrorMessage } from "@/app/api/api";
+import {
+  brandsApi,
+  categoriesApi,
+  productImagesApi,
+  productsApi,
+} from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -20,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  Upload,
 } from "lucide-react";
 
 /* ============================================================
@@ -76,6 +82,10 @@ type ProductErrors = Partial<Record<
   "productName" | "sku" | "categoryId" | "subCategoryId" | "brandId" | "price" | "mrp" | "discount" | "moq" | "image",
   string
 >>;
+
+type SortBy = "productName" | "price" | "newest" | "oldest" | "";
+
+const SEARCH_DEBOUNCE_MS = 400;
 
 /* ============================================================
    IMAGE ENRICHMENT HELPER
@@ -202,137 +212,115 @@ export default function ProductsAdminPage() {
   const [errors, setErrors] = useState<ProductErrors>({});
   const [formError, setFormError] = useState("");
 
-  /* ==========================================================
-     IMAGE PREVIEW (LIGHTBOX)
-  ========================================================== */
+/* ==========================================================
+      FETCH DATA
+   ========================================================== */
 
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewVisible, setPreviewVisible] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortDescending, setSortDescending] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState<SortBy>("");
+  // Background refresh indicator (table keeps old rows; no full spinner).
+  const [isFetching, setIsFetching] = useState(false);
+  // Debounced search text actually sent to the API.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Monotonic id: only the latest request may write state (kills races).
+  const requestIdRef = useRef(0);
+  // True after the first successful load; distinguishes initial
+  // full-page spinner from silent background refreshes.
+  const hasLoadedRef = useRef(false);
 
-  const openPreview = (url?: string) => {
-    if (!url) return;
-    setPreviewImage(url);
-    // Mount first, then flip visible on the next frame so the
-    // opacity/scale transition actually animates in.
-    requestAnimationFrame(() => setPreviewVisible(true));
-  };
+  // Debounce keystrokes so typing does not fire a request per character.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const closePreview = () => {
-    setPreviewVisible(false);
-    // Keep the image mounted until the fade-out transition finishes.
-    setTimeout(() => setPreviewImage(null), 200);
-  };
-
-  /* ==========================================================
-     FETCH DATA
-  ========================================================== */
-
-  const fetchProducts = async () => {
-    try {
+  // Stable across renders: depending on it cannot cause a fetch loop.
+  const fetchProducts = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+    if (isInitial) {
       setLoading(true);
-      setError("");
-      const response = await api.get<ProductApiResponse>("/api/v1/products");
-      const items = response.data.items || [];
-
-      // The list endpoint is expected to return imageUrl directly. As a
-      // safety net (in case it's empty for some rows even though the
-      // field exists), fall back to the per-product images endpoint for
-      // just those rows and merge in the primary (or first) image URL.
-      // If imageUrl is already populated for a product this is a no-op.
-      const needsEnrichment = items.filter((p) => !p.imageUrl);
-
-      if (needsEnrichment.length === 0) {
-        setProducts(items);
-        return;
-      }
-
-      const enrichedById = new Map<string, string>();
-      await Promise.all(
-        needsEnrichment.map(async (product) => {
-          try {
-            const imgRes = await productImagesApi.list(product.productId);
-            const images = parseImageListPayload(imgRes.data);
-            const url =
-              images.find((img) => img.isPrimary)?.imageUrl ??
-              images[0]?.imageUrl ??
-              "";
-            if (url) enrichedById.set(product.productId, url);
-          } catch (imgErr) {
-            // Leave this product without an image; ProductThumb falls
-            // back to the placeholder icon.
-            console.error(
-              `Unable to load images for product ${product.productId}:`,
-              imgErr
-            );
-          }
-        })
-      );
-
-      const merged = items.map((product) =>
-        enrichedById.has(product.productId)
-          ? { ...product, imageUrl: enrichedById.get(product.productId) }
-          : product
-      );
-
-      setProducts(merged);
+    } else {
+      setIsFetching(true);
+    }
+    setError("");
+    try {
+      // GET /api/v1/products?page=&pageSize=&search=&categoryId=&status=&sortBy=&sortDescending=
+      const response = await productsApi.list({
+        page,
+        pageSize,
+        search: debouncedSearch || undefined,
+        categoryId: categoryFilter !== "All" ? categoryFilter : undefined,
+        status: statusFilter !== "All" ? statusFilter : undefined,
+        sortBy: sortBy || undefined,
+        sortDescending,
+      });
+      // A newer request has started; drop this stale response.
+      if (requestIdRef.current !== requestId) return;
+      const data = response.data as ProductApiResponse;
+      setProducts(data.items || []);
+      setTotalCount(data.totalCount || 0);
+      setTotalPages(data.totalPages || 1);
+      hasLoadedRef.current = true;
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       const message = extractErrorMessage(err, "Failed to load products.");
       setError(message);
       console.error("Error fetching products:", err);
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+        setIsFetching(false);
+      }
     }
-  };
+  }, [page, pageSize, debouncedSearch, categoryFilter, statusFilter, sortBy, sortDescending]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
-      const response = await api.get<{ items: Category[] }>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories(
+        (response.data as { items: Category[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
-  };
+  }, []);
 
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     try {
-      const response = await api.get<{ items: Brand[] }>("/api/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
-  };
+  }, []);
 
+  // Reference data loads once on mount.
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
     fetchBrands();
-  }, []);
+  }, [fetchCategories, fetchBrands]);
+
+  // Product list reloads only when a real input changes.
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   /* ==========================================================
      FILTER PRODUCTS
   ========================================================== */
 
   const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return products.filter((product) => {
-      const categoryName = categories.find((c) => c.categoryId === product.categoryId)?.categoryName || "";
-      const brandName = brands.find((b) => b.brandId === product.brandId)?.brandName || "";
-
-      const matchesSearch =
-        !query ||
-        product.productName.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query) ||
-        brandName.toLowerCase().includes(query) ||
-        categoryName.toLowerCase().includes(query);
-
-      const matchesStatus = statusFilter === "All" || product.status === statusFilter;
-
-      const matchesCategory = categoryFilter === "All" || product.categoryId === categoryFilter;
-
-      return matchesSearch && matchesStatus && matchesCategory;
-    });
-  }, [products, search, statusFilter, categoryFilter, categories, brands]);
+    // Backend already applies filters via query params (search, categoryId, status, sort)
+    // So products from API are already filtered; return as-is
+    return products;
+  }, [products]);
 
   /* ==========================================================
      STATS
@@ -621,7 +609,7 @@ export default function ProductsAdminPage() {
       };
 
       if (editingProduct) {
-        await api.put(`/api/v1/products/${editingProduct.productId}`, payload);
+        await productsApi.update(editingProduct.productId, payload);
 
         // B1 upload pending image (first image auto-primary server-side).
         if (imageFile) {
@@ -645,7 +633,7 @@ export default function ProductsAdminPage() {
           }
         }
       } else {
-        const createResponse = await api.post("/api/v1/products", payload);
+        const createResponse = await productsApi.create(payload);
         const created = (createResponse.data ?? {}) as Record<
           string,
           unknown
@@ -726,7 +714,7 @@ export default function ProductsAdminPage() {
         status: currentStatus === "active" ? "inactive" : "active",
       };
 
-      await api.put(`/api/v1/products/${id}`, payload);
+      await productsApi.update(id, payload);
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update product status.");
@@ -744,7 +732,7 @@ export default function ProductsAdminPage() {
     }
 
     try {
-      await api.delete(`/api/v1/products/${deleteId}`);
+      await productsApi.remove(deleteId);
       setDeleteId(null);
       fetchProducts();
     } catch (err) {
@@ -830,15 +818,27 @@ export default function ProductsAdminPage() {
             <p className="hidden text-[9px] text-[#8995A5] sm:block">Manage products and inventory</p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="ml-auto flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add Product</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/admin/products/bulk-import")}
+              className="flex h-10 items-center gap-2 rounded-lg border border-[#DFE5ED] bg-white px-3 text-[11px] font-semibold text-[#33415A] transition hover:border-[#8AA9DE] hover:text-[#173B7A] sm:px-4"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Import / Export</span>
+              <span className="sm:hidden">Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add Product</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </div>
         </header>
 
         {/* MAIN */}
@@ -905,14 +905,20 @@ export default function ProductsAdminPage() {
                 <input
                   type="search"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Search products, SKU, brand..."
                   className="h-full w-full bg-transparent px-2.5 text-[11px] text-[#263A59] outline-none placeholder:text-[#A0AAB8]"
                 />
                 {search && (
                   <button
                     type="button"
-                    onClick={() => setSearch("")}
+                    onClick={() => {
+                      setSearch("");
+                      setPage(1);
+                    }}
                     className="text-[#8995A5]"
                   >
                     <X size={14} />
@@ -923,7 +929,10 @@ export default function ProductsAdminPage() {
               {/* CATEGORY */}
               <select
                 value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
+                onChange={(event) => {
+                  setCategoryFilter(event.target.value);
+                  setPage(1);
+                }}
                 className="h-10 rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] px-3 text-[10px] text-[#5D6C80] outline-none focus:border-[#1769F5]"
               >
                 <option value="All">All Categories</option>
@@ -942,7 +951,10 @@ export default function ProductsAdminPage() {
                     <button
                       key={status}
                       type="button"
-                      onClick={() => setStatusFilter(status)}
+                      onClick={() => {
+                        setStatusFilter(status);
+                        setPage(1);
+                      }}
                       className={`rounded-md px-3 py-1.5 text-[9px] font-semibold transition ${
                         statusFilter === status
                           ? "bg-[#173B7A] text-white"
@@ -954,6 +966,36 @@ export default function ProductsAdminPage() {
                   ))}
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 lg:ml-auto">
+                <span className="text-[10px] text-[#8995A5]">Sort:</span>
+                <div className="flex rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] p-1">
+                  {(["name-asc", "name-desc", "price-asc", "price-desc", "newest", "oldest"] as const).map(
+                    (sort) => {
+                      const [field, direction] = sort.split("-");
+                      const mappedField: SortBy =
+                        field === "name" ? "productName" : field as SortBy;
+                      const isSortBy = sortBy === mappedField;
+                      const isDesc = sortDescending ? "desc" : "asc";
+                      const isActive = isSortBy && isDesc === direction;
+                      return (
+                        <button
+                          key={sort}
+                          type="button"
+                          onClick={() => {
+                            const newDesc = mappedField === sortBy ? !sortDescending : direction === "desc";
+                            setSortBy(mappedField);
+                            setSortDescending(newDesc);
+                            setPage(1);
+                          }}
+                          className={`rounded-md px-3 py-1.5 text-[9px] font-semibold transition ${isActive ? "bg-[#173B7A] text-white" : "text-[#65748A] hover:bg-white"}`}>
+                          {sort}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -963,7 +1005,11 @@ export default function ProductsAdminPage() {
               <div>
                 <h2 className="text-[13px] font-bold text-[#263650]">All Products</h2>
                 <p className="mt-1 text-[9px] text-[#8A96A7]">
-                  {loading ? "Loading..." : `${filteredProducts.length} products found`}
+                  {loading
+                    ? "Loading..."
+                    : isFetching
+                      ? "Updating..."
+                      : `${filteredProducts.length} products found`}
                 </p>
               </div>
 
@@ -1161,32 +1207,50 @@ export default function ProductsAdminPage() {
                   ))}
                 </div>
 
-                {/* PAGINATION */}
+{/* PAGINATION */}
                 <div className="flex items-center justify-between border-t border-[#EDF0F4] px-5 py-4">
                   <p className="text-[9px] text-[#8995A5]">
                     Showing{" "}
                     <span className="font-semibold text-[#4D5C72]">{filteredProducts.length}</span>{" "}
-                    of <span className="font-semibold text-[#4D5C72]">{products.length}</span>
+                    of <span className="font-semibold text-[#4D5C72]">{totalCount}</span>
                   </p>
 
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      disabled
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
-                    >
+                      disabled={page <= 1}
+                      onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md border border-${
+                        page <= 1 ? "#E1E6ED" : "#1769F5"
+                      } text-${
+                        page <= 1 ? "#B3BBC6" : "#173B7A"
+                      } ${page <= 1 ? "disabled" : ""}`}>
                       <ChevronLeft size={14} />
                     </button>
 
-                    <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-[#173B7A] px-2 text-[9px] font-semibold text-white">
-                      1
-                    </span>
+                    {[...Array(totalPages).keys()].map((i) => (
+                      <span
+                        key={i}
+                        onClick={() => setPage(i + 1)}
+                        className={`flex h-7 min-w-7 items-center justify-center rounded-md ${
+                          page === i + 1
+                            ? "bg-[#173B7A] px-2 text-[9px] font-semibold text-white"
+                            : "bg-transparent px-2 text-[9px] text-[#65748A] hover:bg-[#EEF3FA] hover:text-[#1769F5]"
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                    ))}
 
                     <button
                       type="button"
-                      disabled
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
-                    >
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md border border-${
+                        page >= totalPages ? "#E1E6ED" : "#1769F5"
+                      } text-${
+                        page >= totalPages ? "#B3BBC6" : "#173B7A"
+                      } ${page >= totalPages ? "disabled" : ""}`}>
                       <ChevronRight size={14} />
                     </button>
                   </div>
