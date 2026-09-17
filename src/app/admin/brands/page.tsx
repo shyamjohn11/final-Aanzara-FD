@@ -22,6 +22,7 @@ import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatCard from "@/app/components/Admin/StatCard";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { brandsApi } from "@/app/api/services";
+import { toast } from "react-toastify";
 
 /* =========================================================
    TYPES
@@ -178,9 +179,12 @@ export default function BrandsAdminPage() {
     } catch (error) {
       console.error("Unable to load brand products:", error);
       setShelfItems([]);
-      setShelfError(
-        extractErrorMessage(error, "Failed to load brand products.")
+      const shelfMessage = extractErrorMessage(
+        error,
+        "Failed to load brand products."
       );
+      setShelfError(shelfMessage);
+      toast.error(shelfMessage);
     } finally {
       setShelfLoading(false);
     }
@@ -229,6 +233,7 @@ export default function BrandsAdminPage() {
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load brands.");
       setError(message);
+      toast.error(message);
       console.error("Error fetching brands:", err);
     } finally {
       setLoading(false);
@@ -474,7 +479,9 @@ export default function BrandsAdminPage() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      setFormError("Please correct the highlighted fields before saving.");
+      const summary = "Please correct the highlighted fields before saving.";
+      setFormError(summary);
+      toast.error(summary);
       return false;
     }
 
@@ -534,12 +541,20 @@ export default function BrandsAdminPage() {
         });
       }
 
+      const wasEditing = Boolean(editingBrand);
       closeModal();
+      toast.success(
+        wasEditing
+          ? "Brand updated successfully."
+          : "Brand created successfully."
+      );
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to save brand.");
       setFormError(message);
+      toast.error(message);
       console.error("Error saving brand:", err);
+    } finally {
       setSubmitting(false);
     }
   };
@@ -561,9 +576,11 @@ export default function BrandsAdminPage() {
       };
 
       await api.put(`/api/admin/brands/${id}`, payload);
+      toast.success("Brand status updated.");
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update brand status.");
+      toast.error(message);
       console.error("Error toggling status:", err);
     }
   };
@@ -585,9 +602,11 @@ export default function BrandsAdminPage() {
       };
 
       await api.put(`/api/admin/brands/${id}`, payload);
+      toast.success("Brand sale status updated.");
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update brand sale status.");
+      toast.error(message);
       console.error("Error toggling sale:", err);
     }
   };
@@ -604,9 +623,11 @@ export default function BrandsAdminPage() {
     try {
       await api.delete(`/api/admin/brands/${deleteId}`);
       setDeleteId(null);
+      toast.success("Brand deleted successfully.");
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to delete brand.");
+      toast.error(message);
       console.error("Error deleting brand:", err);
       setDeleteId(null);
     }

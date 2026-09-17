@@ -31,6 +31,7 @@ import {
   CART_CONFIG,
   PAYMENT_METHODS,
 } from "@/app/data/cartdata";
+import { toast } from "react-toastify";
 
 // =====================================================
 // TYPES
@@ -683,9 +684,7 @@ export default function CheckoutOrderSummary({
     // -------------------------------------------------
 
     if (safeItems.length === 0) {
-      alert(
-        "Your cart is empty or contains invalid products."
-      );
+      toast.error("Your cart is empty or contains invalid products.");
 
       router.push("/cart");
       return;
@@ -696,9 +695,7 @@ export default function CheckoutOrderSummary({
     // -------------------------------------------------
 
     if (!paymentReady) {
-      alert(
-        "Please verify your payment method first."
-      );
+      toast.error("Please verify your payment method first.");
       return;
     }
 
@@ -707,9 +704,7 @@ export default function CheckoutOrderSummary({
     // -------------------------------------------------
 
     if (!hasSession()) {
-      alert(
-        "Please sign in to place your order."
-      );
+      toast.error("Please sign in to place your order.");
 
       router.push("/login");
       return;
@@ -720,9 +715,7 @@ export default function CheckoutOrderSummary({
     // -------------------------------------------------
 
     if (!selectedAddressId) {
-      alert(
-        "Please select or save a delivery address first."
-      );
+      toast.error("Please select or save a delivery address first.");
       return;
     }
 
@@ -736,9 +729,7 @@ export default function CheckoutOrderSummary({
       ).toLowerCase();
 
     if (!selectedMethod) {
-      alert(
-        "Please select a payment method."
-      );
+      toast.error("Please select a payment method.");
       return;
     }
 
@@ -758,7 +749,7 @@ export default function CheckoutOrderSummary({
       METHOD_MAP[selectedMethod];
 
     if (!backendMethod) {
-      alert(
+      toast.error(
         "Business Credit is not supported online yet. Please choose another payment method."
       );
       return;
@@ -780,9 +771,7 @@ export default function CheckoutOrderSummary({
       !hasPaymentMethod &&
       !PAYMENT_METHOD_NAMES[selectedMethod]
     ) {
-      alert(
-        "Selected payment method is not available."
-      );
+      toast.error("Selected payment method is not available.");
       return;
     }
 
@@ -836,9 +825,7 @@ export default function CheckoutOrderSummary({
       }
 
       if (!verifiedUpiId) {
-        alert(
-          "Please verify your UPI ID first."
-        );
+        toast.error("Please verify your UPI ID first.");
         return;
       }
     }
@@ -1008,9 +995,7 @@ export default function CheckoutOrderSummary({
 
       setIsProcessing(false);
 
-      alert(
-        "We couldn't place your order. Please try again."
-      );
+      toast.error("We couldn't place your order. Please try again.");
 
       return;
     }

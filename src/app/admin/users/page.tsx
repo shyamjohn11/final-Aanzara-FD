@@ -23,8 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import { extractErrorMessage } from "@/app/api/api";
 import { adminUsersApi } from "@/app/api/services";
 
@@ -539,17 +538,6 @@ export default function UsersPage() {
   return (
     <AdminLayout>
       <main className="min-h-screen bg-[#F5F7FA] text-[#1F2F49]">
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          pauseOnHover
-          draggable
-          theme="light"
-        />
-
         {/* =================================================
             HEADER
         ================================================== */}
