@@ -952,6 +952,29 @@ export const ordersAdminApi = {
 };
 
 // ============================================================
+// ============================================================
+// STOREFRONT DEALS — StorefrontDealsController (public, active only)
+// Best Deals shelf, combo shelf, coupon list. No auth required.
+// ============================================================
+
+export const dealsApi = {
+  // GET /api/v1/deals/offers?count= — active offers, newest first
+  offers(count = 8) {
+    return api.get(`/api/v1/deals/offers?count=${count}`);
+  },
+
+  // GET /api/v1/deals/combos?count= — active combos, newest first
+  combos(count = 8) {
+    return api.get(`/api/v1/deals/combos?count=${count}`);
+  },
+
+  // GET /api/v1/deals/coupons?count= — active coupon codes
+  coupons(count = 8) {
+    return api.get(`/api/v1/deals/coupons?count=${count}`);
+  },
+};
+
+// ============================================================
 // #75-99 MARKETING — AdminMarketingControllers
 // banners/offers/coupons/combos/cart-rules admin pages
 // ============================================================
@@ -1065,14 +1088,27 @@ export const pricingRequestsApi = {
 // ============================================================
 
 export const notificationsApi = {
-  // #139 GET /api/admin/notifications
-  list() {
-    return api.get("/api/admin/notifications");
+  // #139 GET /api/admin/notifications?search=&unreadOnly=&Page=&PageSize=
+  // Unread badge count = list({ unreadOnly: true, pageSize: 1 }).totalCount
+  list(query: {
+    search?: string;
+    unreadOnly?: boolean;
+    page?: number;
+    pageSize?: number;
+  } = {}) {
+    const params = new URLSearchParams({
+      Page: String(query.page ?? 1),
+      PageSize: String(query.pageSize ?? 25),
+    });
+    if (query.search) params.set("search", query.search);
+    if (query.unreadOnly !== undefined)
+      params.set("unreadOnly", String(query.unreadOnly));
+    return api.get(`/api/admin/notifications?${params.toString()}`);
   },
 
-  // #140 PATCH /api/admin/notifications/{id}/read
-  markRead(id: string | number) {
-    return api.patch(`/api/admin/notifications/${id}/read`);
+  // #140 PATCH /api/admin/notifications/{id}/read {isRead} (defaults true)
+  markRead(id: string | number, isRead = true) {
+    return api.patch(`/api/admin/notifications/${id}/read`, { isRead });
   },
 
   // #141 DELETE /api/admin/notifications/{id}

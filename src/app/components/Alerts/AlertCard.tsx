@@ -132,7 +132,7 @@ function getActionHref(alert: AlertItem): string {
       return "/offers";
 
     case "payment":
-      return "/payments";
+      return "/payment";
 
     case "system":
       return "/invoice";

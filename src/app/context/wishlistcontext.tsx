@@ -164,12 +164,29 @@ function productFromBackend(
     bulkRate: snapshot?.bulkRate ?? price,
     bulkMoq: snapshot?.bulkMoq ?? 1,
     moq: snapshot?.moq ?? 1,
-    inStock: item.status !== "OutOfStock",
+    // Backend sends Product.Status ("Active"/"Inactive") — there is no
+    // "OutOfStock" value, so compare against Active.
+    inStock: item.status === "Active",
     dispatch: snapshot?.dispatch ?? "",
     image: snapshot?.image,
     swatch: snapshot?.swatch ?? "#f4f4f5",
     accent: snapshot?.accent ?? "#e4e4e7",
   };
+}
+
+// HTTP status of a sync failure, if the server answered at all.
+function rejectionStatus(error: unknown): number | null {
+  const status = (error as { response?: { status?: unknown } })?.response
+    ?.status;
+  return typeof status === "number" ? status : null;
+}
+
+// 4xx means the server authoritatively refused (inactive product,
+// duplicate, unknown id): the optimistic change must be reverted.
+// Network-level failures keep the optimistic state for later reconcile.
+function isAuthoritativeRejection(error: unknown): boolean {
+  const status = rejectionStatus(error);
+  return status !== null && status >= 400 && status < 500;
 }
 
 // ==========================================
@@ -186,6 +203,28 @@ export function WishlistProvider({
     "local"
   );
   const [hydrated, setHydrated] = useState(false);
+
+  // ========================================
+  // REMOTE LOAD (backend rows + local-only mock products)
+  // ========================================
+
+  const loadRemote = async () => {
+    const { data } = await wishlistApi.get();
+    // Mock/demo products (non-GUID ids) can never live on the backend,
+    // but they must survive reloads: they are persisted locally and
+    // merged back on every remote load.
+    const localOnly = readLocalItems().filter(
+      (product) => !isGuid(product.id)
+    );
+    const seen = new Set(
+      (data ?? []).map((item) => item.productId)
+    );
+    const merged = [
+      ...(data ?? []).map(productFromBackend),
+      ...localOnly.filter((product) => !seen.has(product.id)),
+    ];
+    setItems(merged);
+  };
 
   // ========================================
   // SESSION SYNC (login/logout + cross-tab)
@@ -220,18 +259,19 @@ export function WishlistProvider({
               (result) => result.status === "fulfilled"
             )
           ) {
-            writeLocalItems([]);
+            // Drop only the synced GUID rows; local-only mock
+            // products stay in storage.
+            writeLocalItems(
+              readLocalItems().filter(
+                (product) => !isGuid(product.id)
+              )
+            );
           }
         }
 
         if (active) {
           try {
-            const { data } = await wishlistApi.get();
-            if (active) {
-              setItems(
-                (data ?? []).map(productFromBackend)
-              );
-            }
+            await loadRemote();
           } catch (error) {
             console.error(
               "Unable to load wishlist:",
@@ -270,6 +310,7 @@ export function WishlistProvider({
       );
       window.removeEventListener("storage", sync);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ========================================
@@ -277,7 +318,14 @@ export function WishlistProvider({
   // ========================================
 
   useEffect(() => {
-    if (!hydrated || mode !== "local") {
+    if (!hydrated) {
+      return;
+    }
+
+    if (mode !== "local") {
+      // Remote mode: the backend owns GUID rows; only local-only
+      // mock products are persisted (otherwise they vanish on reload).
+      writeLocalItems(items.filter((item) => !isGuid(item.id)));
       return;
     }
 
@@ -332,13 +380,30 @@ export function WishlistProvider({
         ? wishlistApi.remove(product.id)
         : wishlistApi.add(product.id);
 
-      request.catch((error) => {
+      request.catch(async (error) => {
         console.error(
           "Unable to sync wishlist:",
           error
         );
-        // Keep the optimistic change so the UI stays responsive;
-        // it will reconcile on the next successful load.
+        if (!isAuthoritativeRejection(error)) {
+          // Network-level failure: keep the optimistic change so the
+          // UI stays responsive; it reconciles on the next load.
+          return;
+        }
+        // The server refused (inactive product, duplicate, unknown id):
+        // revert so the UI never shows phantom items.
+        try {
+          await loadRemote();
+        } catch {
+          // Best-effort inverse of the optimistic flip.
+          setItems((prev) =>
+            exists
+              ? prev.some((item) => item.id === product.id)
+                ? prev
+                : [...prev, product]
+              : prev.filter((item) => item.id !== product.id)
+          );
+        }
       });
       return;
     }
@@ -357,16 +422,32 @@ export function WishlistProvider({
       prev.filter((product) => product.id !== id);
 
     if (mode === "remote" && isGuid(id)) {
+      const doomed = items.find((product) => product.id === id) ?? null;
       setItems(drop);
 
       wishlistApi
         .remove(id)
-        .catch((error) => {
+        .catch(async (error) => {
           console.error(
             "Unable to sync wishlist:",
             error
           );
-          // Keep the optimistic removal; reconcile on next load.
+          if (!isAuthoritativeRejection(error)) {
+            // Network-level failure: keep the optimistic removal;
+            // it reconciles on the next load.
+            return;
+          }
+          try {
+            await loadRemote();
+          } catch {
+            if (doomed) {
+              setItems((prev) =>
+                prev.some((product) => product.id === id)
+                  ? prev
+                  : [...prev, doomed]
+              );
+            }
+          }
         });
       return;
     }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   Bell,
@@ -18,6 +19,7 @@ import {
 
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { notificationsApi } from "@/app/api/services";
+import { toAbsoluteTime } from "@/app/utils/notifications";
 
 /* =========================================================
    TYPES
@@ -45,6 +47,7 @@ type Notification = {
   message: string;
   time: string;
   read: boolean;
+  link?: string;
 };
 
 /* =========================================================
@@ -151,65 +154,80 @@ export default function AdminNotificationsPage() {
 
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
 
+  const [actionError, setActionError] = useState("");
+  const [acting, setActing] = useState(false);
+
   /* =======================================================
      LOAD (#139 GET /api/admin/notifications)
+     Backend shape: PagedResult { items, totalCount, ... } with
+     rows { id, title, message?, isRead, type, link?, createdAt }.
   ======================================================= */
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      // First page is enough for the inbox view; TotalCount drives badges.
+      const response = await notificationsApi.list({ page: 1, pageSize: 50 });
+      const payload = (response as any)?.data ?? response;
+      const raw: any[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+      const mapped: Notification[] = raw.map((item: any, index: number) => ({
+        id: index + 1,
+        serverId: String(
+          item?.id ?? item?.notificationId ?? item?._id ?? "",
+        ),
+        type: ((): NotificationType => {
+          const t = String(
+            item?.type ?? item?.category ?? "system",
+          ).toLowerCase();
+          return (
+            [
+              "order",
+              "delivery",
+              "payment",
+              "customer",
+              "offer",
+              "enquiry",
+              "pricing",
+              "quote",
+              "review",
+              "inventory",
+              "account",
+              "system",
+            ] as const
+          ).includes(t as NotificationType)
+            ? (t as NotificationType)
+            : "system";
+        })(),
+        title: String(item?.title ?? item?.subject ?? "Notification"),
+        message: String(item?.message ?? item?.body ?? item?.description ?? ""),
+        time: toAbsoluteTime(
+          item?.createdAt ?? item?.time ?? item?.timeAgo ?? item?.date ?? "",
+        ),
+        read: Boolean(item?.read ?? item?.isRead ?? item?.seen ?? false),
+        link:
+          typeof item?.link === "string" && item.link.startsWith("/")
+            ? item.link
+            : undefined,
+      }));
+      setNotifications(mapped);
+    } catch {
+      // Keep the previous list; the header badge polls independently.
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const response = await notificationsApi.list();
-        const payload = (response as any)?.data ?? response;
-        const raw: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
-        if (cancelled || raw.length === 0) return;
-        const mapped: Notification[] = raw.map((item: any, index: number) => ({
-          id: index + 1,
-          serverId: String(
-            item?.id ?? item?.notificationId ?? item?._id ?? "",
-          ),
-          type: ((): NotificationType => {
-            const t = String(
-              item?.type ?? item?.category ?? "system",
-            ).toLowerCase();
-            return (
-              [
-                "order",
-                "delivery",
-                "payment",
-                "customer",
-                "offer",
-                "enquiry",
-                "pricing",
-                "quote",
-                "review",
-                "inventory",
-                "account",
-                "system",
-              ] as const
-            ).includes(t as NotificationType)
-              ? (t as NotificationType)
-              : "system";
-          })(),
-          title: String(item?.title ?? item?.subject ?? "Notification"),
-          message: String(item?.message ?? item?.body ?? item?.description ?? ""),
-          time: String(
-            item?.time ?? item?.timeAgo ?? item?.createdAt ?? item?.date ?? "",
-          ),
-          read: Boolean(item?.read ?? item?.isRead ?? item?.seen ?? false),
-        }));
-        setNotifications(mapped);
-      } catch {}
+      if (!cancelled) await loadNotifications();
     };
 
-    load();
+    void load();
 
     // Refresh so new order/enquiry/payment events appear live.
     const timer = window.setInterval(load, 30000);
@@ -218,7 +236,7 @@ export default function AdminNotificationsPage() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [loadNotifications]);
 
   /* =======================================================
      COUNTS
@@ -247,51 +265,78 @@ export default function AdminNotificationsPage() {
      ACTIONS
   ======================================================= */
 
-  const markAsRead = (id: number) => {
+  const markAsRead = async (id: number) => {
     const target = notifications.find((item) => item.id === id);
-    if (target?.serverId) {
-      notificationsApi.markRead(target.serverId).catch(() => {});
+    if (!target?.serverId) return;
+    setActing(true);
+    setActionError("");
+    try {
+      // PATCH /api/admin/notifications/{id}/read {isRead:true}
+      await notificationsApi.markRead(target.serverId, true);
+      await loadNotifications();
+    } catch {
+      setActionError("Could not mark the notification as read. Please retry.");
+    } finally {
+      setActing(false);
     }
-    setNotifications((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              read: true,
-            }
-          : item,
-      ),
-    );
   };
 
-  const markAllAsRead = () => {
-    notifications
-      .filter((item) => !item.read && item.serverId)
-      .forEach((item) => {
-        notificationsApi
-          .markRead(item.serverId as string)
-          .catch(() => {});
-      });
-    setNotifications((current) =>
-      current.map((item) => ({
-        ...item,
-        read: true,
-      })),
+  const markAllAsRead = async () => {
+    const pending = notifications.filter(
+      (item) => !item.read && item.serverId,
     );
+    if (pending.length === 0) return;
+    setActing(true);
+    setActionError("");
+    try {
+      await Promise.all(
+        pending.map((item) =>
+          notificationsApi.markRead(item.serverId as string, true),
+        ),
+      );
+      await loadNotifications();
+    } catch {
+      setActionError("Some notifications could not be marked read. Please retry.");
+      await loadNotifications();
+    } finally {
+      setActing(false);
+    }
   };
 
-  const deleteNotification = (id: number) => {
+  const deleteNotification = async (id: number) => {
     const target = notifications.find((item) => item.id === id);
-    if (target?.serverId) {
-      notificationsApi.remove(target.serverId).catch(() => {});
+    if (!target?.serverId) return;
+    setActing(true);
+    setActionError("");
+    try {
+      // DELETE /api/admin/notifications/{id}
+      await notificationsApi.remove(target.serverId);
+      await loadNotifications();
+    } catch {
+      setActionError("Could not delete the notification. Please retry.");
+    } finally {
+      setActing(false);
     }
-    setNotifications((current) =>
-      current.filter((item) => item.id !== id),
-    );
   };
 
-  const clearAll = () => {
-    setNotifications([]);
+  const clearAll = async () => {
+    const withServerId = notifications.filter((item) => item.serverId);
+    if (withServerId.length === 0) return;
+    setActing(true);
+    setActionError("");
+    try {
+      await Promise.all(
+        withServerId.map((item) =>
+          notificationsApi.remove(item.serverId as string),
+        ),
+      );
+      await loadNotifications();
+    } catch {
+      setActionError("Some notifications could not be deleted. Please retry.");
+      await loadNotifications();
+    } finally {
+      setActing(false);
+    }
   };
 
   /* =======================================================
@@ -335,7 +380,7 @@ export default function AdminNotificationsPage() {
                 <button
                   type="button"
                   onClick={markAllAsRead}
-                  disabled={unreadCount === 0}
+                  disabled={unreadCount === 0 || acting}
                   className="
                     inline-flex items-center justify-center gap-2
                     rounded-xl border border-[#E2E8F0]
@@ -357,7 +402,7 @@ export default function AdminNotificationsPage() {
                 <button
                   type="button"
                   onClick={clearAll}
-                  disabled={notifications.length === 0}
+                  disabled={notifications.length === 0 || acting}
                   className="
                     inline-flex items-center justify-center gap-2
                     rounded-xl border border-red-100
@@ -378,6 +423,15 @@ export default function AdminNotificationsPage() {
               </div>
             </div>
           </section>
+
+          {actionError && (
+            <p
+              role="alert"
+              className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-medium text-red-700"
+            >
+              {actionError}
+            </p>
+          )}
 
           {/* =================================================
               SUMMARY CARDS
@@ -638,31 +692,54 @@ export default function AdminNotificationsPage() {
                         {notification.time}
                       </p>
 
-                      {!notification.read && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            markAsRead(notification.id)
-                          }
-                          className="
-                            mt-3
-                            rounded-lg
-                            bg-blue-600
-                            px-3 py-1.5
-                            text-xs font-semibold
-                            text-white
-                            transition
-                            hover:bg-blue-700
-                          "
-                        >
-                          Mark as read
-                        </button>
-                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {!notification.read && (
+                          <button
+                            type="button"
+                            disabled={acting}
+                            onClick={() =>
+                              markAsRead(notification.id)
+                            }
+                            className="
+                              rounded-lg
+                              bg-blue-600
+                              px-3 py-1.5
+                              text-xs font-semibold
+                              text-white
+                              transition
+                              hover:bg-blue-700
+                              disabled:cursor-not-allowed
+                              disabled:opacity-50
+                            "
+                          >
+                            Mark as read
+                          </button>
+                        )}
+
+                        {notification.link && (
+                          <Link
+                            href={notification.link}
+                            className="
+                              rounded-lg
+                              border
+                              border-[#E2E8F0]
+                              px-3 py-1.5
+                              text-xs font-semibold
+                              text-[#334155]
+                              transition
+                              hover:bg-[#F8FAFC]
+                            "
+                          >
+                            Open
+                          </Link>
+                        )}
+                      </div>
                     </div>
 
                     {/* DELETE */}
                     <button
                       type="button"
+                      disabled={acting}
                       onClick={() =>
                         deleteNotification(notification.id)
                       }
