@@ -21,8 +21,7 @@ import {
 } from "lucide-react";
 
 // Import your pre-configured axios instance and helpers
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 
 import { extractErrorMessage } from "@/app/api/api";
 import { authApi } from "@/app/api/services";
@@ -165,17 +164,6 @@ export default function RegisterPage() {
         bg-[#F7F9FC]
       "
     >
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
-
       {/* =====================================================
           LEFT HERO
       ===================================================== */}

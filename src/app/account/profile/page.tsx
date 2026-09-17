@@ -32,8 +32,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { authApi } from "@/app/api/services";
 
@@ -655,17 +654,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
-
       {/* BREADCRUMB */}
       <div
         className="mb-5 flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[13px]"
