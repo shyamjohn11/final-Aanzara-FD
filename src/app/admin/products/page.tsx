@@ -4,8 +4,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
-import { productImagesApi } from "@/app/api/services";
+import { extractErrorMessage } from "@/app/api/api";
+import {
+  brandsApi,
+  categoriesApi,
+  productImagesApi,
+  productsApi,
+} from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -20,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  Upload,
 } from "lucide-react";
 
 /* ============================================================
@@ -129,16 +135,36 @@ export default function ProductsAdminPage() {
   const [errors, setErrors] = useState<ProductErrors>({});
   const [formError, setFormError] = useState("");
 
-  /* ==========================================================
-     FETCH DATA
-  ========================================================== */
+/* ==========================================================
+      FETCH DATA
+   ========================================================== */
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  type SortBy = "productName" | "price" | "newest" | "oldest" | "";
+  const [sortDescending, setSortDescending] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState<SortBy>("");
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get<ProductApiResponse>("/api/v1/products");
-      setProducts(response.data.items || []);
+      // GET /api/v1/products?page=&pageSize=&search=&categoryId=&status=&sortBy=&sortDescending=
+      const response = await productsApi.list({
+        page,
+        pageSize,
+        search: search || undefined,
+        categoryId: categoryFilter !== "All" ? categoryFilter : undefined,
+        status: statusFilter !== "All" ? statusFilter : undefined,
+        sortBy: sortBy || undefined,
+        sortDescending,
+      });
+      const data = response.data as ProductApiResponse;
+      setProducts(data.items || []);
+      setTotalCount(data.totalCount || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load products.");
       setError(message);
@@ -150,8 +176,10 @@ export default function ProductsAdminPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get<{ items: Category[] }>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories(
+        (response.data as { items: Category[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
@@ -159,8 +187,8 @@ export default function ProductsAdminPage() {
 
   const fetchBrands = async () => {
     try {
-      const response = await api.get<{ items: Brand[] }>("/api/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
@@ -170,33 +198,26 @@ export default function ProductsAdminPage() {
     fetchProducts();
     fetchCategories();
     fetchBrands();
-  }, []);
+  }, [
+    fetchProducts,
+    search,
+    categoryFilter,
+    statusFilter,
+    page,
+    pageSize,
+    sortBy,
+    sortDescending,
+  ]);
 
   /* ==========================================================
      FILTER PRODUCTS
   ========================================================== */
 
   const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return products.filter((product) => {
-      const categoryName = categories.find((c) => c.categoryId === product.categoryId)?.categoryName || "";
-      const brandName = brands.find((b) => b.brandId === product.brandId)?.brandName || "";
-
-      const matchesSearch =
-        !query ||
-        product.productName.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query) ||
-        brandName.toLowerCase().includes(query) ||
-        categoryName.toLowerCase().includes(query);
-
-      const matchesStatus = statusFilter === "All" || product.status === statusFilter;
-
-      const matchesCategory = categoryFilter === "All" || product.categoryId === categoryFilter;
-
-      return matchesSearch && matchesStatus && matchesCategory;
-    });
-  }, [products, search, statusFilter, categoryFilter, categories, brands]);
+    // Backend already applies filters via query params (search, categoryId, status, sort)
+    // So products from API are already filtered; return as-is
+    return products;
+  }, [products]);
 
   /* ==========================================================
      STATS
@@ -510,7 +531,7 @@ export default function ProductsAdminPage() {
       };
 
       if (editingProduct) {
-        await api.put(`/api/v1/products/${editingProduct.productId}`, payload);
+        await productsApi.update(editingProduct.productId, payload);
 
         // B1 upload pending image (first image auto-primary server-side).
         if (imageFile) {
@@ -534,7 +555,7 @@ export default function ProductsAdminPage() {
           }
         }
       } else {
-        const createResponse = await api.post("/api/v1/products", payload);
+        const createResponse = await productsApi.create(payload);
         const created = (createResponse.data ?? {}) as Record<
           string,
           unknown
@@ -615,7 +636,7 @@ export default function ProductsAdminPage() {
         status: currentStatus === "active" ? "inactive" : "active",
       };
 
-      await api.put(`/api/v1/products/${id}`, payload);
+      await productsApi.update(id, payload);
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update product status.");
@@ -633,7 +654,7 @@ export default function ProductsAdminPage() {
     }
 
     try {
-      await api.delete(`/api/v1/products/${deleteId}`);
+      await productsApi.remove(deleteId);
       setDeleteId(null);
       fetchProducts();
     } catch (err) {
@@ -719,15 +740,27 @@ export default function ProductsAdminPage() {
             <p className="hidden text-[9px] text-[#8995A5] sm:block">Manage products and inventory</p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="ml-auto flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add Product</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/admin/products/bulk-import")}
+              className="flex h-10 items-center gap-2 rounded-lg border border-[#DFE5ED] bg-white px-3 text-[11px] font-semibold text-[#33415A] transition hover:border-[#8AA9DE] hover:text-[#173B7A] sm:px-4"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Import / Export</span>
+              <span className="sm:hidden">Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add Product</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </div>
         </header>
 
         {/* MAIN */}
@@ -841,6 +874,35 @@ export default function ProductsAdminPage() {
                       {status === "All" ? "All" : status === "active" ? "Active" : "Inactive"}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 lg:ml-auto">
+                <span className="text-[10px] text-[#8995A5]">Sort:</span>
+                <div className="flex rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] p-1">
+                  {(["name-asc", "name-desc", "price-asc", "price-desc", "newest", "oldest"] as const).map(
+                    (sort) => {
+                      const [field, direction] = sort.split("-");
+                      const mappedField: SortBy =
+                        field === "name" ? "productName" : field as SortBy;
+                      const isSortBy = sortBy === mappedField;
+                      const isDesc = sortDescending ? "desc" : "asc";
+                      const isActive = isSortBy && isDesc === direction;
+                      return (
+                        <button
+                          key={sort}
+                          type="button"
+                          onClick={() => {
+                            const newDesc = mappedField === sortBy ? !sortDescending : direction === "desc";
+                            setSortBy(mappedField);
+                            setSortDescending(newDesc);
+                          }}
+                          className={`rounded-md px-3 py-1.5 text-[9px] font-semibold transition ${isActive ? "bg-[#173B7A] text-white" : "text-[#65748A] hover:bg-white"}`}>
+                          {sort}
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               </div>
             </div>
@@ -1054,32 +1116,50 @@ export default function ProductsAdminPage() {
                   ))}
                 </div>
 
-                {/* PAGINATION */}
+{/* PAGINATION */}
                 <div className="flex items-center justify-between border-t border-[#EDF0F4] px-5 py-4">
                   <p className="text-[9px] text-[#8995A5]">
                     Showing{" "}
                     <span className="font-semibold text-[#4D5C72]">{filteredProducts.length}</span>{" "}
-                    of <span className="font-semibold text-[#4D5C72]">{products.length}</span>
+                    of <span className="font-semibold text-[#4D5C72]">{totalCount}</span>
                   </p>
 
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      disabled
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
-                    >
+                      disabled={page <= 1}
+                      onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md border border-${
+                        page <= 1 ? "#E1E6ED" : "#1769F5"
+                      } text-${
+                        page <= 1 ? "#B3BBC6" : "#173B7A"
+                      } ${page <= 1 ? "disabled" : ""}`}>
                       <ChevronLeft size={14} />
                     </button>
 
-                    <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-[#173B7A] px-2 text-[9px] font-semibold text-white">
-                      1
-                    </span>
+                    {[...Array(totalPages).keys()].map((i) => (
+                      <span
+                        key={i}
+                        onClick={() => setPage(i + 1)}
+                        className={`flex h-7 min-w-7 items-center justify-center rounded-md ${
+                          page === i + 1
+                            ? "bg-[#173B7A] px-2 text-[9px] font-semibold text-white"
+                            : "bg-transparent px-2 text-[9px] text-[#65748A] hover:bg-[#EEF3FA] hover:text-[#1769F5]"
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                    ))}
 
                     <button
                       type="button"
-                      disabled
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
-                    >
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md border border-${
+                        page >= totalPages ? "#E1E6ED" : "#1769F5"
+                      } text-${
+                        page >= totalPages ? "#B3BBC6" : "#173B7A"
+                      } ${page >= totalPages ? "disabled" : ""}`}>
                       <ChevronRight size={14} />
                     </button>
                   </div>

@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 import { Sora, Inter } from "next/font/google";
 
 import "./globals.css";
+import "react-toastify/dist/ReactToastify.css";
 
 import { CartProvider } from "./context/cartcontext";
 import { AuthProvider } from "./context/AuthContext";
@@ -17,6 +18,7 @@ import {
 } from "./context/saveforlatercontext";
 
 import SessionSync from "./components/SessionSync";
+import ToastProvider from "./components/ToastProvider";
 
 
 /* ============================================================
@@ -110,7 +112,6 @@ export default function RootLayout({
           {/* ==================================================
               CART PROVIDER
           ================================================== */}
-
           <CartProvider>
             {/* ================================================
                 WISHLIST PROVIDER
@@ -133,6 +134,7 @@ export default function RootLayout({
 
                   <BrandProvider>
                     {children}
+                    <ToastProvider />
                   </BrandProvider>
                 </SaveForLaterProvider>
               </ShoppingListProvider>

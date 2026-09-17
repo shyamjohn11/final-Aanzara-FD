@@ -22,6 +22,7 @@ import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatCard from "@/app/components/Admin/StatCard";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { brandsApi } from "@/app/api/services";
+import { toast } from "react-toastify";
 
 /* =========================================================
    TYPES
@@ -178,9 +179,12 @@ export default function BrandsAdminPage() {
     } catch (error) {
       console.error("Unable to load brand products:", error);
       setShelfItems([]);
-      setShelfError(
-        extractErrorMessage(error, "Failed to load brand products.")
+      const shelfMessage = extractErrorMessage(
+        error,
+        "Failed to load brand products."
       );
+      setShelfError(shelfMessage);
+      toast.error(shelfMessage);
     } finally {
       setShelfLoading(false);
     }
@@ -224,11 +228,12 @@ export default function BrandsAdminPage() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get<BrandApiResponse>("/api/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands(response.data?.items || []);
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load brands.");
       setError(message);
+      toast.error(message);
       console.error("Error fetching brands:", err);
     } finally {
       setLoading(false);
@@ -474,7 +479,9 @@ export default function BrandsAdminPage() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      setFormError("Please correct the highlighted fields before saving.");
+      const summary = "Please correct the highlighted fields before saving.";
+      setFormError(summary);
+      toast.error(summary);
       return false;
     }
 
@@ -513,7 +520,7 @@ export default function BrandsAdminPage() {
             status: status,
           };
 
-          await api.put(`/api/admin/brands/${editingBrand.brandId}`, payload);
+          await brandsApi.update(editingBrand.brandId, payload);
         }
       } else {
         // CREATE - POST with FormData
@@ -527,19 +534,23 @@ export default function BrandsAdminPage() {
           formData.append("Image", logoFile);
         }
 
-        await api.post("/api/admin/brands", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+        await brandsApi.create(formData);
       }
 
+      const wasEditing = Boolean(editingBrand);
       closeModal();
+      toast.success(
+        wasEditing
+          ? "Brand updated successfully."
+          : "Brand created successfully."
+      );
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to save brand.");
       setFormError(message);
+      toast.error(message);
       console.error("Error saving brand:", err);
+    } finally {
       setSubmitting(false);
     }
   };
@@ -560,10 +571,11 @@ export default function BrandsAdminPage() {
         status: currentStatus === 0 ? 1 : 0,
       };
 
-      await api.put(`/api/admin/brands/${id}`, payload);
+      await brandsApi.update(id, payload);
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update brand status.");
+      toast.error(message);
       console.error("Error toggling status:", err);
     }
   };
@@ -584,10 +596,11 @@ export default function BrandsAdminPage() {
         status: brand.status,
       };
 
-      await api.put(`/api/admin/brands/${id}`, payload);
+      await brandsApi.update(id, payload);
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update brand sale status.");
+      toast.error(message);
       console.error("Error toggling sale:", err);
     }
   };
@@ -602,11 +615,13 @@ export default function BrandsAdminPage() {
     }
 
     try {
-      await api.delete(`/api/admin/brands/${deleteId}`);
+      await brandsApi.remove(deleteId);
       setDeleteId(null);
+      toast.success("Brand deleted successfully.");
       fetchBrands();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to delete brand.");
+      toast.error(message);
       console.error("Error deleting brand:", err);
       setDeleteId(null);
     }

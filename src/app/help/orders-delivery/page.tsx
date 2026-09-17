@@ -15,6 +15,7 @@ import {
   Headphones,
   ChevronRight,
 } from "lucide-react";
+import { toast } from "react-toastify";
 
 /* =========================================================
    TYPES
@@ -785,7 +786,7 @@ export default function OrdersDeliveryPage() {
             <button
               type="button"
               onClick={() => {
-                alert(
+                toast.info(
                   "Your delivery address can be managed from your account."
                 );
               }}
@@ -854,7 +855,7 @@ export default function OrdersDeliveryPage() {
             <button
               type="button"
               onClick={() => {
-                alert(
+                toast.info(
                   "Delivery time depends on your location and order."
                 );
               }}

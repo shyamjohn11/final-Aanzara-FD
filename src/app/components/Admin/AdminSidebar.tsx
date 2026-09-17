@@ -90,6 +90,10 @@ const MENU_ITEMS: MenuItem[] = [
         href: "/admin/products",
       },
       {
+        label: "Bulk Import & Export",
+        href: "/admin/products/bulk-import",
+      },
+      {
         label: "Inventory",
         href: "/admin/inventory",
       },
