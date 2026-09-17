@@ -24,7 +24,8 @@ import {
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import { authApi } from "@/app/api/services";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -126,8 +127,8 @@ export default function RegisterPage() {
     try {
       setLoading(true);
 
-      // --- call API ---
-      await api.post("/api/v1/auth/register", {
+      // --- call API --- POST /api/v1/auth/register
+      await authApi.register({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.mobile.trim(),

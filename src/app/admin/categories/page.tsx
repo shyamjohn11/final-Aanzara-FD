@@ -122,8 +122,8 @@ export default function CategoriesAdminPage() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get<ApiResponse>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories((response.data as ApiResponse)?.items || []);
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load categories.");
       setError(message);
@@ -508,7 +508,7 @@ export default function CategoriesAdminPage() {
         isActive: !currentStatus,
       };
 
-      await api.put(`/api/v1/categories/${id}`, payload);
+      await categoriesApi.update(id, payload);
       fetchCategories(); // Refresh the list
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update category status.");
@@ -527,7 +527,7 @@ export default function CategoriesAdminPage() {
     }
 
     try {
-      await api.delete(`/api/v1/categories/${deleteId}`);
+      await categoriesApi.remove(deleteId);
       setDeleteId(null);
       fetchCategories(); // Refresh the list
     } catch (err) {

@@ -35,6 +35,7 @@ import {
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { api, extractErrorMessage } from "@/app/api/api";
+import { authApi } from "@/app/api/services";
 
 // =====================================================
 // TYPES
@@ -266,10 +267,11 @@ export default function ProfilePage() {
       // Set the authorization header for all subsequent API calls
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      // First try to get user data from /me endpoint
+      // First try to get user data from /me endpoint — GET /api/v1/auth/me
       try {
-        const meResponse = await api.get<ApiProfileResponse>("/api/v1/auth/me");
-        const meData = meResponse.data;
+        const meResponse = await authApi.me();
+        // AuthUser is a subset of ApiProfileResponse; cast for form mapping
+        const meData = meResponse.data as unknown as ApiProfileResponse;
         
         if (meData?.userId) {
           const userIdValue = meData.userId;
@@ -312,20 +314,17 @@ export default function ProfilePage() {
 
       // If /me failed, try to get user ID from session
       const id = getUserId();
-      
+
       if (!id) {
         throw new Error("User not authenticated. Please login again.");
       }
 
       setUserId(id);
 
-      // Fetch user profile from API
-      const response = await api.get<{ data: ApiProfileResponse }>(
-        `/api/v1/users/${id}`
-      );
+      // /auth/me is the only profile source; retry it once before failing.
+      const meResponse = await authApi.me();
+      const userData = meResponse.data as unknown as ApiProfileResponse;
 
-      const userData = response.data.data || response.data;
-      
       if (!userData || !userData.userId) {
         throw new Error("Failed to load user data");
       }
@@ -487,23 +486,18 @@ export default function ProfilePage() {
         api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       }
 
-      // Upload image to server
-      const formData = new FormData();
-      formData.append("avatar", file);
+      // Upload image to server — POST /api/v1/auth/me/avatar
+      const response = await authApi.uploadAvatar(file);
 
-      const response = await api.post<{ data: { avatarUrl: string } }>(
-        `/api/v1/users/${userId}/avatar`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-
+      const payload = response.data as unknown as Record<string, unknown>;
+      const nested = payload?.data as Record<string, unknown> | undefined;
       const avatarUrl =
-  response.data.data?.avatarUrl ??
-  (response.data as { avatarUrl?: string }).avatarUrl;
+        (nested?.avatarUrl as string | undefined) ??
+        (nested?.AvatarUrl as string | undefined) ??
+        (payload?.avatarUrl as string | undefined) ??
+        (payload?.AvatarUrl as string | undefined) ??
+        (payload?.url as string | undefined) ??
+        (payload?.Url as string | undefined);
       
       if (avatarUrl) {
         setForm((current) => ({ ...current, avatarUrl }));
@@ -575,8 +569,8 @@ export default function ProfilePage() {
         avatarUrl: form.avatarUrl || undefined,
       };
 
-      // Update profile via API
-      await api.put(`/api/v1/users/${userId}`, cleanProfile);
+      // Update profile via API — PUT /api/v1/auth/me
+      await authApi.updateMe(cleanProfile);
 
       setSuccess("Your profile has been updated successfully.");
       toast.success("Profile updated successfully!");

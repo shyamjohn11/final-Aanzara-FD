@@ -104,7 +104,7 @@ export default function InventoryPage() {
 
     const loadInventory = async () => {
       try {
-        const response = await api.get("/api/admin/inventory");
+        const response = await inventoryApi.list();
         const payload = response.data;
         const rawItems: any[] = Array.isArray(payload)
           ? payload
