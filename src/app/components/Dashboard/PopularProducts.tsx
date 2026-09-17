@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Minus,
   Plus,
@@ -25,6 +26,8 @@ function PopularProductCard({
 }: {
   product: Product;
 }) {
+  const router = useRouter();
+
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState("");
@@ -33,7 +36,27 @@ function PopularProductCard({
   const { isInWishlist, toggleWishlist } = useWishlist();
   const saved = isInWishlist(product.id);
 
-  const handleWishlist = () => {
+  /* ==========================================================
+     NAVIGATE TO PRODUCT DETAIL
+  ========================================================== */
+
+  const goToProduct = () => {
+    router.push(`/product/${product.id}`);
+  };
+
+  const handleCardKeyDown = (
+    event: React.KeyboardEvent<HTMLElement>
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      goToProduct();
+    }
+  };
+
+  const handleWishlist = (
+    event: React.MouseEvent
+  ) => {
+    event.stopPropagation();
     setError("");
     try {
       toggleWishlist(product);
@@ -48,14 +71,16 @@ function PopularProductCard({
 
   const safeQty = Math.max(1, Math.min(9999, qty));
 
-  const decreaseQty = () => {
+  const decreaseQty = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setError("");
     setAdded(false);
 
     setQty((current) => Math.max(1, current - 1));
   };
 
-  const increaseQty = () => {
+  const increaseQty = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setError("");
     setAdded(false);
 
@@ -77,7 +102,8 @@ function PopularProductCard({
      ADD TO CART (backend-synced via cart context)
   ========================================================== */
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setError("");
     setAdded(false);
 
@@ -111,6 +137,11 @@ function PopularProductCard({
 
   return (
     <article
+      role="link"
+      tabIndex={0}
+      aria-label={`View ${product.name}`}
+      onClick={goToProduct}
+      onKeyDown={handleCardKeyDown}
       className="
         bg-white
         border
@@ -119,6 +150,12 @@ function PopularProductCard({
         overflow-hidden
         flex
         flex-col
+        cursor-pointer
+        transition-shadow
+        hover:shadow-lg
+        focus:outline-none
+        focus:ring-2
+        focus:ring-navy/30
       "
     >
       {/* ======================================================
@@ -129,6 +166,8 @@ function PopularProductCard({
         className="
           relative
           h-[130px]
+          w-full
+          overflow-hidden
           flex
           items-center
           justify-center
@@ -148,6 +187,7 @@ function PopularProductCard({
             absolute
             top-2.5
             left-2.5
+            z-10
             bg-green
             text-white
             text-[10.5px]
@@ -167,6 +207,7 @@ function PopularProductCard({
             absolute
             top-2.5
             right-2.5
+            z-10
             bg-amber-500
             text-white
             text-[10px]
@@ -184,6 +225,7 @@ function PopularProductCard({
             absolute
             top-2.5
             right-2.5
+            z-10
             bg-red-500
             text-white
             text-[10px]
@@ -210,6 +252,7 @@ function PopularProductCard({
             absolute
             bottom-2.5
             right-2.5
+            z-10
             w-8
             h-8
             rounded-full
@@ -241,10 +284,11 @@ function PopularProductCard({
             alt={product.name}
             loading="lazy"
             className="
-              max-h-full
-              max-w-[85%]
-              object-contain
-              drop-shadow-sm
+              absolute
+              inset-0
+              h-full
+              w-full
+              object-cover
             "
           />
         ) : (

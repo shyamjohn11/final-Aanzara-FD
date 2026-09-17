@@ -43,16 +43,24 @@ export default function AccountPage() {
 
   /* =======================================================
      LOAD USER
+
+     "aanzara_user" is the canonical key Header.tsx and the
+     login flow use. The older "aanzara-profile" / "user"
+     keys are kept only as a fallback for accounts that still
+     have data saved under them.
   ======================================================= */
 
   useEffect(() => {
     try {
+      const canonicalUser = localStorage.getItem("aanzara_user");
       const profileData = localStorage.getItem("aanzara-profile");
       const userData = localStorage.getItem("user");
 
       let data: any = null;
 
-      if (profileData) {
+      if (canonicalUser) {
+        data = JSON.parse(canonicalUser);
+      } else if (profileData) {
         data = JSON.parse(profileData);
       } else if (userData) {
         data = JSON.parse(userData);

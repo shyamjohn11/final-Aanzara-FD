@@ -49,6 +49,7 @@ type Product = {
   categoryName?: string;
   subCategoryName?: string;
   brandName?: string;
+  imageUrl?: string;
 };
 
 type ProductApiResponse = {
@@ -85,6 +86,71 @@ type ProductErrors = Partial<Record<
 type SortBy = "productName" | "price" | "newest" | "oldest" | "";
 
 const SEARCH_DEBOUNCE_MS = 400;
+
+/* ============================================================
+   IMAGE ENRICHMENT HELPER
+   Parses a productImagesApi.list() response into a flat array,
+   used both to fill in a missing product.imageUrl on the list
+   page and to populate the edit-modal image manager.
+============================================================ */
+
+function parseImageListPayload(payload: unknown): ServerProductImage[] {
+  const rawItems: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as Record<string, unknown>)?.items)
+      ? ((payload as Record<string, unknown>).items as unknown[])
+      : Array.isArray((payload as Record<string, unknown>)?.data)
+        ? ((payload as Record<string, unknown>).data as unknown[])
+        : [];
+
+  const mapped: ServerProductImage[] = [];
+  rawItems.forEach((entry) => {
+    if (typeof entry !== "object" || entry === null) return;
+    const raw = entry as Record<string, unknown>;
+    const imageId = String(raw.imageId ?? raw.id ?? "");
+    const imageUrl = String(raw.imageUrl ?? raw.url ?? raw.filePath ?? "");
+    if (!imageId || !imageUrl) return;
+    mapped.push({
+      imageId,
+      imageUrl,
+      isPrimary: Boolean(raw.isPrimary ?? raw.is_primary ?? false),
+    });
+  });
+  return mapped;
+}
+
+/* ============================================================
+   THUMBNAIL — used in both the desktop table and mobile cards.
+   Falls back to the generic package icon on missing/broken URLs.
+============================================================ */
+
+function ProductThumb({ src, onClick }: { src?: string; onClick?: () => void }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
+        <Package size={18} />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="View image"
+      className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#EDF0F4] transition hover:opacity-80"
+    >
+      <img
+        src={src}
+        alt=""
+        onError={() => setFailed(true)}
+        className="h-full w-full object-cover"
+      />
+    </button>
+  );
+}
 
 /* ============================================================
    PAGE
@@ -135,6 +201,13 @@ export default function ProductsAdminPage() {
   const [existingImages, setExistingImages] = useState<ServerProductImage[]>(
     []
   );
+
+  // Shown in the main preview box while editing, before any new file is
+  // picked — the primary uploaded image if one exists, else the first.
+  const currentPrimaryImageUrl =
+    existingImages.find((img) => img.isPrimary)?.imageUrl ??
+    existingImages[0]?.imageUrl ??
+    "";
 
   const [errors, setErrors] = useState<ProductErrors>({});
   const [formError, setFormError] = useState("");
@@ -341,32 +414,7 @@ export default function ProductsAdminPage() {
     if (!productId) return;
     try {
       const response = await productImagesApi.list(productId);
-      const payload: unknown = response.data;
-      const rawItems: unknown[] = Array.isArray(payload)
-        ? payload
-        : Array.isArray((payload as Record<string, unknown>)?.items)
-          ? ((payload as Record<string, unknown>).items as unknown[])
-          : Array.isArray((payload as Record<string, unknown>)?.data)
-            ? ((payload as Record<string, unknown>).data as unknown[])
-            : [];
-      const mapped: ServerProductImage[] = [];
-      rawItems.forEach((entry) => {
-        if (typeof entry !== "object" || entry === null) return;
-        const raw = entry as Record<string, unknown>;
-        const imageId = String(
-          raw.imageId ?? raw.id ?? ""
-        );
-        const imageUrl = String(
-          raw.imageUrl ?? raw.url ?? raw.filePath ?? ""
-        );
-        if (!imageId || !imageUrl) return;
-        mapped.push({
-          imageId,
-          imageUrl,
-          isPrimary: Boolean(raw.isPrimary ?? raw.is_primary ?? false),
-        });
-      });
-      setExistingImages(mapped);
+      setExistingImages(parseImageListPayload(response.data));
     } catch (error) {
       console.error("Unable to load product images:", error);
     }
@@ -1011,9 +1059,7 @@ export default function ProductsAdminPage() {
                         <tr key={product.productId} className="border-b border-[#F0F2F5] last:border-0 hover:bg-[#FCFDFE]">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                                <Package size={18} />
-                              </div>
+                              <ProductThumb src={product.imageUrl} onClick={() => openPreview(product.imageUrl)} />
                               <div className="min-w-0">
                                 <p className="max-w-[220px] truncate text-[11px] font-bold text-[#33415A]">
                                   {product.productName}
@@ -1099,9 +1145,7 @@ export default function ProductsAdminPage() {
                   {filteredProducts.map((product) => (
                     <div key={product.productId} className="p-4">
                       <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                          <Package size={18} />
-                        </div>
+                        <ProductThumb src={product.imageUrl} onClick={() => openPreview(product.imageUrl)} />
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
@@ -1267,6 +1311,12 @@ export default function ProductsAdminPage() {
                   >
                     {image ? (
                       <img src={image} alt="Product preview" className="h-full w-full object-contain p-3" />
+                    ) : currentPrimaryImageUrl ? (
+                      <img
+                        src={currentPrimaryImageUrl}
+                        alt="Current product image"
+                        className="h-full w-full object-contain p-3"
+                      />
                     ) : (
                       <div className="text-center">
                         <ImagePlus size={23} className="mx-auto text-[#8090A6]" />
@@ -1583,6 +1633,41 @@ export default function ProductsAdminPage() {
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* IMAGE PREVIEW LIGHTBOX */}
+        {previewImage && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Product image preview"
+            onClick={closePreview}
+            className={`fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 transition-opacity duration-200 ease-out ${
+              previewVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <div
+              onClick={(event) => event.stopPropagation()}
+              className={`relative w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${
+                previewVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={closePreview}
+                aria-label="Close preview"
+                className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#647287] shadow-sm transition hover:bg-white hover:text-[#1F2F49]"
+              >
+                <X size={16} />
+              </button>
+
+              <img
+                src={previewImage}
+                alt="Product"
+                className="max-h-[60vh] w-full bg-[#FAFBFD] object-contain"
+              />
             </div>
           </div>
         )}

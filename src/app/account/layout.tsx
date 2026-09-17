@@ -34,19 +34,31 @@ export default function AccountLayout({
 
   /* =====================================================
      LOAD PROFILE (once, shared by every account page)
+
+     "aanzara_user" is the canonical key the login flow and
+     Header.tsx both read/write. "aanzara-profile" / "user"
+     were an older, separate key pair that never got updated
+     on login, which is why this sidebar used to show a stale
+     "Sam" placeholder instead of the signed-in user's name —
+     they're kept below only as a fallback for any account
+     that still has data saved under the old keys.
   ====================================================== */
 
   useEffect(() => {
     try {
+      const canonicalUser =
+        localStorage.getItem("aanzara_user");
       const savedProfile =
         localStorage.getItem("aanzara-profile");
       const savedUser = localStorage.getItem("user");
 
-      const profile = savedProfile
-        ? JSON.parse(savedProfile)
-        : savedUser
-          ? JSON.parse(savedUser)
-          : null;
+      const profile = canonicalUser
+        ? JSON.parse(canonicalUser)
+        : savedProfile
+          ? JSON.parse(savedProfile)
+          : savedUser
+            ? JSON.parse(savedUser)
+            : null;
 
       if (profile && typeof profile === "object") {
         const name =
@@ -71,11 +83,13 @@ export default function AccountLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <TopBar />
+      <div className="sticky top-0 z-50">
+        <TopBar />
 
-      <Header onMenuClick={() => setNavOpen(true)} />
+        <Header onMenuClick={() => setNavOpen(true)} />
 
-      <MainNav open={navOpen} onClose={() => setNavOpen(false)} />
+        <MainNav open={navOpen} onClose={() => setNavOpen(false)} />
+      </div>
 
       <main className="mx-auto flex w-full max-w-[1360px] flex-1 flex-col gap-8 px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">

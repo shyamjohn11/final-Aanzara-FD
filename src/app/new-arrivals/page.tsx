@@ -31,7 +31,7 @@ export default function NewArrivalsPage() {
       {/* =====================================================
           STICKY TOP: TOPBAR + HEADER + MAIN NAV
       ====================================================== */}
-      <div className="sticky top-0 z-50 bg-[#F7F9FC]">
+      <div className="sticky top-0 z-50">
         {/* =====================================================
             TOP BAR
         ====================================================== */}

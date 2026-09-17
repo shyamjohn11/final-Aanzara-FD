@@ -105,13 +105,19 @@ export default function Hero() {
         aria-label="Aanzara wholesale marketplace"
         className="
           relative
-          h-[300px]
+          h-[340px]
           overflow-hidden
           rounded-card
           bg-navy
-          sm:h-[340px]
+          sm:h-[420px]
         "
       >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-24 -top-24 h-[420px] w-[420px] rounded-full opacity-40 blur-3xl"
+          style={{ background: "radial-gradient(circle, #2B57FF 0%, transparent 70%)" }}
+        />
+
         <div
           className="
             relative
@@ -127,31 +133,34 @@ export default function Hero() {
         >
           <span
             className="
-              mb-3
+              mb-4
               inline-flex
               w-fit
               items-center
-              rounded-md
-              bg-green
-              px-2.5
-              py-1
-              text-[10px]
+              gap-1.5
+              rounded-pill
+              bg-white/10
+              px-3
+              py-1.5
+              text-[10.5px]
               font-bold
               tracking-wide
               text-white
+              backdrop-blur-sm
             "
           >
-            B2B & D2C WHOLESALE MARKETPLACE
+            <span className="h-1.5 w-1.5 rounded-full bg-green" />
+            B2B & D2C Wholesale Marketplace
           </span>
 
           <h1
             className="
               font-sora
-              text-[26px]
+              text-[28px]
               font-extrabold
-              leading-[1.15]
+              leading-[1.12]
               text-white
-              sm:text-[34px]
+              sm:text-[38px]
             "
           >
             Your Complete FMCG Supply Partner
@@ -161,10 +170,10 @@ export default function Hero() {
             className="
               mt-3
               max-w-[460px]
-              text-[13px]
+              text-[13.5px]
               leading-relaxed
-              text-white/80
-              sm:text-[13.5px]
+              text-white/75
+              sm:text-[14.5px]
             "
           >
             Direct manufacturer sourcing, unified B2B
@@ -173,25 +182,27 @@ export default function Hero() {
             restaurants, and corporate environments.
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link
               href="/contact"
               className="
                 flex
                 items-center
                 gap-2
-                rounded-lg
-                bg-green
-                px-5
-                py-3
-                text-[12.5px]
+                rounded-pill
+                bg-blue
+                px-6
+                py-3.5
+                text-[13px]
                 font-bold
                 text-white
-                transition-colors
-                hover:bg-green-deep
+                shadow-pop
+                transition-all
+                hover:bg-blue-deep
+                hover:-translate-y-0.5
                 focus:outline-none
                 focus:ring-2
-                focus:ring-green/40
+                focus:ring-blue/40
                 focus:ring-offset-2
                 focus:ring-offset-navy
               "
@@ -206,18 +217,18 @@ export default function Hero() {
             <Link
               href="/categories"
               className="
+                glass-navy
                 flex
                 items-center
                 gap-2
-                rounded-lg
-                bg-white
-                px-5
-                py-3
-                text-[12.5px]
+                rounded-pill
+                px-6
+                py-3.5
+                text-[13px]
                 font-bold
-                text-ink
-                transition-colors
-                hover:bg-paper
+                text-white
+                transition-all
+                hover:bg-white/10
                 focus:outline-none
                 focus:ring-2
                 focus:ring-white/50
@@ -246,10 +257,10 @@ export default function Hero() {
       aria-label="Aanzara wholesale marketplace hero"
       className="
         relative
-        h-[300px]
+        h-[340px]
         overflow-hidden
         rounded-card
-        sm:h-[340px]
+        sm:h-[420px]
       "
     >
       {/* ======================================================
@@ -267,20 +278,34 @@ export default function Hero() {
             className={`
               absolute
               inset-0
-              bg-cover
-              bg-center
+              overflow-hidden
               transition-opacity
-              duration-700
+              duration-[1200ms]
+              ease-out
               ${
                 isActive
                   ? "opacity-100"
                   : "opacity-0"
               }
             `}
-            style={{
-              backgroundImage: `url("${src}")`,
-            }}
-          />
+          >
+            <div
+              className={`
+                absolute
+                inset-0
+                bg-cover
+                bg-center
+                ${
+                  isActive
+                    ? "animate-[azHeroZoom_7s_ease-out_forwards]"
+                    : ""
+                }
+              `}
+              style={{
+                backgroundImage: `url("${src}")`,
+              }}
+            />
+          </div>
         );
       })}
 
@@ -293,7 +318,7 @@ export default function Hero() {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(100deg, #0B1E4Bb3 0%, #0B1E4B99 35%, #0B1E4B80 100%)",
+            "linear-gradient(105deg, #0A1F44E6 0%, #0A1F44B3 38%, #0A1F4433 75%, transparent 100%)",
         }}
       />
 
@@ -312,27 +337,31 @@ export default function Hero() {
           px-6
           py-8
           sm:px-10
+          az-fade-up
         "
       >
         {/* BADGE */}
 
         <span
           className="
-            mb-3
+            mb-4
             inline-flex
             w-fit
             items-center
-            rounded-md
-            bg-green
-            px-2.5
-            py-1
-            text-[10px]
+            gap-1.5
+            rounded-pill
+            bg-white/10
+            px-3
+            py-1.5
+            text-[10.5px]
             font-bold
             tracking-wide
             text-white
+            backdrop-blur-sm
           "
         >
-          B2B & D2C WHOLESALE MARKETPLACE
+          <span className="h-1.5 w-1.5 rounded-full bg-green" />
+          B2B & D2C Wholesale Marketplace
         </span>
 
         {/* TITLE */}
@@ -340,11 +369,11 @@ export default function Hero() {
         <h1
           className="
             font-sora
-            text-[26px]
+            text-[28px]
             font-extrabold
-            leading-[1.15]
+            leading-[1.12]
             text-white
-            sm:text-[34px]
+            sm:text-[38px]
           "
         >
           Your Complete FMCG Supply Partner
@@ -356,10 +385,10 @@ export default function Hero() {
           className="
             mt-3
             max-w-[460px]
-            text-[13px]
+            text-[13.5px]
             leading-relaxed
-            text-white/80
-            sm:text-[13.5px]
+            text-white/75
+            sm:text-[14.5px]
           "
         >
           Direct manufacturer sourcing, unified B2B
@@ -374,11 +403,11 @@ export default function Hero() {
 
         <div
           className="
-            mt-5
+            mt-6
             flex
             flex-wrap
             items-center
-            gap-2.5
+            gap-3
           "
         >
           {/* BULK ENQUIRY */}
@@ -390,18 +419,20 @@ export default function Hero() {
               flex
               items-center
               gap-2
-              rounded-lg
-              bg-green
-              px-5
-              py-3
-              text-[12.5px]
+              rounded-pill
+              bg-blue
+              px-6
+              py-3.5
+              text-[13px]
               font-bold
               text-white
-              transition-colors
-              hover:bg-green-deep
+              shadow-pop
+              transition-all
+              hover:bg-blue-deep
+              hover:-translate-y-0.5
               focus:outline-none
               focus:ring-2
-              focus:ring-green/40
+              focus:ring-blue/40
               focus:ring-offset-2
               focus:ring-offset-navy
             "
@@ -419,18 +450,18 @@ export default function Hero() {
             href="/categories"
             aria-label="Explore product categories"
             className="
+              glass-navy
               flex
               items-center
               gap-2
-              rounded-lg
-              bg-white
-              px-5
-              py-3
-              text-[12.5px]
+              rounded-pill
+              px-6
+              py-3.5
+              text-[13px]
               font-bold
-              text-ink
-              transition-colors
-              hover:bg-paper
+              text-white
+              transition-all
+              hover:bg-white/10
               focus:outline-none
               focus:ring-2
               focus:ring-white/50
@@ -454,12 +485,16 @@ export default function Hero() {
       {validSlides.length > 1 && (
         <div
           className="
+            glass-navy
             absolute
             bottom-4
-            right-6
+            right-4
             flex
             items-center
             gap-1.5
+            rounded-pill
+            px-2.5
+            py-2
           "
           role="tablist"
           aria-label="Hero slides"

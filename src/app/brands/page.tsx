@@ -572,7 +572,7 @@ export default function BrandsPage() {
   return (
     <div className="min-h-screen bg-paper text-ink">
       {/* STICKY TOP: TOPBAR + HEADER + MOBILE NAV */}
-      <div className="sticky top-0 z-50 bg-paper">
+      <div className="sticky top-0 z-50">
         {/* TOP BAR */}
         <TopBar />
 
