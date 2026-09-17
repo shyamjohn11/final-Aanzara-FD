@@ -277,7 +277,8 @@ export function reconcileGuardCookies(): "cleared" | "restored" | null {
 
 // Routes that only make sense for a signed-in user. When a dead session
 // is detected on one of them we bounce back to the login page; on public
-// storefront pages we just drop to guest mode instead.
+// storefront pages (including /dashboard, the storefront home) we just
+// drop to guest mode instead.
 export const PROTECTED_PREFIXES = [
   "/account",
   "/checkout",
@@ -286,7 +287,6 @@ export const PROTECTED_PREFIXES = [
   "/payment",
   "/invoice",
   "/admin",
-  "/dashboard",
   "/agent-shop-onboarding",
 ];
 

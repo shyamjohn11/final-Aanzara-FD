@@ -16,8 +16,13 @@ const ROLE_COOKIE = "aanzara_role";
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 // Routes that require authentication (redirect to /login?redirect=…
-// when there is no session). Includes the role home pages so a
-// logged-out visitor always lands on the login page first.
+// when there is no session).
+//
+// /dashboard is deliberately NOT here: it is the public storefront home
+// (Hero, ShopByCategory, PopularProducts, ...), reached by the root "/"
+// redirect, and must render for guests. Signed-in customers still land
+// there after login via homeFor() below — this list only controls the
+// guest-visits-directly case.
 const AUTH_ROUTES = [
   "/account",
   "/checkout",
@@ -25,7 +30,6 @@ const AUTH_ROUTES = [
   "/order-confirmation",
   "/payment",
   "/invoice",
-  "/dashboard",
   "/agent-shop-onboarding",
 ];
 
