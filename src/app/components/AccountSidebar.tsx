@@ -7,6 +7,7 @@ import {
   MapPin,
   Heart,
   Bell,
+  BellRing,
   LockKeyhole,
   MonitorSmartphone,
   LogOut,
@@ -43,6 +44,11 @@ const accountMenu = [
     label: "Alerts",
     icon: Bell,
     href: "/account/alerts",
+  },
+  {
+    label: "Notification Settings",
+    icon: BellRing,
+    href: "/account/notifications",
   },
   {
     label: "Change Password",

@@ -13,10 +13,12 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
+  useEffect,
   useState,
   useId,
   type KeyboardEvent,
 } from "react";
+import { notificationsApi } from "@/app/api/services";
 
 type AdminHeaderProps = {
   onMenuClick?: () => void;
@@ -58,6 +60,47 @@ export default function AdminHeader({
 
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // Live unread count for the admin inbox (Notifications table).
+  // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadUnread = async () => {
+      try {
+        const response = await notificationsApi.list({
+          unreadOnly: true,
+          page: 1,
+          pageSize: 1,
+        });
+        if (cancelled) return;
+        const payload = response?.data as
+          | { totalCount?: number; totalcount?: number }
+          | undefined;
+        const total =
+          typeof payload?.totalCount === "number"
+            ? payload.totalCount
+            : typeof payload?.totalcount === "number"
+              ? payload.totalcount
+              : 0;
+        setUnreadNotifications(total);
+      } catch {
+        if (!cancelled) setUnreadNotifications(0);
+      }
+    };
+    void loadUnread();
+    const timer = setInterval(loadUnread, 30000);
+    const sync = () => {
+      void loadUnread();
+    };
+    window.addEventListener("focus", sync);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
@@ -321,7 +364,11 @@ export default function AdminHeader({
 
         <button
           type="button"
-          aria-label="Notifications"
+          aria-label={
+            unreadNotifications > 0
+              ? `Notifications, ${unreadNotifications} unread`
+              : "Notifications"
+          }
           onClick={() =>
             router.push(
               ROUTES.notifications
@@ -337,21 +384,23 @@ export default function AdminHeader({
         >
           <Bell size={18} />
 
-          <span
-            className="
-              absolute -right-0.5 -top-0.5
-              flex h-[17px] min-w-[17px]
-              items-center justify-center
-              rounded-full
-              bg-[#EF4444]
-              px-1
-              text-[9px]
-              font-bold
-              text-white
-            "
-          >
-            5
-          </span>
+          {unreadNotifications > 0 && (
+            <span
+              className="
+                absolute -right-0.5 -top-0.5
+                flex h-[17px] min-w-[17px]
+                items-center justify-center
+                rounded-full
+                bg-[#EF4444]
+                px-1
+                text-[9px]
+                font-bold
+                text-white
+              "
+            >
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
         </button>
 
         {/* DIVIDER */}

@@ -7,7 +7,13 @@ import {
   customerNotificationsApi,
   notificationsApi,
 } from "@/app/api/services";
-import { hasSession } from "@/app/api/api";
+import { getSessionRole, hasSession } from "@/app/api/api";
+import {
+  isTypeAllowed,
+  loadPrefs,
+  loadReadIds,
+  saveReadIds,
+} from "@/app/utils/notifications";
 
 import {
   AlertCircle,
@@ -369,45 +375,55 @@ export default function AlertsPage() {
           return;
         }
 
-        const mapped: AlertItem[] = rows.map(
-          (row, index) => {
-            const rawType = String(
-              row.type ?? "general"
-            ).toLowerCase();
-            const type: AlertType = (
-              VALID_ALERT_TYPES as string[]
-            ).includes(rawType)
-              ? (rawType as AlertType)
-              : "general";
-            const createdRaw = String(
-              row.createdAt ?? ""
-            );
-            const createdAt = Number.isNaN(
-              Date.parse(createdRaw)
-            )
-              ? Date.now() - index * 60000
-              : Date.parse(createdRaw);
-            const id = String(
-              row.id ?? `live-${createdAt}-${index}`
-            ).trim();
-            return {
-              id,
-              type,
-              title: String(
-                row.title ?? "Notification"
-              ).trim(),
-              message: String(
-                row.message ?? ""
-              ).trim(),
-              time: new Date(
-                createdAt
-              ).toLocaleString("en-IN"),
-              createdAt,
-              read: false,
-              href: "/account/orders",
-            };
-          }
-        );
+        const prefs = loadPrefs();
+        const readIds = loadReadIds();
+        const mapped: AlertItem[] = [];
+        rows.forEach((row, index) => {
+          const rawType = String(
+            row.type ?? "general"
+          ).toLowerCase();
+          if (!isTypeAllowed(rawType, prefs)) return;
+          const type: AlertType = (
+            VALID_ALERT_TYPES as string[]
+          ).includes(rawType)
+            ? (rawType as AlertType)
+            : "general";
+          const createdRaw = String(
+            row.createdAt ?? ""
+          );
+          const createdAt = Number.isNaN(
+            Date.parse(createdRaw)
+          )
+            ? Date.now() - index * 60000
+            : Date.parse(createdRaw);
+          const id = String(
+            row.id ?? `live-${createdAt}-${index}`
+          ).trim();
+          if (!id) return;
+          const title = String(
+            row.title ?? "Notification"
+          ).trim() || "Notification";
+          // Remarks can be null — fall back instead of dropping the row.
+          const message =
+            (typeof row.message === "string" && row.message.trim()) ||
+            "There's a new update on your order — tap to view it.";
+          const link =
+            typeof row.link === "string" && row.link.startsWith("/")
+              ? row.link
+              : "/account/orders";
+          mapped.push({
+            id,
+            type,
+            title,
+            message,
+            time: new Date(
+              createdAt
+            ).toLocaleString("en-IN"),
+            createdAt,
+            read: row.isRead === true || readIds.has(id),
+            href: link,
+          });
+        });
 
         setAlerts((current) => {
           const known = new Set(
@@ -445,15 +461,8 @@ export default function AlertsPage() {
       return;
     }
 
-    try {
-      if (
-        sessionStorage.getItem(
-          "aanzara_user_role"
-        ) !== "admin"
-      ) {
-        return;
-      }
-    } catch {
+    // Canonical role resolution (storage + guard cookie, lowercased).
+    if (getSessionRole() !== "admin") {
       return;
     }
 
@@ -482,7 +491,9 @@ export default function AlertsPage() {
           return;
         }
 
-        const mapped: AlertItem[] = rows.map((row, index) => {
+        const readIds = loadReadIds();
+        const mapped: AlertItem[] = [];
+        rows.forEach((row, index) => {
           const rawType = String(
             row.type ?? row.category ?? "general"
           ).toLowerCase();
@@ -502,25 +513,36 @@ export default function AlertsPage() {
           const id = String(
             row.id ?? row.notificationId ?? `live-${createdAt}-${index}`
           ).trim();
-          return {
-            id,
-            type,
-            title: String(
-              row.title ?? row.subject ?? "Notification"
-            ).trim(),
-            message: String(
-              row.message ?? row.body ?? row.description ?? ""
-            ).trim(),
-            time: new Date(createdAt).toLocaleString("en-IN"),
-            createdAt,
-            read: row.read === true || row.isRead === true,
-            href:
-              type === "order" || type === "delivery"
+          if (!id) return;
+          const title = String(
+            row.title ?? row.subject ?? "Notification"
+          ).trim() || "Notification";
+          const message = String(
+            row.message ?? row.body ?? row.description ?? ""
+          ).trim() || "Tap to view details.";
+          const rawLink = row.link;
+          const href =
+            typeof rawLink === "string" && rawLink.startsWith("/")
+              ? rawLink
+              : type === "order" || type === "delivery"
                 ? "/account/orders"
                 : type === "offer"
                   ? "/offers"
-                  : "/account/alerts",
-          };
+                  : "/admin/notifications";
+          mapped.push({
+            id,
+            type,
+            title,
+            message,
+            time: new Date(createdAt).toLocaleString("en-IN"),
+            createdAt,
+            // Server truth wins; shared read-ids key keeps /alerts + bell in sync.
+            read:
+              row.read === true ||
+              row.isRead === true ||
+              readIds.has(id),
+            href,
+          });
         });
 
         setAlerts((current) => {
@@ -592,7 +614,12 @@ export default function AlertsPage() {
   // ACTIONS
   // ==========================================================
 
+  // Writes the shared read-ids key too, so the header bell and
+  // /alerts agree (the customer feed is read-only server-side).
   const markAsRead = (id: string) => {
+    const readIds = loadReadIds();
+    readIds.add(id);
+    saveReadIds(readIds);
     setAlerts((current) =>
       current.map((alert) =>
         alert.id === id ? { ...alert, read: true } : alert
@@ -603,6 +630,9 @@ export default function AlertsPage() {
   const markAllAsRead = () => {
     if (unreadCount === 0) return;
 
+    const readIds = loadReadIds();
+    alerts.forEach((alert) => readIds.add(alert.id));
+    saveReadIds(readIds);
     setAlerts((current) =>
       current.map((alert) => ({ ...alert, read: true }))
     );
