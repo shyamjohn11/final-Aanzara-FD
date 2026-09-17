@@ -85,7 +85,7 @@ export default function MobileMenu({
       ========================= */}
 
       <div
-        className="fixed inset-0 z-[9998] bg-black/40 md:hidden"
+        className="fixed inset-0 z-[9998] bg-navy/50 backdrop-blur-sm md:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -109,8 +109,8 @@ export default function MobileMenu({
           max-w-[92vw]
           flex-col
           overflow-hidden
-          bg-white
-          shadow-2xl
+          glass-strong
+          shadow-pop
           md:hidden
         "
       >
@@ -126,7 +126,7 @@ export default function MobileMenu({
             items-center
             justify-between
             border-b
-            border-[#e5e7eb]
+            border-line
             px-6
           "
         >
@@ -134,10 +134,11 @@ export default function MobileMenu({
             href="/"
             onClick={handleNavigation}
             className="
+              font-sora
               text-[25px]
-              font-bold
+              font-extrabold
               tracking-[-0.5px]
-              text-[#12346b]
+              text-navy
             "
           >
             Aanzara
@@ -154,8 +155,10 @@ export default function MobileMenu({
               items-center
               justify-center
               rounded-full
-              text-[#607492]
-              hover:bg-[#f3f6fa]
+              text-ink-soft
+              transition-colors
+              hover:bg-paper
+              hover:text-blue
             "
           >
             <X

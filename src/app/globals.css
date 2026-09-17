@@ -3,6 +3,79 @@
 @tailwind utilities;
 
 /* =========================================================
+   DESIGN TOKENS — AANZARA PREMIUM REFRESH
+
+   These are the single source of truth for the palette,
+   shadows and radii. The utility classes below (.bg-navy,
+   .text-ink, .rounded-card, .shadow-pop, etc.) are what every
+   component in the app already references — updating the
+   values here re-skins the entire site without touching
+   component files.
+========================================================= */
+
+:root {
+  /* Brand — deep, saturated indigo-blue instead of flat SaaS blue */
+  --az-navy: #0a1f44;
+  --az-navy-soft: #16305e;
+
+  --az-blue: #2b57ff;
+  --az-blue-deep: #1a3fce;
+  --az-blue-soft: #eef2ff;
+
+  /* Neutrals — warmer, higher-contrast charcoal instead of blue-grey */
+  --az-ink: #171f2b;
+  --az-ink-soft: #4b5768;
+  --az-ink-faint: #94a0b2;
+
+  --az-paper: #f7f8fb;
+  --az-line: #e3e7ef;
+  --az-white: #ffffff;
+
+  /* Accents */
+  --az-green: #0e9f6e;
+  --az-green-deep: #0a7d56;
+  --az-green-soft: #e7f8f1;
+
+  --az-amber: #d97a06;
+  --az-amber-soft: #fef3e2;
+
+  --az-red: #ef4444;
+  --az-red-deep: #dc2626;
+  --az-red-soft: #fef2f2;
+
+  /* Radii */
+  --az-radius-card: 18px;
+  --az-radius-pill: 999px;
+
+  /* Elevation — soft ambient ground shadow + a crisper pop on hover */
+  --az-shadow-card:
+    0 1px 2px rgba(10, 20, 40, 0.04),
+    0 14px 32px -18px rgba(10, 20, 40, 0.16);
+
+  --az-shadow-pop:
+    0 6px 16px -4px rgba(10, 20, 40, 0.12),
+    0 28px 56px -24px rgba(10, 20, 40, 0.32);
+
+  --az-shadow-focus: 0 0 0 4px rgba(43, 87, 255, 0.16);
+
+  /* Glass — used sparingly on floating/overlay surfaces only:
+     sticky header, mobile menu, modals/popups, dropdowns, filter
+     drawer. Never on product cards, tables or dense data grids,
+     where flat backgrounds keep prices and stock legible. */
+  --az-glass-bg: rgba(255, 255, 255, 0.68);
+  --az-glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --az-glass-border: rgba(255, 255, 255, 0.55);
+  --az-glass-blur: 20px;
+
+  --az-glass-navy-bg: rgba(10, 31, 68, 0.62);
+  --az-glass-navy-border: rgba(255, 255, 255, 0.12);
+
+  --az-shadow-glass:
+    0 1px 1px rgba(10, 20, 40, 0.03),
+    0 20px 44px -20px rgba(10, 20, 40, 0.28);
+}
+
+/* =========================================================
    GLOBAL
 ========================================================= */
 
@@ -11,8 +84,11 @@ html {
 }
 
 body {
-  background: #f6f8fb;
+  background: var(--az-paper);
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -33,13 +109,56 @@ input::placeholder {
   opacity: 1;
 }
 
+/* Fonts — Sora for display/headings, Inter for body */
+
+.font-inter {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+}
+
+.font-sora {
+  font-family: var(--font-sora), ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-sora), ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  letter-spacing: -0.01em;
+}
+
 /* =========================================================
    TEXT SELECTION
 ========================================================= */
 
 ::selection {
-  background: rgba(23, 105, 245, 0.18);
-  color: #10265b;
+  background: rgba(43, 87, 255, 0.18);
+  color: var(--az-navy);
+}
+
+/* =========================================================
+   THIN PREMIUM SCROLLBAR (non .scrollbar-none areas)
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c7cedb;
+  border-radius: 999px;
+  border: 2px solid var(--az-paper);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a9b3c4;
 }
 
 /* =========================================================
@@ -58,9 +177,9 @@ input[type="range"]::-webkit-slider-thumb {
   height: 16px;
   width: 16px;
   border-radius: 999px;
-  background: #2448c4;
+  background: var(--az-blue-deep);
   border: 2px solid white;
-  box-shadow: 0 1px 4px rgba(11, 30, 75, 0.4);
+  box-shadow: 0 1px 4px rgba(10, 20, 40, 0.4);
   cursor: pointer;
   margin-top: -6px;
 }
@@ -68,7 +187,7 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 999px;
-  background: #dce2ee;
+  background: var(--az-line);
 }
 
 /* Firefox */
@@ -77,20 +196,20 @@ input[type="range"]::-moz-range-thumb {
   height: 16px;
   width: 16px;
   border-radius: 999px;
-  background: #2448c4;
+  background: var(--az-blue-deep);
   border: 2px solid white;
-  box-shadow: 0 1px 4px rgba(11, 30, 75, 0.4);
+  box-shadow: 0 1px 4px rgba(10, 20, 40, 0.4);
   cursor: pointer;
 }
 
 input[type="range"]::-moz-range-track {
   height: 4px;
   border-radius: 999px;
-  background: #dce2ee;
+  background: var(--az-line);
 }
 
 /* =========================================================
-   SCROLLBAR
+   SCROLLBAR (opt-out utility used across the app)
 ========================================================= */
 
 .scrollbar-none::-webkit-scrollbar {
@@ -100,6 +219,129 @@ input[type="range"]::-moz-range-track {
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* =========================================================
+   CUSTOM COLOR / RADIUS / SHADOW UTILITIES
+
+   These re-implement every non-standard Tailwind class used
+   across the codebase (bg-navy, text-ink, rounded-card,
+   shadow-pop, etc.) on top of the tokens above. Placed after
+   @tailwind utilities so they win on equal specificity.
+========================================================= */
+
+/* Navy */
+.bg-navy { background-color: var(--az-navy); }
+.text-navy { color: var(--az-navy); }
+.border-navy { border-color: var(--az-navy); }
+.ring-navy { --tw-ring-color: var(--az-navy); }
+.fill-navy { fill: var(--az-navy); }
+
+/* Blue (primary) */
+.bg-blue { background-color: var(--az-blue); }
+.text-blue { color: var(--az-blue); }
+.border-blue { border-color: var(--az-blue); }
+.ring-blue { --tw-ring-color: var(--az-blue); }
+.fill-blue { fill: var(--az-blue); }
+
+.bg-blue-deep { background-color: var(--az-blue-deep); }
+.text-blue-deep { color: var(--az-blue-deep); }
+.border-blue-deep { border-color: var(--az-blue-deep); }
+.hover\:bg-blue-deep:hover { background-color: var(--az-blue-deep); }
+.hover\:text-blue-deep:hover { color: var(--az-blue-deep); }
+.hover\:text-blue:hover { color: var(--az-blue); }
+.hover\:border-blue:hover { border-color: var(--az-blue); }
+
+/* Ink (text) */
+.text-ink { color: var(--az-ink); }
+.text-ink-soft { color: var(--az-ink-soft); }
+.text-ink-faint { color: var(--az-ink-faint); }
+.bg-ink-faint { background-color: var(--az-ink-faint); }
+.border-ink-faint { border-color: var(--az-ink-faint); }
+.fill-ink-faint { fill: var(--az-ink-faint); }
+.hover\:text-ink:hover { color: var(--az-ink); }
+
+/* Paper / line */
+.bg-paper { background-color: var(--az-paper); }
+.text-paper { color: var(--az-paper); }
+.bg-line { background-color: var(--az-line); }
+.border-line { border-color: var(--az-line); }
+.text-line { color: var(--az-line); }
+.hover\:bg-paper:hover { background-color: var(--az-paper); }
+
+/* Green */
+.bg-green { background-color: var(--az-green); }
+.text-green { color: var(--az-green); }
+.border-green { border-color: var(--az-green); }
+.ring-green { --tw-ring-color: var(--az-green); }
+.fill-green { fill: var(--az-green); }
+
+.bg-green-deep { background-color: var(--az-green-deep); }
+.text-green-deep { color: var(--az-green-deep); }
+.border-green-deep { border-color: var(--az-green-deep); }
+.fill-green-deep { fill: var(--az-green-deep); }
+
+/* Amber */
+.bg-amber { background-color: var(--az-amber); }
+.text-amber { color: var(--az-amber); }
+.border-amber { border-color: var(--az-amber); }
+.fill-amber { fill: var(--az-amber); }
+
+/* Red (default, distinct from Tailwind's numbered red-* scale) */
+.text-red { color: var(--az-red); }
+.bg-red { background-color: var(--az-red); }
+.border-red { border-color: var(--az-red); }
+.fill-red { fill: var(--az-red); }
+
+/* Radius */
+.rounded-card { border-radius: var(--az-radius-card); }
+.rounded-pill { border-radius: var(--az-radius-pill); }
+
+/* Shadow */
+.shadow-card { box-shadow: var(--az-shadow-card); }
+.shadow-pop { box-shadow: var(--az-shadow-pop); }
+.hover\:shadow-pop:hover { box-shadow: var(--az-shadow-pop); }
+.hover\:shadow-card:hover { box-shadow: var(--az-shadow-card); }
+
+/* =========================================================
+   GLASS SURFACES
+
+   Reserved for floating/overlay chrome — sticky header, mobile
+   nav, modals, popups, dropdown menus, the filter drawer. Solid
+   fallback for browsers without backdrop-filter support keeps
+   these readable everywhere.
+========================================================= */
+
+.glass {
+  background: var(--az-glass-bg);
+  border: 1px solid var(--az-glass-border);
+  -webkit-backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  box-shadow: var(--az-shadow-glass);
+}
+
+.glass-strong {
+  background: var(--az-glass-bg-strong);
+  border: 1px solid var(--az-glass-border);
+  -webkit-backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  box-shadow: var(--az-shadow-glass);
+}
+
+/* Dark variant — for chrome sitting over photography/video (hero
+   nav, wholesale/onboarding hero overlays) */
+.glass-navy {
+  background: var(--az-glass-navy-bg);
+  border: 1px solid var(--az-glass-navy-border);
+  -webkit-backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--az-glass-blur)) saturate(160%);
+  color: #fff;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--az-glass-bg-strong); }
+  .glass-strong { background: #ffffff; }
+  .glass-navy { background: #10305e; }
 }
 
 /* =========================================================
@@ -117,6 +359,32 @@ input[type="range"]::-moz-range-track {
   }
 }
 
+@keyframes azFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.az-fade-up {
+  animation: azFadeUp 0.5s ease-out both;
+}
+
+@keyframes azHeroZoom {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.08);
+  }
+}
+
 /* =========================================================
    AANZARA PROFILE PAGE
 ========================================================= */
@@ -127,12 +395,12 @@ input[type="range"]::-moz-range-track {
   width: 100%;
   box-sizing: border-box;
   height: 53px;
-  border: 1px solid #cfdae9;
-  border-radius: 10px;
+  border: 1px solid var(--az-line);
+  border-radius: 12px;
   outline: none;
-  padding: 0 15px;
-  color: #183864;
-  background: #ffffff;
+  padding: 0 16px;
+  color: var(--az-ink);
+  background: var(--az-white);
   font-size: 14px;
   transition:
     border-color 0.2s ease,
@@ -141,12 +409,12 @@ input[type="range"]::-moz-range-track {
 }
 
 .profileInput:focus {
-  border-color: #2873ed;
-  box-shadow: 0 0 0 4px rgba(40, 115, 237, 0.1);
+  border-color: var(--az-blue);
+  box-shadow: var(--az-shadow-focus);
 }
 
 .profileInput::placeholder {
-  color: #8ca0ba;
+  color: var(--az-ink-faint);
 }
 
 /* =========================================================
@@ -154,17 +422,17 @@ input[type="range"]::-moz-range-track {
 ========================================================= */
 
 .inputError {
-  border-color: #ef4444 !important;
-  background: #fff8f8 !important;
+  border-color: var(--az-red) !important;
+  background: var(--az-red-soft) !important;
 }
 
 .inputError:focus {
-  border-color: #ef4444 !important;
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+  border-color: var(--az-red) !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
 }
 
 .errorText {
-  color: #ef4444 !important;
+  color: var(--az-red) !important;
   font-weight: 600;
 }
 
@@ -176,9 +444,9 @@ input[type="range"]::-moz-range-track {
   margin: 5px 0 15px;
   padding: 12px 15px;
   border: 1px solid #fecaca;
-  border-radius: 9px;
-  background: #fef2f2;
-  color: #dc2626;
+  border-radius: 12px;
+  background: var(--az-red-soft);
+  color: var(--az-red-deep);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -195,9 +463,9 @@ input[type="range"]::-moz-range-track {
   gap: 7px;
   padding: 12px 15px;
   border: 1px solid #b7e4c7;
-  border-radius: 9px;
-  background: #ecfdf3;
-  color: #159447;
+  border-radius: 12px;
+  background: var(--az-green-soft);
+  color: var(--az-green-deep);
   font-size: 11px;
   font-weight: 600;
 }
@@ -238,9 +506,9 @@ input[type="range"]::-moz-range-track {
   min-height: 49px;
   padding: 0 16px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
-  color: #173a6e;
+  color: var(--az-navy-soft);
   text-align: left;
   font-size: 14px;
   font-weight: 600;
@@ -252,22 +520,22 @@ input[type="range"]::-moz-range-track {
 }
 
 .sideMenu button:hover {
-  background: #f5f8fd;
+  background: var(--az-paper);
 }
 
 .sideMenu button.active {
-  background: #edf4ff;
-  color: #0d56c9;
-  box-shadow: inset 4px 0 #1f70ef;
+  background: var(--az-blue-soft);
+  color: var(--az-blue-deep);
+  box-shadow: inset 4px 0 var(--az-blue);
 }
 
 .sideMenu button svg {
-  color: #547397;
+  color: var(--az-ink-soft);
   flex-shrink: 0;
 }
 
 .sideMenu button.active svg {
-  color: #1268eb;
+  color: var(--az-blue);
 }
 
 /* =========================================================
@@ -289,7 +557,7 @@ input[type="range"]::-moz-range-track {
 .nav button {
   border: 0;
   background: transparent;
-  color: #294c78;
+  color: var(--az-ink-soft);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -298,7 +566,7 @@ input[type="range"]::-moz-range-track {
 }
 
 .nav button:hover {
-  color: #1769ed;
+  color: var(--az-blue);
 }
 
 /* =========================================================
@@ -309,7 +577,7 @@ input[type="range"]::-moz-range-track {
   border: 0;
   background: transparent;
   padding: 0;
-  color: #58759b;
+  color: var(--az-ink-faint);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -319,7 +587,7 @@ input[type="range"]::-moz-range-track {
 }
 
 .breadcrumb button:hover {
-  color: #1769ed;
+  color: var(--az-blue);
 }
 
 /* =========================================================
@@ -332,7 +600,7 @@ input[type="range"]::-moz-range-track {
 .breadcrumb button:focus-visible,
 .backLink:focus-visible,
 .brand:focus-visible {
-  outline: 2px solid #1769f5;
+  outline: 2px solid var(--az-blue);
   outline-offset: 2px;
 }
 
@@ -451,7 +719,8 @@ input[type="range"]::-moz-range-track {
   .aanzara-hero-feature-3,
   .aanzara-register-card,
   .aanzara-floating-one,
-  .aanzara-floating-two {
+  .aanzara-floating-two,
+  .az-fade-up {
     animation: none;
   }
 }

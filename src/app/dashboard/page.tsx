@@ -20,7 +20,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
 
-      <div className="sticky top-0 z-50 bg-white">
+      <div className="sticky top-0 z-50">
         <TopBar />
 
         <Header onMenuClick={() => setNavOpen(true)} />

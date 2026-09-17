@@ -30,7 +30,7 @@ export default function WholesalePage() {
       {/* =========================
           STICKY TOP: TOPBAR + HEADER + MAIN NAV
       ========================== */}
-      <div className="sticky top-0 z-50 bg-white">
+      <div className="sticky top-0 z-50">
         {/* =========================
             TOP BAR
         ========================== */}

@@ -195,7 +195,7 @@ const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
           STICKY TOP: TOPBAR + HEADER + MOBILE NAV
       ====================================================== */}
 
-      <div className="sticky top-0 z-50 bg-[#f8fafc]">
+      <div className="sticky top-0 z-50">
         {/* =====================================================
             TOP BAR
         ====================================================== */}

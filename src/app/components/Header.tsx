@@ -349,7 +349,7 @@ export default function Header({
   ========================================================= */
 
   return (
-    <header className="w-full border-b border-line bg-white">
+    <header className="w-full glass">
 
       {/* =====================================================
           MAIN HEADER

@@ -21,7 +21,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* STICKY TOP: TOPBAR + HEADER + MAIN NAV */}
-      <div className="sticky top-0 z-50 bg-white">
+      <div className="sticky top-0 z-50">
         {/* TOP BAR */}
         <TopBar />
 

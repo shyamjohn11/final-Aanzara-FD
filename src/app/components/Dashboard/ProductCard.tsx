@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Heart,
@@ -140,6 +141,9 @@ function ValidatedProductCard({
   const [added, setAdded] = useState(false);
   const [quantityError, setQuantityError] =
     useState("");
+  const [imgError, setImgError] = useState(false);
+
+  const router = useRouter();
 
   const { addToCart } = useCart();
 
@@ -169,9 +173,37 @@ function ValidatedProductCard({
     1,
     Math.floor(toSafeNumber(product.bulkMoq, 1))
   );
-  
+
   // Determine if product is in stock (default to true if not specified)
   const isInStock = product.inStock !== undefined ? product.inStock : true;
+
+  /* ==========================================================
+     PRODUCT LINK
+  ========================================================== */
+
+  const productHref =
+    product.id === "fort-sfo-1l"
+      ? "/product/fortune-sunlite-sunflower-oil-5l"
+      : `/product/${encodeURIComponent(product.id)}`;
+
+  const hasImage = Boolean(product.image) && !imgError;
+
+  /* ==========================================================
+     CARD NAVIGATION
+  ========================================================== */
+
+  const goToProduct = () => {
+    router.push(productHref);
+  };
+
+  const handleCardKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      goToProduct();
+    }
+  };
 
   /* ==========================================================
      QUANTITY VALIDATION
@@ -210,7 +242,10 @@ function ValidatedProductCard({
      DECREASE
   ========================================================== */
 
-  const handleDecrease = () => {
+  const handleDecrease = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
     setAdded(false);
 
     setQty((current) => {
@@ -229,7 +264,10 @@ function ValidatedProductCard({
      INCREASE
   ========================================================== */
 
-  const handleIncrease = () => {
+  const handleIncrease = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
     setAdded(false);
 
     setQty((current) => {
@@ -254,7 +292,10 @@ function ValidatedProductCard({
      ADD TO CART
   ========================================================== */
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
     setAdded(false);
 
     if (!isInStock) {
@@ -290,57 +331,91 @@ function ValidatedProductCard({
      WISHLIST
   ========================================================== */
 
- const handleWishlist = () => {
-  try {
-    const wasSaved = isInWishlist(product.id);
+  const handleWishlist = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
 
-    toggleWishlist(product);
+    try {
+      const wasSaved = isInWishlist(product.id);
 
-    // Show Shopping List option only when
-    // the product is being added to Wishlist.
-    if (!wasSaved) {
-      setShowShoppingListPopup(true);
+      toggleWishlist(product);
+
+      // Show Shopping List option only when
+      // the product is being added to Wishlist.
+      if (!wasSaved) {
+        setShowShoppingListPopup(true);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to update wishlist:",
+        error
+      );
     }
-  } catch (error) {
-    console.error(
-      "Failed to update wishlist:",
-      error
-    );
-  }
-};
+  };
 
   /* ==========================================================
-     PRODUCT LINK
+     REQUEST QUOTE
   ========================================================== */
 
-  const productHref =
-    product.id === "fort-sfo-1l"
-      ? "/product/fortune-sunlite-sunflower-oil-5l"
-      : `/product/${encodeURIComponent(product.id)}`;
+  const handleRequestQuote = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
+
+    if (!isInStock) {
+      setQuantityError("This product is currently out of stock.");
+      return;
+    }
+
+    if (!validateQuantity(qty)) {
+      return;
+    }
+
+    console.log(
+      "Quote requested:",
+      {
+        productId: product.id,
+        quantity: qty,
+      }
+    );
+  };
 
   /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
-    <div className="
-      bg-white
-      border
-      border-line
-      rounded-card
-      overflow-hidden
-      flex
-      flex-col
-      hover:shadow-pop
-      transition-shadow
-    ">
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={goToProduct}
+      onKeyDown={handleCardKeyDown}
+      aria-label={`View details for ${product.name}`}
+      className="
+        bg-white
+        border
+        border-line
+        rounded-card
+        overflow-hidden
+        flex
+        flex-col
+        cursor-pointer
+        hover:shadow-pop
+        transition-shadow
+        focus:outline-none
+        focus-visible:ring-2
+        focus-visible:ring-blue
+        focus-visible:ring-offset-2
+      "
+    >
 
       {/* ======================================================
           PRODUCT IMAGE
       ====================================================== */}
 
       <div
-        className="relative h-[150px] flex items-center justify-center"
+        className="relative h-[150px] flex items-center justify-center overflow-hidden"
         style={{
           background: `linear-gradient(
             160deg,
@@ -356,6 +431,7 @@ function ValidatedProductCard({
             absolute
             top-2.5
             left-2.5
+            z-10
             bg-green
             text-white
             text-[11px]
@@ -374,6 +450,7 @@ function ValidatedProductCard({
             absolute
             top-2.5
             left-2.5
+            z-10
             bg-red-500
             text-white
             text-[11px]
@@ -400,6 +477,7 @@ function ValidatedProductCard({
             absolute
             top-2.5
             right-2.5
+            z-10
             w-7
             h-7
             rounded-full
@@ -428,22 +506,31 @@ function ValidatedProductCard({
 
         {/* PRODUCT VISUAL */}
 
-        <div
-          className="
-            w-14
-            h-20
-            rounded-md
-            shadow-sm
-          "
-          style={{
-            background: `linear-gradient(
-              160deg,
-              ${product.swatch},
-              ${product.accent}
-            )`,
-          }}
-          aria-hidden="true"
-        />
+        {hasImage ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            onError={() => setImgError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="
+              w-14
+              h-20
+              rounded-md
+              shadow-sm
+            "
+            style={{
+              background: `linear-gradient(
+                160deg,
+                ${product.swatch},
+                ${product.accent}
+              )`,
+            }}
+            aria-hidden="true"
+          />
+        )}
       </div>
 
       {/* ======================================================
@@ -487,6 +574,7 @@ function ValidatedProductCard({
 
         <Link
           href={productHref}
+          onClick={(event) => event.stopPropagation()}
           className="
             text-[13px]
             font-bold
@@ -633,14 +721,14 @@ function ValidatedProductCard({
             MOQ: {numericMoq} Cases
           </span>
 
-          <span className="
+          <span className={`
             flex
             items-center
             gap-1
             font-semibold
             whitespace-nowrap
             ${isInStock ? 'text-green-deep' : 'text-red-500'}
-          ">
+          `}>
             <Circle
               size={6}
               className={`
@@ -763,7 +851,7 @@ function ValidatedProductCard({
               justify-center
               gap-1.5
               ${
-                !isInStock 
+                !isInStock
                   ? 'bg-gray-400 cursor-not-allowed'
                   : added
                     ? "bg-green"
@@ -807,24 +895,7 @@ function ValidatedProductCard({
 
         <button
           type="button"
-          onClick={() => {
-            if (!isInStock) {
-              setQuantityError("This product is currently out of stock.");
-              return;
-            }
-
-            if (!validateQuantity(qty)) {
-              return;
-            }
-
-            console.log(
-              "Quote requested:",
-              {
-                productId: product.id,
-                quantity: qty,
-              }
-            );
-          }}
+          onClick={handleRequestQuote}
           disabled={!isInStock}
           className={`
             text-[11px]
@@ -842,13 +913,15 @@ function ValidatedProductCard({
       {/* SHOPPING LIST POPUP */}
 
       {showShoppingListPopup && (
-        <ShoppingListSavePopup
-          productId={product.id}
-          productName={product.name}
-          onClose={() =>
-            setShowShoppingListPopup(false)
-          }
-        />
+        <div onClick={(event) => event.stopPropagation()}>
+          <ShoppingListSavePopup
+            productId={product.id}
+            productName={product.name}
+            onClose={() =>
+              setShowShoppingListPopup(false)
+            }
+          />
+        </div>
       )}
     </div>
   );
