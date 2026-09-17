@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Heart, Image as ImageIcon } from "lucide-react";
-import { api, extractErrorMessage } from "@/app/api/api"; // Update path as needed
+import { extractErrorMessage } from "@/app/api/api"; // Update path as needed
+import { categoriesApi } from "@/app/api/services";
 
 const INITIAL_COUNT = 12;
 
@@ -44,7 +45,7 @@ export default function AllCategoriesGrid() {
         setLoading(true);
         setError(null);
 
-        const response = await api.get("/api/v1/categories");
+        const response = await categoriesApi.list();
         const payload: any = response?.data ?? response;
 
         // Handle both array and object responses

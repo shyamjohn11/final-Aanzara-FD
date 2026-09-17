@@ -137,6 +137,20 @@ export const authApi = {
   }) {
     return api.post("/api/v1/auth/change-passphrase", payload);
   },
+
+  // PUT /api/v1/auth/me — account/profile page (name, phone, dob, gender)
+  updateMe(payload: Record<string, unknown>) {
+    return api.put("/api/v1/auth/me", payload);
+  },
+
+  // POST /api/v1/auth/me/avatar — multipart file (JPG/PNG/WEBP, max 2 MB)
+  uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/api/v1/auth/me/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
 };
 
 // ============================================================
@@ -325,6 +339,13 @@ export const categoriesApi = {
 // ============================================================
 
 export const categoryImagesApi = {
+  // GET /api/v1/category-images?categoryId= — list a category's images (display order)
+  list(categoryId: string) {
+    return api.get(
+      `/api/v1/category-images?categoryId=${encodeURIComponent(categoryId)}`
+    );
+  },
+
   // #29 POST /api/v1/category-images/{categoryImageId}/primary (Bearer only)
   setPrimary(categoryImageId: string) {
     return api.post(`/api/v1/category-images/${categoryImageId}/primary`);
@@ -338,6 +359,11 @@ export const categoryImagesApi = {
   // #32 GET /api/v1/categories/{categoryId}/images — list images for a category
   images(categoryId: string) {
     return api.get(`/api/v1/categories/${categoryId}/images`);
+  },
+
+  // GET /api/v1/category-images/{categoryImageId}/file — stream image bytes (anonymous)
+  fileUrl(categoryImageId: string) {
+    return `/api/v1/category-images/${categoryImageId}/file`;
   },
 };
 
@@ -405,11 +431,17 @@ export interface ProductQuery {
   search?: string;
   categoryId?: string;
   subCategoryId?: string;
+  brandId?: string;
   status?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sortBy?: string;
+  sortDescending?: boolean;
 }
 
 export const productsApi = {
-  // #35 GET /api/v1/products?page=&pageSize=&search=&categoryId=&subCategoryId=&status=
+  // #35 GET /api/v1/products?page=&pageSize=&search=&categoryId=&subCategoryId=&brandId=&status=&minPrice=&maxPrice=&sortBy=&sortDescending=
+  // sortBy: sku | mrp | price | created (unknown falls back to name server-side)
   list(query: ProductQuery = {}) {
     const params = new URLSearchParams();
     params.set("page", String(query.page ?? 1));
@@ -417,7 +449,13 @@ export const productsApi = {
     if (query.search) params.set("search", query.search);
     if (query.categoryId) params.set("categoryId", query.categoryId);
     if (query.subCategoryId) params.set("subCategoryId", query.subCategoryId);
+    if (query.brandId) params.set("brandId", query.brandId);
     if (query.status) params.set("status", query.status);
+    if (query.minPrice !== undefined) params.set("minPrice", String(query.minPrice));
+    if (query.maxPrice !== undefined) params.set("maxPrice", String(query.maxPrice));
+    if (query.sortBy) params.set("sortBy", query.sortBy);
+    if (query.sortDescending !== undefined)
+      params.set("sortDescending", String(query.sortDescending));
     return api.get(`/api/v1/products?${params.toString()}`);
   },
 
@@ -483,6 +521,13 @@ export const productsApi = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
+
+  // B5 GET /api/admin/products/bulk-import/export — export all products to Excel
+  exportBulkProducts() {
+    return api.get("/api/admin/products/bulk-import/export", {
+      responseType: "blob",
+    });
+  },
 };
 
 // ============================================================
@@ -519,6 +564,11 @@ export const productImagesApi = {
   remove(productId: string, imageId: string | number) {
     return api.delete(`/api/v1/products/${productId}/images/${imageId}`);
   },
+
+  // GET /api/v1/products/{productId}/images/{imageId}/file — stream bytes (anonymous)
+  fileUrl(productId: string, imageId: string | number) {
+    return `/api/v1/products/${productId}/images/${imageId}/file`;
+  },
 };
 
 // ============================================================
@@ -540,9 +590,24 @@ export const productTreeApi = {
 // ============================================================
 
 export const brandsApi = {
-  // #43 GET /api/admin/brands — brands admin list
-  list() {
-    return api.get("/api/admin/brands");
+  // #43 GET /api/admin/brands?Search=&Status=&Page=&PageSize= — brands admin list
+  list(query: {
+    search?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) {
+    const params = new URLSearchParams();
+    if (query.search) params.set("Search", query.search);
+    if (query.status) params.set("Status", query.status);
+    params.set("Page", String(query.page ?? 1));
+    params.set("PageSize", String(query.pageSize ?? 25));
+    return api.get(`/api/admin/brands?${params.toString()}`);
+  },
+
+  // GET /api/admin/brands/{brandId}/image/file — stream logo bytes (anonymous)
+  imageFileUrl(brandId: string) {
+    return `/api/admin/brands/${brandId}/image/file`;
   },
 
   // #44 GET /api/admin/brands/{brandId} — view-brand modal
@@ -626,9 +691,12 @@ export const inventoryApi = {
     return api.get("/api/admin/inventory/low-stock");
   },
 
-  // #57 GET /api/admin/inventory/{productId} — per-product stock card
-  byProduct(productId: string) {
-    return api.get(`/api/admin/inventory/${productId}`);
+  // #57 GET /api/admin/inventory/{productId}?warehouseId= — per-product stock card
+  byProduct(productId: string, warehouseId?: string) {
+    const query = warehouseId
+      ? `?warehouseId=${encodeURIComponent(warehouseId)}`
+      : "";
+    return api.get(`/api/admin/inventory/${productId}${query}`);
   },
 
     // #58 POST /api/admin/inventory/{productId}/stock — receive stock
@@ -664,9 +732,26 @@ export const inventoryApi = {
       );
     },
 
-  // #60 GET /api/admin/inventory/{productId}/movements — movement history drawer
-  movements(productId: string) {
-    return api.get(`/api/admin/inventory/${productId}/movements`);
+  // #60 GET /api/admin/inventory/{productId}/movements?warehouseId=&from=&to=&page=&pageSize=
+  movements(
+    productId: string,
+    query: {
+      warehouseId?: string;
+      from?: string;
+      to?: string;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ) {
+    const params = new URLSearchParams();
+    if (query.warehouseId) params.set("warehouseId", query.warehouseId);
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    params.set("page", String(query.page ?? 1));
+    params.set("pageSize", String(query.pageSize ?? 25));
+    return api.get(
+      `/api/admin/inventory/${productId}/movements?${params.toString()}`
+    );
   },
 };
 
@@ -1193,9 +1278,11 @@ export interface OrderDetailResponse {
 }
 
 export const ordersApi = {
-  // GET /api/v1/orders — current user's orders (newest first)
-  list() {
-    return api.get<OrderSummaryResponse[]>("/api/v1/orders");
+  // GET /api/v1/orders?page=&pageSize= — current user's orders (newest first)
+  list(page = 1, pageSize = 10) {
+    return api.get<OrderSummaryResponse[] | PagedResult<OrderSummaryResponse>>(
+      `/api/v1/orders?page=${page}&pageSize=${pageSize}`
+    );
   },
 
   // GET /api/v1/orders/{orderId} — full detail incl. items/payment/history

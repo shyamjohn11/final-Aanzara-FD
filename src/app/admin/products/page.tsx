@@ -4,8 +4,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
-import { productImagesApi } from "@/app/api/services";
+import { extractErrorMessage } from "@/app/api/api";
+import {
+  brandsApi,
+  categoriesApi,
+  productImagesApi,
+  productsApi,
+} from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -20,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  Upload,
 } from "lucide-react";
 
 /* ============================================================
@@ -145,22 +151,20 @@ export default function ProductsAdminPage() {
     try {
       setLoading(true);
       setError("");
-      const params: Record<string, string> = {
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-      };
-      if (search) params.search = search;
-      if (categoryFilter !== "All") params.categoryId = categoryFilter;
-      if (statusFilter !== "All") params.status = statusFilter;
-      if (sortBy) params.sortBy = sortBy;
-      params.sortDescending = sortDescending.toString();
-
-      const response = await api.get<ProductApiResponse>("/api/v1/products", {
-        params,
+      // GET /api/v1/products?page=&pageSize=&search=&categoryId=&status=&sortBy=&sortDescending=
+      const response = await productsApi.list({
+        page,
+        pageSize,
+        search: search || undefined,
+        categoryId: categoryFilter !== "All" ? categoryFilter : undefined,
+        status: statusFilter !== "All" ? statusFilter : undefined,
+        sortBy: sortBy || undefined,
+        sortDescending,
       });
-      setProducts(response.data.items || []);
-      setTotalCount(response.data.totalCount || 0);
-      setTotalPages(response.data.totalPages || 1);
+      const data = response.data as ProductApiResponse;
+      setProducts(data.items || []);
+      setTotalCount(data.totalCount || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load products.");
       setError(message);
@@ -172,8 +176,10 @@ export default function ProductsAdminPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get<{ items: Category[] }>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories(
+        (response.data as { items: Category[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
@@ -181,8 +187,8 @@ export default function ProductsAdminPage() {
 
   const fetchBrands = async () => {
     try {
-      const response = await api.get<{ items: Brand[] }>("/api/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
@@ -525,7 +531,7 @@ export default function ProductsAdminPage() {
       };
 
       if (editingProduct) {
-        await api.put(`/api/v1/products/${editingProduct.productId}`, payload);
+        await productsApi.update(editingProduct.productId, payload);
 
         // B1 upload pending image (first image auto-primary server-side).
         if (imageFile) {
@@ -549,7 +555,7 @@ export default function ProductsAdminPage() {
           }
         }
       } else {
-        const createResponse = await api.post("/api/v1/products", payload);
+        const createResponse = await productsApi.create(payload);
         const created = (createResponse.data ?? {}) as Record<
           string,
           unknown
@@ -630,7 +636,7 @@ export default function ProductsAdminPage() {
         status: currentStatus === "active" ? "inactive" : "active",
       };
 
-      await api.put(`/api/v1/products/${id}`, payload);
+      await productsApi.update(id, payload);
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update product status.");
@@ -648,7 +654,7 @@ export default function ProductsAdminPage() {
     }
 
     try {
-      await api.delete(`/api/v1/products/${deleteId}`);
+      await productsApi.remove(deleteId);
       setDeleteId(null);
       fetchProducts();
     } catch (err) {
@@ -734,15 +740,27 @@ export default function ProductsAdminPage() {
             <p className="hidden text-[9px] text-[#8995A5] sm:block">Manage products and inventory</p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="ml-auto flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add Product</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/admin/products/bulk-import")}
+              className="flex h-10 items-center gap-2 rounded-lg border border-[#DFE5ED] bg-white px-3 text-[11px] font-semibold text-[#33415A] transition hover:border-[#8AA9DE] hover:text-[#173B7A] sm:px-4"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Import / Export</span>
+              <span className="sm:hidden">Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="flex h-10 items-center gap-2 rounded-lg bg-[#1769F5] px-3 text-[11px] font-semibold text-white transition hover:bg-[#0F5BDE] sm:px-4"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add Product</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </div>
         </header>
 
         {/* MAIN */}
@@ -1143,9 +1161,13 @@ export default function ProductsAdminPage() {
                         page >= totalPages ? "#B3BBC6" : "#173B7A"
                       } ${page >= totalPages ? "disabled" : ""}`}>
                       <ChevronRight size={14} />
-</button>
+                    </button>
                   </div>
                 </div>
+              </>
+            )}
+          </section>
+        </main>
 
         {/* ADD / EDIT MODAL */}
         {showModal && (
@@ -1515,8 +1537,9 @@ export default function ProductsAdminPage() {
                 </button>
               </div>
             </div>
-</div>
+          </div>
         )}
+      </div>
     </AdminLayout>
   );
 }
