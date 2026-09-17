@@ -14,6 +14,7 @@ import Header from "@/app/components/Header";
 import MainNav from "@/app/MainNav";
 import TopBar from "../components/Dashboard/TopBar";
 import { brandsApi } from "@/app/api/services";
+import { toast } from "react-toastify";
 
 type Brand = {
   name: string;
@@ -348,8 +349,10 @@ export default function BrandsPage() {
       } catch {
         // Keep static catalogue when the brand API is unreachable.
         if (!cancelled) {
-          setCatalogError("Live brand catalogue is currently unavailable.");
+          const message = "Live brand catalogue is currently unavailable.";
+          setCatalogError(message);
           setCatalogBrands([]);
+          toast.error(message);
         }
       } finally {
         if (!cancelled) setCatalogLoading(false);
