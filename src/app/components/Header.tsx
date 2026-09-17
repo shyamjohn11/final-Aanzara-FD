@@ -349,7 +349,7 @@ export default function Header({
   ========================================================= */
 
   return (
-    <header className="w-full glass">
+    <header className="relative z-40 w-full glass">
 
       {/* =====================================================
           MAIN HEADER

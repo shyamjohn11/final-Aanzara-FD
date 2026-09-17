@@ -29,7 +29,7 @@ export default function WholesalePage() {
     <div className="min-h-screen flex flex-col bg-white">
       {/* =========================
           STICKY TOP: TOPBAR + HEADER + MAIN NAV
-      ========================== */}
+      ======= =================== */}
       <div className="sticky top-0 z-50">
         {/* =========================
             TOP BAR

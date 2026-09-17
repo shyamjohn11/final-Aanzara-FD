@@ -22,6 +22,7 @@ import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatCard from "@/app/components/Admin/StatCard";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { brandsApi } from "@/app/api/services";
+import { ImagePopup } from "@/app/components/Admin/ImagePopup";
 
 /* =========================================================
    TYPES
@@ -121,6 +122,16 @@ export default function BrandsAdminPage() {
   ======================================================== */
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  /* =======================================================
+     IMAGE LIGHTBOX
+  ======================================================== */
+
+  const [imagePopup, setImagePopup] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    alt: string;
+  }>({ isOpen: false, imageUrl: "", alt: "" });
 
   /* =======================================================
      SHELF (#49 brand products, paginated)
@@ -898,11 +909,24 @@ export default function BrandsAdminPage() {
 
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                                 {brand.imageUrl ? (
-                                  <img
-                                    src={brand.imageUrl}
-                                    alt={brand.brandName}
-                                    className="h-full w-full object-cover"
-                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setImagePopup({
+                                        isOpen: true,
+                                        imageUrl: brand.imageUrl,
+                                        alt: brand.brandName,
+                                      })
+                                    }
+                                    className="h-full w-full"
+                                    aria-label={`View ${brand.brandName} image`}
+                                  >
+                                    <img
+                                      src={brand.imageUrl}
+                                      alt={brand.brandName}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </button>
                                 ) : (
                                   <Tag size={18} />
                                 )}
@@ -1017,11 +1041,24 @@ export default function BrandsAdminPage() {
 
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                           {brand.imageUrl ? (
-                            <img
-                              src={brand.imageUrl}
-                              alt={brand.brandName}
-                              className="h-full w-full object-cover"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setImagePopup({
+                                  isOpen: true,
+                                  imageUrl: brand.imageUrl,
+                                  alt: brand.brandName,
+                                })
+                              }
+                              className="h-full w-full"
+                              aria-label={`View ${brand.brandName} image`}
+                            >
+                              <img
+                                src={brand.imageUrl}
+                                alt={brand.brandName}
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
                           ) : (
                             <Tag size={18} />
                           )}
@@ -1683,6 +1720,19 @@ export default function BrandsAdminPage() {
             </div>
 
           </div>
+        )}
+
+        {/* =================================================
+            IMAGE LIGHTBOX (table/card thumbnails)
+        ================================================== */}
+
+        {imagePopup.isOpen && (
+          <ImagePopup
+            isOpen={imagePopup.isOpen}
+            onClose={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
+            imageUrl={imagePopup.imageUrl}
+            alt={imagePopup.alt}
+          />
         )}
 
       </div>

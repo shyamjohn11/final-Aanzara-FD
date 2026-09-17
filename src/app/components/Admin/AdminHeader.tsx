@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
+  useEffect,
   useState,
   useId,
   type KeyboardEvent,
@@ -20,6 +21,22 @@ import {
 
 type AdminHeaderProps = {
   onMenuClick?: () => void;
+};
+
+/* ============================================================
+   LOGGED-IN ADMIN USER
+   Same localStorage key/shape the storefront Header.tsx reads
+   ("aanzara_user"), plus optional role fields — different auth
+   responses have used different keys for this in the past, so
+   we check a few and fall back gracefully if none are present.
+============================================================ */
+
+type AdminUser = {
+  id?: string | number;
+  name?: string;
+  email?: string;
+  role?: string;
+  accountType?: string;
 };
 
 const ROUTES = {
@@ -58,6 +75,68 @@ export default function AdminHeader({
 
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+
+  /* ==========================================================
+     LOAD LOGGED-IN ADMIN
+  ========================================================== */
+
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadUser = () => {
+      try {
+        const savedUser = localStorage.getItem("aanzara_user");
+
+        if (!savedUser) {
+          setAdminUser(null);
+          setUserLoaded(true);
+          return;
+        }
+
+        const parsedUser: AdminUser = JSON.parse(savedUser);
+        setAdminUser(parsedUser);
+      } catch (error) {
+        console.error("Failed to load admin user:", error);
+        setAdminUser(null);
+      } finally {
+        setUserLoaded(true);
+      }
+    };
+
+    // Initial load.
+    loadUser();
+
+    // Cross-tab localStorage changes.
+    const handleStorageChange = () => loadUser();
+
+    // Same-tab login/profile updates (dispatched by login/profile flows).
+    const handleUserUpdated = () => loadUser();
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("aanzara-user-updated", handleUserUpdated);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("aanzara-user-updated", handleUserUpdated);
+    };
+  }, []);
+
+  const displayName =
+    adminUser?.name?.trim() ||
+    adminUser?.email?.split("@")[0] ||
+    "Admin";
+
+  const displayEmail = adminUser?.email || "";
+
+  const displayRole =
+    adminUser?.role?.trim() ||
+    adminUser?.accountType?.trim() ||
+    "Admin";
+
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
@@ -404,12 +483,14 @@ export default function AdminHeader({
             <div className="hidden text-left lg:block">
               <p
                 className="
+                  max-w-[120px]
+                  truncate
                   text-[10px]
                   font-bold
                   text-[#33415A]
                 "
               >
-                Admin
+                {userLoaded ? displayName : "Admin"}
               </p>
 
               <p
@@ -419,7 +500,7 @@ export default function AdminHeader({
                   text-[#8B97A7]
                 "
               >
-                Super Admin
+                {userLoaded ? displayRole : "Super Admin"}
               </p>
             </div>
 
@@ -506,18 +587,20 @@ export default function AdminHeader({
                           text-[#33415A]
                         "
                       >
-                        Administrator
+                        {userLoaded ? displayName : "Admin"}
                       </p>
 
-                      <p
-                        className="
-                          mt-1 truncate
-                          text-[9px]
-                          text-[#8A96A7]
-                        "
-                      >
-                        admin@aanzara.com
-                      </p>
+                      {displayEmail && (
+                        <p
+                          className="
+                            mt-1 truncate
+                            text-[9px]
+                            text-[#8A96A7]
+                          "
+                        >
+                          {displayEmail}
+                        </p>
+                      )}
 
                       <span
                         className="
@@ -530,7 +613,7 @@ export default function AdminHeader({
                           text-[#219653]
                         "
                       >
-                        Super Admin
+                        {userLoaded ? displayRole : "Super Admin"}
                       </span>
                     </div>
                   </div>
