@@ -10,7 +10,9 @@ import {
   categoriesApi,
   productImagesApi,
   productsApi,
+  subcategoriesApi,
 } from "@/app/api/services";
+import { toast } from "react-toastify";
 import {
   ArrowLeft,
   Plus,
@@ -65,6 +67,12 @@ type ProductApiResponse = {
 type Category = {
   categoryId: string;
   categoryName: string;
+};
+
+type SubCategory = {
+  subCategoryId: string;
+  subCategoryName: string;
+  categoryId: string;
 };
 
 type Brand = {
@@ -167,6 +175,7 @@ export default function ProductsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "active" | "inactive">("All");
@@ -312,6 +321,17 @@ export default function ProductsAdminPage() {
     }
   }, []);
 
+  const fetchSubCategories = useCallback(async () => {
+    try {
+      const response = await subcategoriesApi.list();
+      setSubCategories(
+        (response.data as { items: SubCategory[] })?.items || []
+      );
+    } catch (err) {
+      console.error("Error fetching subcategories:", err);
+    }
+  }, []);
+
   const fetchBrands = useCallback(async () => {
     try {
       const response = await brandsApi.list();
@@ -324,8 +344,9 @@ export default function ProductsAdminPage() {
   // Reference data loads once on mount.
   useEffect(() => {
     fetchCategories();
+    fetchSubCategories();
     fetchBrands();
-  }, [fetchCategories, fetchBrands]);
+  }, [fetchCategories, fetchSubCategories, fetchBrands]);
 
   // Product list reloads only when a real input changes.
   useEffect(() => {
@@ -511,6 +532,16 @@ export default function ProductsAdminPage() {
       next.categoryId = "Category is required.";
     }
 
+    if (!subCategoryId) {
+      next.subCategoryId = "Sub category is required.";
+    } else if (
+      categoryId &&
+      filteredSubCategories.length > 0 &&
+      !filteredSubCategories.some((s) => s.subCategoryId === subCategoryId)
+    ) {
+      next.subCategoryId = "Sub category does not belong to the selected category.";
+    }
+
     if (!brandId) {
       next.brandId = "Brand is required.";
     }
@@ -538,7 +569,9 @@ export default function ProductsAdminPage() {
     setErrors(next);
 
     if (Object.keys(next).length > 0) {
-      setFormError("Please correct the highlighted fields before saving.");
+      const summary = "Please correct the highlighted fields before saving.";
+      setFormError(summary);
+      toast.error(summary);
       return false;
     }
 
@@ -564,6 +597,7 @@ export default function ProductsAdminPage() {
     setCategoryId(value);
     setSubCategoryId("");
     clearError("categoryId");
+    clearError("subCategoryId");
   };
 
   const updateSubCategory = (value: string) => {
@@ -699,11 +733,16 @@ export default function ProductsAdminPage() {
         }
       }
 
+      const wasEditing = Boolean(editingProduct);
       closeModal();
+      toast.success(
+        wasEditing ? "Product updated successfully." : "Product created successfully."
+      );
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to save product.");
       setFormError(message);
+      toast.error(message);
       console.error("Error saving product:", err);
       setSubmitting(false);
     }
@@ -735,9 +774,11 @@ export default function ProductsAdminPage() {
       };
 
       await productsApi.update(id, payload);
+      toast.success("Product status updated.");
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update product status.");
+      toast.error(message);
       console.error("Error toggling status:", err);
     }
   };
@@ -754,9 +795,11 @@ export default function ProductsAdminPage() {
     try {
       await productsApi.remove(deleteId);
       setDeleteId(null);
+      toast.success("Product deleted successfully.");
       fetchProducts();
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to delete product.");
+      toast.error(message);
       console.error("Error deleting product:", err);
       setDeleteId(null);
     }
@@ -813,6 +856,18 @@ export default function ProductsAdminPage() {
     const b = brands.find((b) => b.brandId === id);
     return b?.brandName || "Unknown";
   };
+
+  const getSubCategoryName = (id: string) => {
+    if (!id) return "None";
+    const sub = subCategories.find((s) => s.subCategoryId === id);
+    return sub?.subCategoryName || "Unknown";
+  };
+
+  // Sub categories belonging to the selected category.
+  const filteredSubCategories = useMemo(() => {
+    if (!categoryId) return [];
+    return subCategories.filter((s) => s.categoryId === categoryId);
+  }, [subCategories, categoryId]);
 
   /* ==========================================================
      RENDER
@@ -1098,7 +1153,14 @@ export default function ProductsAdminPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            <span className="text-[10px] text-[#5F6E82]">{getCategoryName(product.categoryId)}</span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-[#5F6E82]">{getCategoryName(product.categoryId)}</p>
+                              {product.subCategoryId ? (
+                                <p className="mt-0.5 truncate text-[9px] text-[#8B96A5]">
+                                  {product.subCategoryName || getSubCategoryName(product.subCategoryId)}
+                                </p>
+                              ) : null}
+                            </div>
                           </td>
 
                           <td className="px-5 py-4">
@@ -1191,6 +1253,14 @@ export default function ProductsAdminPage() {
 
                           <div className="mt-2 grid grid-cols-2 gap-2">
                             <InfoItem label="Category" value={getCategoryName(product.categoryId)} />
+                            <InfoItem
+                              label="Sub Category"
+                              value={
+                                product.subCategoryId
+                                  ? product.subCategoryName || getSubCategoryName(product.subCategoryId)
+                                  : "None"
+                              }
+                            />
                             <InfoItem label="Brand" value={getBrandName(product.brandId)} />
                             <InfoItem label="Price" value={`₹${product.price.toLocaleString("en-IN")}`} />
                             <InfoItem label="MOQ" value={String(product.moq || 1)} />
@@ -1439,7 +1509,7 @@ export default function ProductsAdminPage() {
                   placeholder="Example: AAS-ATT-005"
                 />
 
-                {/* CATEGORY + BRAND */}
+                {/* CATEGORY + SUB CATEGORY */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormSelect
                     label="Category"
@@ -1451,6 +1521,26 @@ export default function ProductsAdminPage() {
                   />
 
                   <FormSelect
+                    label="Sub Category"
+                    required
+                    value={subCategoryId}
+                    onChange={updateSubCategory}
+                    error={errors.subCategoryId}
+                    disabled={!categoryId}
+                    placeholder={
+                      !categoryId
+                        ? "Select Category first"
+                        : filteredSubCategories.length === 0
+                          ? "No sub-categories"
+                          : "Select Sub Category"
+                    }
+                    options={filteredSubCategories.map((s) => ({ value: s.subCategoryId, label: s.subCategoryName }))}
+                  />
+                </div>
+
+                {/* BRAND + PRICE */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormSelect
                     label="Brand"
                     required
                     value={brandId}
@@ -1458,10 +1548,7 @@ export default function ProductsAdminPage() {
                     error={errors.brandId}
                     options={brands.map((b) => ({ value: b.brandId, label: b.brandName }))}
                   />
-                </div>
 
-                {/* PRICE + MRP + DISCOUNT + MOQ */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">
                       Price <span className="ml-1 text-[#EF4444]">*</span>
@@ -1482,7 +1569,10 @@ export default function ProductsAdminPage() {
                     </div>
                     {errors.price && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.price}</p>}
                   </div>
+                </div>
 
+                {/* MRP + DISCOUNT */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">
                       MRP <span className="ml-1 text-[#EF4444]">*</span>
@@ -1520,22 +1610,23 @@ export default function ProductsAdminPage() {
                     />
                     {errors.discount && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.discount}</p>}
                   </div>
+                </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">MOQ</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={moq}
-                      onChange={(event) => updateMoq(event.target.value)}
-                      placeholder="1"
-                      className={`h-10 w-full rounded-lg border px-3 text-[11px] outline-none focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10 ${
-                        errors.moq ? "border-[#EF4444]" : "border-[#DCE2EA]"
-                      }`}
-                    />
-                    {errors.moq && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.moq}</p>}
-                  </div>
+                {/* MOQ */}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">MOQ</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={moq}
+                    onChange={(event) => updateMoq(event.target.value)}
+                    placeholder="1"
+                    className={`h-10 w-full rounded-lg border px-3 text-[11px] outline-none focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10 ${
+                      errors.moq ? "border-[#EF4444]" : "border-[#DCE2EA]"
+                    }`}
+                  />
+                  {errors.moq && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.moq}</p>}
                 </div>
 
                 {/* ORGANIC & GST FREE */}
@@ -1603,7 +1694,7 @@ export default function ProductsAdminPage() {
                 <button
                   type="button"
                   onClick={saveProduct}
-                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !price || !mrp}
+                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !subCategoryId || !brandId || !price || !mrp}
                   className="h-9 rounded-lg bg-[#1769F5] px-5 text-[10px] font-semibold text-white transition hover:bg-[#0F5BDE] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting
@@ -1778,6 +1869,8 @@ function FormSelect({
   onChange,
   options,
   error,
+  disabled = false,
+  placeholder,
 }: {
   label: string;
   required?: boolean;
@@ -1785,6 +1878,8 @@ function FormSelect({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   error?: string;
+  disabled?: boolean;
+  placeholder?: string;
 }) {
   return (
     <div>
@@ -1795,11 +1890,12 @@ function FormSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={Boolean(error)}
-        className={`h-10 w-full rounded-lg border bg-white px-3 text-[11px] text-[#52627A] outline-none focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10 ${
+        disabled={disabled}
+        className={`h-10 w-full rounded-lg border bg-white px-3 text-[11px] text-[#52627A] outline-none focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10 disabled:cursor-not-allowed disabled:bg-[#F3F5F8] disabled:text-[#9AA5B4] ${
           error ? "border-[#EF4444]" : "border-[#DCE2EA]"
         }`}
       >
-        <option value="">Select {label}</option>
+        <option value="">{placeholder ?? `Select ${label}`}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
