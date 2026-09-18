@@ -343,38 +343,18 @@ export default function Header({
 
   const handleLogout = async () => {
     /*
-     * Server logout best-effort, then central session clear
-     * (tokens, cookies) so route guards engage.
-     */
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
-      "@/app/api/api"
-    );
-    clearSession();
-
-    localStorage.removeItem(
-      "aanzara_remember_me"
-    );
-
-    /*
-     * Reset UI
+     * Central logout: revokes the server session, clears tokens and
+     * guard cookies, then replaces history so Back cannot return
+     * into this protected page.
      */
     setUser(null);
 
     setUserMenuOpen(false);
 
-    /*
-     * Redirect home
-     */
-    router.push("/");
+    const { logoutAndRedirect } = await import(
+      "@/app/api/api"
+    );
+    await logoutAndRedirect("/login");
   };
 
   /* =========================================================

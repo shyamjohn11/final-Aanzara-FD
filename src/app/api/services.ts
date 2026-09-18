@@ -1019,6 +1019,118 @@ export const agentOnboardingApi = adminResource(
 );
 
 // ============================================================
+// #150-161 AGENTS & DEALERS — AdminDealerControllers
+// src/app/admin/agents/** (agents list, agent dealers,
+// dealer details, dealer products)
+// ============================================================
+
+// #156 GET /api/admin/agents?Page=&PageSize=&search=&status=
+// #157 GET /api/admin/agents/{id}
+export const agentsApi = {
+  list(query: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+  } = {}) {
+    const params = new URLSearchParams({
+      Page: String(query.page ?? 1),
+      PageSize: String(query.pageSize ?? 25),
+    });
+    if (query.search) params.set("search", query.search);
+    if (query.status) params.set("status", query.status);
+    return api.get(`/api/admin/agents?${params.toString()}`);
+  },
+
+  details(agentId: string | number) {
+    return api.get(`/api/admin/agents/${agentId}`);
+  },
+
+  // Dealers of one agent — same shape as dealersApi.list with agentId preset.
+  dealers(
+    agentId: string | number,
+    query: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+    } = {}
+  ) {
+    const params = new URLSearchParams({
+      Page: String(query.page ?? 1),
+      PageSize: String(query.pageSize ?? 25),
+    });
+    if (query.search) params.set("search", query.search);
+    if (query.status) params.set("status", query.status);
+    return api.get(
+      `/api/admin/agents/${agentId}/dealers?${params.toString()}`
+    );
+  },
+};
+
+// #150 list · #151 details · #152 create · #153 update · #154 remove
+// #155 PATCH /api/admin/dealers/{id}/status (activate/deactivate)
+// #158 dealer products list · #159 create · #160 update · #161 remove
+export const dealersApi = {
+  ...adminResource("/api/admin/dealers"),
+
+  products(
+    dealerId: string | number,
+    query: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+    } = {}
+  ) {
+    const params = new URLSearchParams({
+      Page: String(query.page ?? 1),
+      PageSize: String(query.pageSize ?? 25),
+    });
+    if (query.search) params.set("Search", query.search);
+    if (query.status) params.set("Status", query.status);
+    return api.get(
+      `/api/admin/dealers/${dealerId}/products?${params.toString()}`
+    );
+  },
+
+  productDetails(dealerId: string | number, productId: string | number) {
+    return api.get(
+      `/api/admin/dealers/${dealerId}/products/${productId}`
+    );
+  },
+
+  createProduct(
+    dealerId: string | number,
+    payload: Record<string, unknown>
+  ) {
+    return api.post(
+      `/api/admin/dealers/${dealerId}/products`,
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+  },
+
+  updateProduct(
+    dealerId: string | number,
+    productId: string | number,
+    payload: Record<string, unknown>
+  ) {
+    return api.put(
+      `/api/admin/dealers/${dealerId}/products/${productId}`,
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+  },
+
+  removeProduct(dealerId: string | number, productId: string | number) {
+    return api.delete(
+      `/api/admin/dealers/${dealerId}/products/${productId}`
+    );
+  },
+};
+
+// ============================================================
 // #122-138 + #148 REQUESTS — AdminRequestControllers
 // quotes / reviews / enquiries / pricing-requests admin pages
 // ============================================================

@@ -136,9 +136,12 @@ export default function SessionsPage() {
 
       if (session.isCurrent) {
         // Revoked the session this device uses — sign out locally.
+        // Hard navigation: replaces this protected page in the history
+        // stack so Back cannot return to it, and the edge middleware
+        // re-evaluates against the cleared guard cookies.
         clearSession();
         toast.success("Current session revoked. Signing you out...");
-        setTimeout(() => router.push("/login"), 800);
+        setTimeout(() => window.location.replace("/login"), 800);
         return;
       }
 
@@ -183,8 +186,10 @@ export default function SessionsPage() {
     } catch (err) {
       console.error("Logout-all failed:", err);
     } finally {
+      // Hard navigation (not router.push): the protected page must leave
+      // the history stack and the middleware must re-see cleared cookies.
       clearSession();
-      router.push("/login");
+      window.location.replace("/login");
     }
   };
 

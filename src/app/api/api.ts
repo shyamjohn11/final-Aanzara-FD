@@ -195,9 +195,16 @@ function clearGuardCookie(name: string) {
 
 export function clearSession(options?: { silent?: boolean }) {
   if (typeof window === "undefined") return;
-  [ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, SESSION_ID_KEY, USER_KEY].forEach(
-    (key) => localStorage.removeItem(key),
-  );
+  [
+    ACCESS_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    SESSION_ID_KEY,
+    USER_KEY,
+    // Legacy AuthContext display name + per-page profile drafts.
+    // Stale values here repopulate the UI after logout.
+    "userName",
+    "aanzara-profile",
+  ].forEach((key) => localStorage.removeItem(key));
   [
     "aanzara_logged_in",
     "aanzara_user_id",
@@ -241,6 +248,29 @@ export function notifySessionChanged() {
 export function hasSession(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(localStorage.getItem(ACCESS_TOKEN_KEY));
+}
+
+/**
+ * Full logout in one call: revoke the server session (best-effort),
+ * clear every client token/cookie, then hard-navigate with
+ * `location.replace` so the protected page leaves the history stack —
+ * the Back button can no longer land back inside it, and the fresh
+ * document forces the edge middleware to re-evaluate.
+ */
+export async function logoutAndRedirect(to = "/login"): Promise<void> {
+  try {
+    await api.post("/api/v1/auth/logout");
+  } catch {
+    // Local clear below applies regardless.
+  }
+  clearSession();
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("aanzara_remember_me");
+  } catch {
+    // Ignore storage errors.
+  }
+  window.location.replace(to);
 }
 
 /**

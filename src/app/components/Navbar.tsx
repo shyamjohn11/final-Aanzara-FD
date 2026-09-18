@@ -83,24 +83,6 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     try {
-      try {
-        const { authApi } = await import(
-          "@/app/api/services"
-        );
-        await authApi.logout();
-      } catch {
-        // Local clear still applies below.
-      }
-
-      const { clearSession } = await import(
-        "@/app/api/api"
-      );
-      clearSession();
-
-      localStorage.removeItem(
-        "aanzara_remember_me"
-      );
-
       setUser(null);
       setShowMenu(false);
 
@@ -109,8 +91,11 @@ export default function Navbar() {
         new Event("aanzara-auth-change")
       );
 
-      // Go to login
-      window.location.href = "/login";
+      // Central logout replaces history so Back cannot return here.
+      const { logoutAndRedirect } = await import(
+        "@/app/api/api"
+      );
+      await logoutAndRedirect("/login");
     } catch (error) {
       console.error(
         "Unable to logout:",
