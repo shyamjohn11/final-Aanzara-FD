@@ -16,6 +16,9 @@ import {
   Square,
 } from "lucide-react";
 
+import Swal from "sweetalert2";
+import { toast } from "react-toastify";
+
 import TopBar from "@/app/components/Dashboard/TopBar";
 import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
@@ -107,21 +110,50 @@ export default function WishlistPage() {
       next.delete(product.id);
       return next;
     });
+
+    toast.success("Added to cart");
   };
 
   /* =========================================================
-     REMOVE SINGLE WISHLIST PRODUCT
+     REMOVE SINGLE WISHLIST PRODUCT (with confirm + toast)
   ========================================================= */
 
   const handleRemoveWishlistProduct = (
     productId: string
   ) => {
-    removeFromWishlist(productId);
+    Swal.fire({
+      title: "Remove from wishlist?",
+      text: "This product will be removed from your wishlist.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
 
-    setSelectedProducts((prev) => {
-      const next = new Set(prev);
-      next.delete(productId);
-      return next;
+      try {
+        removeFromWishlist(productId);
+
+        setSelectedProducts((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+
+        toast.success("Removed from wishlist");
+      } catch (error) {
+        console.error(
+          "Failed to remove wishlist product:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
     });
   };
 
@@ -190,20 +222,57 @@ export default function WishlistPage() {
     });
 
     setSelectedProducts(new Set());
+
+    toast.success(
+      `${selectedItems.length} ${
+        selectedItems.length === 1 ? "product" : "products"
+      } added to cart`
+    );
   };
 
   /* =========================================================
-     REMOVE SELECTED WISHLIST PRODUCTS
+     REMOVE SELECTED WISHLIST PRODUCTS (with confirm + toast)
   ========================================================= */
 
   const handleRemoveSelected = () => {
-    selectedProducts.forEach(
-      (productId) => {
-        removeFromWishlist(productId);
-      }
-    );
+    const count = selectedProducts.size;
 
-    setSelectedProducts(new Set());
+    Swal.fire({
+      title: `Remove ${count} ${count === 1 ? "product" : "products"}?`,
+      text: "These products will be removed from your wishlist.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove them",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        selectedProducts.forEach(
+          (productId) => {
+            removeFromWishlist(productId);
+          }
+        );
+
+        setSelectedProducts(new Set());
+
+        toast.success(
+          `${count} ${count === 1 ? "product" : "products"} removed from wishlist`
+        );
+      } catch (error) {
+        console.error(
+          "Failed to remove selected wishlist products:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
+    });
   };
 
   /* =========================================================
@@ -283,25 +352,31 @@ export default function WishlistPage() {
     const products =
       getProductsForList(listId);
 
-    products
-      .filter((product) =>
-        selectedIds.has(product.id)
-      )
-      .forEach((product) => {
-        addToCart(
-          product,
-          product.moq || 1
-        );
-      });
+    const productsToAdd = products.filter((product) =>
+      selectedIds.has(product.id)
+    );
+
+    productsToAdd.forEach((product) => {
+      addToCart(
+        product,
+        product.moq || 1
+      );
+    });
 
     setSelectedListProducts((prev) => ({
       ...prev,
       [listId]: new Set(),
     }));
+
+    toast.success(
+      `${productsToAdd.length} ${
+        productsToAdd.length === 1 ? "product" : "products"
+      } added to cart`
+    );
   };
 
   /* =========================================================
-     REMOVE SELECTED SHOPPING LIST PRODUCTS
+     REMOVE SELECTED SHOPPING LIST PRODUCTS (with confirm + toast)
   ========================================================= */
 
   const handleRemoveSelectedListProducts = (
@@ -311,19 +386,50 @@ export default function WishlistPage() {
       selectedListProducts[listId] ||
       new Set<string>();
 
-    selectedIds.forEach(
-      (productId) => {
-        removeProductFromList(
-          productId,
-          listId
+    const count = selectedIds.size;
+
+    Swal.fire({
+      title: `Remove ${count} ${count === 1 ? "product" : "products"}?`,
+      text: "These products will be removed from this shopping list.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove them",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        selectedIds.forEach(
+          (productId) => {
+            removeProductFromList(
+              productId,
+              listId
+            );
+          }
+        );
+
+        setSelectedListProducts((prev) => ({
+          ...prev,
+          [listId]: new Set(),
+        }));
+
+        toast.success(
+          `${count} ${count === 1 ? "product" : "products"} removed from list`
+        );
+      } catch (error) {
+        console.error(
+          "Failed to remove selected list products:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
         );
       }
-    );
-
-    setSelectedListProducts((prev) => ({
-      ...prev,
-      [listId]: new Set(),
-    }));
+    });
   };
 
   /* =========================================================
@@ -374,6 +480,99 @@ export default function WishlistPage() {
     setNewListName("");
     setShowCreateList(false);
     setSelectedProduct(null);
+
+    toast.success("Shopping list created");
+  };
+
+  /* =========================================================
+     DELETE SHOPPING LIST (with confirm + toast)
+  ========================================================= */
+
+  const handleDeleteList = (
+    listId: string,
+    listName: string
+  ) => {
+    Swal.fire({
+      title: `Delete "${listName}"?`,
+      text: "This will permanently delete the shopping list and its products won't be tracked in it anymore.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        deleteList(listId);
+
+        setSelectedListProducts((prev) => {
+          const next = { ...prev };
+          delete next[listId];
+          return next;
+        });
+
+        toast.success("Shopping list deleted");
+      } catch (error) {
+        console.error(
+          "Failed to delete shopping list:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
+    });
+  };
+
+  /* =========================================================
+     REMOVE SINGLE PRODUCT FROM SHOPPING LIST (with confirm + toast)
+  ========================================================= */
+
+  const handleRemoveProductFromList = (
+    productId: string,
+    listId: string
+  ) => {
+    Swal.fire({
+      title: "Remove product?",
+      text: "This product will be removed from the shopping list.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        removeProductFromList(
+          productId,
+          listId
+        );
+
+        setSelectedListProducts((prev) => {
+          const current = new Set(prev[listId] || []);
+          current.delete(productId);
+          return { ...prev, [listId]: current };
+        });
+
+        toast.success("Product removed from list");
+      } catch (error) {
+        console.error(
+          "Failed to remove product from list:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
+    });
   };
 
   /* =========================================================
@@ -1008,8 +1207,9 @@ export default function WishlistPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          deleteList(
-                            list.id
+                          handleDeleteList(
+                            list.id,
+                            list.name
                           )
                         }
                         aria-label={`Delete ${list.name}`}
@@ -1231,13 +1431,14 @@ export default function WishlistPage() {
 
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        onClick={() => {
                                           addToCart(
                                             product,
                                             product.moq ||
                                               1
-                                          )
-                                        }
+                                          );
+                                          toast.success("Added to cart");
+                                        }}
                                         className="flex-1 flex items-center justify-center gap-1.5 bg-navy hover:bg-navy-deep text-white text-[9px] font-bold rounded-md py-2"
                                       >
                                         <ShoppingCart
@@ -1251,7 +1452,7 @@ export default function WishlistPage() {
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          removeProductFromList(
+                                          handleRemoveProductFromList(
                                             product.id,
                                             list.id
                                           )
@@ -1558,11 +1759,13 @@ export default function WishlistPage() {
                             selectedProduct,
                             list.id
                           );
+                          toast.success("Removed from list");
                         } else {
                           addProductToList(
                             selectedProduct,
                             list.id
                           );
+                          toast.success("Added to list");
                         }
                       }}
                       className={`w-full flex items-center justify-between gap-3 border rounded-lg px-3 py-3 text-left transition-colors ${

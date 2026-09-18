@@ -17,10 +17,10 @@ import {
 
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatusBadge from "@/app/components/Admin/StatusBadge";
-import ConfirmModal from "@/app/components/Admin/ConfirmModal";
 import { agentsApi, dealersApi } from "@/app/api/services";
 import { extractErrorMessage } from "@/app/api/api";
 import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 
 /* ============================================================
    TYPES
@@ -188,9 +188,6 @@ export default function AgentDealersPage() {
   const [formErrors, setFormErrors] = useState<Partial<DealerForm>>({});
   const [saving, setSaving] = useState(false);
 
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -332,20 +329,43 @@ export default function AgentDealersPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    setDeleting(true);
+  const handleDeleteClick = async (row: DealerRow) => {
+    const result = await Swal.fire({
+      title: "Delete dealer?",
+      text: `${row.shopName} will be permanently removed. Dealers with products cannot be deleted.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#DC2626",
+      cancelButtonColor: "#6B7280",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
-      await dealersApi.remove(deleteId);
-      toast.success("Dealer deleted successfully.");
-      setDeleteId(null);
+      await dealersApi.remove(row.id);
       void load();
+      void Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Dealer deleted successfully.",
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
     } catch (error) {
-      toast.error(
-        extractErrorMessage(error, "Unable to delete dealer.")
-      );
-    } finally {
-      setDeleting(false);
+      void Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "error",
+        title: extractErrorMessage(error, "Unable to delete dealer."),
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
     }
   };
 
@@ -372,7 +392,7 @@ export default function AgentDealersPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 p-4 sm:p-6">
         {/* Header */}
         <div>
           <button
@@ -383,7 +403,7 @@ export default function AgentDealersPage() {
             <ArrowLeft size={13} />
             Back to Agents
           </button>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="font-sora text-[20px] font-bold text-navy">
                 Dealers{agentName ? ` — ${agentName}` : ""}
@@ -397,7 +417,7 @@ export default function AgentDealersPage() {
             <button
               type="button"
               onClick={openAdd}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-navy px-4 py-2.5 text-[12.5px] font-bold text-white hover:opacity-90"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-navy px-4 py-2.5 text-[12.5px] font-bold text-white hover:opacity-90"
             >
               <Plus size={15} />
               Add Dealer
@@ -465,7 +485,7 @@ export default function AgentDealersPage() {
 
         {/* Table */}
         <div className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="min-w-[980px] min-w-full text-left">
+          <table className="min-w-[980px] w-full text-left">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-wide text-ink-faint">
                 <th className="px-4 py-3 font-semibold">Dealer Code</th>
@@ -575,7 +595,7 @@ export default function AgentDealersPage() {
                         <button
                           type="button"
                           title="Delete"
-                          onClick={() => setDeleteId(row.id)}
+                          onClick={() => handleDeleteClick(row)}
                           className="rounded-lg border border-line p-2 text-ink-soft hover:border-red-400 hover:text-red-500"
                         >
                           <Trash2 size={14} />
@@ -774,16 +794,6 @@ export default function AgentDealersPage() {
         </div>
       )}
 
-      <ConfirmModal
-        open={deleteId !== null}
-        title="Delete dealer?"
-        description="The dealer will be permanently removed. Dealers with products cannot be deleted."
-        confirmText="Delete"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
-        loading={deleting}
-        danger
-      />
     </AdminLayout>
   );
 }

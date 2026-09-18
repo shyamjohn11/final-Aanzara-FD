@@ -10,6 +10,9 @@ import {
   Trash2,
 } from "lucide-react";
 
+import Swal from "sweetalert2";
+import { toast } from "react-toastify";
+
 import Header from "@/app/components/Header";
 import MainNav from "@/app/MainNav";
 import Breadcrumb from "@/app/components/Dashboard/Breadcrumb";
@@ -167,7 +170,7 @@ export default function CartPage() {
   };
 
   /* =======================================================
-     REMOVE ITEM
+     REMOVE ITEM (with confirm + toast)
   ======================================================= */
 
   const handleRemove = (
@@ -177,7 +180,33 @@ export default function CartPage() {
       return;
     }
 
-    removeFromCart(id);
+    Swal.fire({
+      title: "Remove this item?",
+      text: "This item will be removed from your cart.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        removeFromCart(id);
+        toast.success("Item removed from cart");
+      } catch (error) {
+        console.error(
+          "Failed to remove cart item:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
+    });
   };
 
   /* =======================================================
@@ -203,16 +232,21 @@ export default function CartPage() {
         savedItem.product,
         savedItem.qty
       );
+
+      toast.success("Moved to cart");
     } catch (error) {
       console.error(
         "Failed to move Save for Later item to cart:",
         error
       );
+      toast.error(
+        "Something went wrong. Please try again."
+      );
     }
   };
 
   /* =======================================================
-     REMOVE SAVED ITEM
+     REMOVE SAVED ITEM (with confirm + toast)
   ======================================================= */
 
   const handleRemoveSavedItem = (
@@ -222,16 +256,33 @@ export default function CartPage() {
       return;
     }
 
-    try {
-      removeFromSaveForLater(
-        id
-      );
-    } catch (error) {
-      console.error(
-        "Failed to remove Save for Later item:",
-        error
-      );
-    }
+    Swal.fire({
+      title: "Remove saved item?",
+      text: "This item will be removed from Save for Later.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      reverseButtons: true,
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        removeFromSaveForLater(id);
+        toast.success("Item removed from Save for Later");
+      } catch (error) {
+        console.error(
+          "Failed to remove Save for Later item:",
+          error
+        );
+        toast.error(
+          "Something went wrong. Please try again."
+        );
+      }
+    });
   };
 
   /* =======================================================
