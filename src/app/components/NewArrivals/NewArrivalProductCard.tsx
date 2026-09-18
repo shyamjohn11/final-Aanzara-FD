@@ -314,10 +314,51 @@ export default function NewArrivalProductCard({
             )`,
           }}
         >
+          {/* Product Image (streaming API URL) or gradient fallback
+              Rendered FIRST so it sits at the base of the stack;
+              badges/wishlist button (below) use z-10 to stay on top
+              regardless of DOM order. */}
+          {product.image ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={product.image}
+              alt={productName}
+              loading="lazy"
+              className="
+                relative
+                z-0
+                max-h-full
+                max-w-[85%]
+                object-contain
+                drop-shadow-sm
+              "
+            />
+          ) : (
+            <div
+              className="
+                relative
+                z-0
+                w-11
+                h-16
+                rounded-sm
+                shadow-sm
+              "
+              style={{
+                background: `linear-gradient(
+                  160deg,
+                  ${swatch},
+                  ${accent}
+                )`,
+              }}
+              aria-hidden="true"
+            />
+          )}
+
           {/* Badges */}
           <span
             className="
               absolute
+              z-10
               top-2.5
               left-2.5
               bg-green
@@ -336,6 +377,7 @@ export default function NewArrivalProductCard({
             <span
               className="
                 absolute
+                z-10
                 top-11
                 left-2.5
                 bg-[#dc2626]
@@ -363,6 +405,7 @@ export default function NewArrivalProductCard({
             aria-pressed={saved}
             className="
               absolute
+              z-10
               top-2.5
               right-2.5
               w-7
@@ -392,39 +435,6 @@ export default function NewArrivalProductCard({
               }
             />
           </button>
-
-          {/* Product Image (streaming API URL) or gradient fallback */}
-          {product.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={product.image}
-              alt={productName}
-              loading="lazy"
-              className="
-                max-h-full
-                max-w-[85%]
-                object-contain
-                drop-shadow-sm
-              "
-            />
-          ) : (
-            <div
-              className="
-                w-11
-                h-16
-                rounded-sm
-                shadow-sm
-              "
-              style={{
-                background: `linear-gradient(
-                  160deg,
-                  ${swatch},
-                  ${accent}
-                )`,
-              }}
-              aria-hidden="true"
-            />
-          )}
         </div>
 
         {/* --------------------------------
