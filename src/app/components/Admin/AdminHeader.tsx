@@ -18,6 +18,7 @@ import {
   useId,
   type KeyboardEvent,
 } from "react";
+import { notificationsApi } from "@/app/api/services";
 
 type AdminHeaderProps = {
   onMenuClick?: () => void;
@@ -76,67 +77,46 @@ export default function AdminHeader({
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
-  /* ==========================================================
-     LOAD LOGGED-IN ADMIN
-  ========================================================== */
-
-  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+  // Live unread count for the admin inbox (Notifications table).
+  // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
-    const loadUser = () => {
+    let cancelled = false;
+    const loadUnread = async () => {
       try {
-        const savedUser = localStorage.getItem("aanzara_user");
-
-        if (!savedUser) {
-          setAdminUser(null);
-          setUserLoaded(true);
-          return;
-        }
-
-        const parsedUser: AdminUser = JSON.parse(savedUser);
-        setAdminUser(parsedUser);
-      } catch (error) {
-        console.error("Failed to load admin user:", error);
-        setAdminUser(null);
-      } finally {
-        setUserLoaded(true);
+        const response = await notificationsApi.list({
+          unreadOnly: true,
+          page: 1,
+          pageSize: 1,
+        });
+        if (cancelled) return;
+        const payload = response?.data as
+          | { totalCount?: number; totalcount?: number }
+          | undefined;
+        const total =
+          typeof payload?.totalCount === "number"
+            ? payload.totalCount
+            : typeof payload?.totalcount === "number"
+              ? payload.totalcount
+              : 0;
+        setUnreadNotifications(total);
+      } catch {
+        if (!cancelled) setUnreadNotifications(0);
       }
     };
-
-    // Initial load.
-    loadUser();
-
-    // Cross-tab localStorage changes.
-    const handleStorageChange = () => loadUser();
-
-    // Same-tab login/profile updates (dispatched by login/profile flows).
-    const handleUserUpdated = () => loadUser();
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("aanzara-user-updated", handleUserUpdated);
-
+    void loadUnread();
+    const timer = setInterval(loadUnread, 30000);
+    const sync = () => {
+      void loadUnread();
+    };
+    window.addEventListener("focus", sync);
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("aanzara-user-updated", handleUserUpdated);
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", sync);
     };
   }, []);
-
-  const displayName =
-    adminUser?.name?.trim() ||
-    adminUser?.email?.split("@")[0] ||
-    "Admin";
-
-  const displayEmail = adminUser?.email || "";
-
-  const displayRole =
-    adminUser?.role?.trim() ||
-    adminUser?.accountType?.trim() ||
-    "Admin";
-
-  /* ==========================================================
-     SEARCH
-  ========================================================== */
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
@@ -174,32 +154,18 @@ export default function AdminHeader({
 
   /**
    * Sign out: revoke the server session, clear the client session and the
-   * middleware guard cookies, then hard-navigate to /login. Without the
-   * clear, the guard cookie survives and the middleware bounces /login
-   * straight back to /admin, so logout never visibly completes.
+   * middleware guard cookies, then replace history with /login so Back
+   * cannot return into /admin. Without the clear, the guard cookie
+   * survives and the middleware bounces /login straight back to /admin,
+   * so logout never visibly completes.
    */
   const handleAdminLogout = async () => {
     closeProfile();
 
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
+    const { logoutAndRedirect } = await import(
       "@/app/api/api"
     );
-    clearSession();
-
-    localStorage.removeItem(
-      "aanzara_remember_me"
-    );
-
-    window.location.assign(ROUTES.login);
+    await logoutAndRedirect(ROUTES.login);
   };
 
   const handleMobileMenu = () => {
@@ -400,7 +366,11 @@ export default function AdminHeader({
 
         <button
           type="button"
-          aria-label="Notifications"
+          aria-label={
+            unreadNotifications > 0
+              ? `Notifications, ${unreadNotifications} unread`
+              : "Notifications"
+          }
           onClick={() =>
             router.push(
               ROUTES.notifications
@@ -416,21 +386,23 @@ export default function AdminHeader({
         >
           <Bell size={18} />
 
-          <span
-            className="
-              absolute -right-0.5 -top-0.5
-              flex h-[17px] min-w-[17px]
-              items-center justify-center
-              rounded-full
-              bg-[#EF4444]
-              px-1
-              text-[9px]
-              font-bold
-              text-white
-            "
-          >
-            5
-          </span>
+          {unreadNotifications > 0 && (
+            <span
+              className="
+                absolute -right-0.5 -top-0.5
+                flex h-[17px] min-w-[17px]
+                items-center justify-center
+                rounded-full
+                bg-[#EF4444]
+                px-1
+                text-[9px]
+                font-bold
+                text-white
+              "
+            >
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
         </button>
 
         {/* DIVIDER */}

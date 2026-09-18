@@ -936,26 +936,11 @@ export default function AddressesPage() {
   ======================================================= */
 
   const handleLogout = async () => {
-    // Best-effort server logout, then the central session clear
-    // (tokens + middleware guard cookies). Without the cookie clear
-    // the edge guard keeps redirecting /login back into the app.
-    try {
-      const { authApi } = await import("@/app/api/services");
-      await authApi.logout();
-    } catch (error) {
-      console.error("Server logout failed:", error);
-    }
-
-    try {
-      const { clearSession } = await import("@/app/api/api");
-      clearSession();
-    } catch (error) {
-      console.error("Unable to clear authentication:", error);
-    }
-
-    localStorage.removeItem("aanzara-profile");
-
-    router.push("/login");
+    // Central logout replaces history so Back cannot return here.
+    // (Without the cookie clear the edge guard keeps redirecting
+    // /login back into the app.)
+    const { logoutAndRedirect } = await import("@/app/api/api");
+    await logoutAndRedirect("/login");
   };
 
   /* =======================================================

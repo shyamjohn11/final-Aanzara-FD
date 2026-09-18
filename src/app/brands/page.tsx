@@ -34,158 +34,10 @@ const categories = [
   "Dairy & Bakery",
 ];
 
-const brands: Brand[] = [
-  {
-    name: "Amul",
-    category: "Dairy & Bakery",
-    logo: "Amul",
-    logoClass: "font-serif font-bold text-red-700 text-[30px]",
-  },
-  {
-    name: "Parle",
-    category: "Biscuits & Snacks",
-    logo: "PARLE",
-    logoClass:
-      "bg-[#df3030] px-5 py-2 text-[17px] font-black text-white skew-x-[-8deg]",
-  },
-  {
-    name: "Nestlé",
-    category: "Food & Beverages",
-    logo: "Nestlé",
-    logoClass: "font-serif font-bold text-[#4b4744] text-[24px]",
-  },
-  {
-    name: "Tata",
-    category: "Beverages & Foods",
-    logo: "TATA",
-    logoClass: "font-bold text-[#245a93] text-[26px]",
-  },
-  {
-    name: "Hindustan Unilever",
-    category: "Personal Care",
-    logo: "U",
-    logoClass: "font-serif font-bold text-[#183c79] text-[42px]",
-  },
-  {
-    name: "P&G",
-    category: "Personal Care",
-    logo: "P&G",
-    logoClass:
-      "flex h-14 w-14 items-center justify-center rounded-full bg-[#174c8b] text-[18px] font-bold text-white shadow-md",
-  },
-  {
-    name: "Colgate",
-    category: "Oral Care",
-    logo: "Colgate",
-    logoClass: "font-bold italic text-[#d71920] text-[25px]",
-  },
-  {
-    name: "Dabur",
-    category: "Health Care",
-    logo: "Dabur",
-    logoClass: "font-serif font-bold text-[#38733d] text-[24px]",
-  },
-  {
-    name: "Real",
-    category: "Beverages",
-    logo: "Real",
-    logoClass:
-      "font-bold italic text-[#1d5b9e] text-[28px] underline decoration-green-600 decoration-2 underline-offset-4",
-  },
-  {
-    name: "Britannia",
-    category: "Biscuits & Snacks",
-    logo: "BRITANNIA",
-    logoClass:
-      "bg-[#e21b23] px-4 py-1.5 font-bold text-[13px] text-white",
-  },
-  {
-    name: "Surf Excel",
-    category: "Home Care",
-    logo: "Surf\nExcel",
-    logoClass:
-      "whitespace-pre-line font-bold text-[#173d82] text-[22px] leading-5",
-  },
-  {
-    name: "Vim",
-    category: "Home Care",
-    logo: "Vim",
-    logoClass: "font-black italic text-[#e21d26] text-[31px]",
-  },
-  {
-    name: "Lifebuoy",
-    category: "Personal Care",
-    logo: "Lifebuoy",
-    logoClass:
-      "rounded-full bg-[#d51e27] px-3 py-1.5 font-bold italic text-[14px] text-white",
-  },
-  {
-    name: "Patanjali",
-    category: "Health Care",
-    logo: "PATANJALI",
-    logoClass:
-      "font-serif text-[#854136] text-[19px] tracking-wide",
-  },
-  {
-    name: "Boost",
-    category: "Health Drinks",
-    logo: "Boost",
-    logoClass:
-      "bg-[#d92922] px-4 py-1.5 font-bold italic text-[23px] text-white skew-x-[-10deg]",
-  },
-  {
-    name: "Horlicks",
-    category: "Health Drinks",
-    logo: "Horlicks",
-    logoClass:
-      "font-bold italic text-[#294f94] text-[24px]",
-  },
-  {
-    name: "Kellogg's",
-    category: "Breakfast Foods",
-    logo: "Kellogg's",
-    logoClass:
-      "font-serif italic text-[#c71926] text-[26px]",
-  },
-  {
-    name: "Lay's",
-    category: "Snacks",
-    logo: "Lay's",
-    logoClass:
-      "rounded-full bg-[#e82d21] px-3 py-2 font-bold italic text-[20px] text-white shadow-[inset_0_0_0_6px_#f4ce2a]",
-  },
-  {
-    name: "Maggi",
-    category: "Food & Beverages",
-    logo: "Maggi",
-    logoClass:
-      "rounded-md bg-[#ffdf00] px-4 py-2 font-bold text-[17px] text-red-600",
-  },
-  {
-    name: "Dove",
-    category: "Personal Care",
-    logo: "Dove",
-    logoClass:
-      "font-serif italic text-[#263c65] text-[28px]",
-  },
-  {
-    name: "Veet",
-    category: "Personal Care",
-    logo: "Veet",
-    logoClass:
-      "font-serif italic text-[#263c65] text-[26px]",
-  },
-];
-
-const heroBrands = [
-  "Surf\nExcel",
-  "Parle",
-  "Dove",
-  "Boost",
-  "Tide",
-  "Colgate",
-  "Vim",
-];
+/* ---------------------------------------------------------
+   BRANDS — backend only (GET /api/admin/brands).
+   No hardcoded brands: the grid below renders live API data only.
+--------------------------------------------------------- */
 
 /* ---------------------------------------------------------
    VALIDATION HELPERS
@@ -296,8 +148,8 @@ export default function BrandsPage() {
     useState<number>(21);
 
   /* -------------------------------------------------------
-     LIVE CATALOG (#43) + SERVER SEARCH (#48) merged over
-     static catalogue
+     LIVE CATALOG (#43) + SERVER SEARCH (#48) — backend only.
+     No static fallback: only backend data is displayed.
   ------------------------------------------------------- */
 
   const [catalogBrands, setCatalogBrands] = useState<Brand[]>([]);
@@ -339,15 +191,15 @@ export default function BrandsPage() {
             category: String(
               raw.categoryName ?? raw.category ?? "General",
             ),
-            // Static rows render text logos; catalog rows reuse the
-            // brand name as logo text until CDN logos land.
+            // Backend rows reuse the brand name as logo text
+            // until CDN logos land.
             logo: name.slice(0, 24),
           });
         });
 
         setCatalogBrands(mapped.filter(isValidBrand));
       } catch {
-        // Keep static catalogue when the brand API is unreachable.
+        // Backend-only: show empty state when the brand API is unreachable.
         if (!cancelled) {
           const message = "Live brand catalogue is currently unavailable.";
           setCatalogError(message);
@@ -409,8 +261,8 @@ export default function BrandsPage() {
             category: String(
               raw.categoryName ?? raw.category ?? "General",
             ),
-            // Static rows render text logos; server rows reuse the
-            // brand name as logo text until CDN logos land.
+            // Backend rows reuse the brand name as logo text
+            // until CDN logos land.
             logo: name.slice(0, 24),
           });
         });
@@ -419,7 +271,7 @@ export default function BrandsPage() {
           mapped.filter(isValidBrand).slice(0, 21),
         );
       } catch {
-        // Keep static catalogue when search API is unreachable.
+        // Backend-only: clear server results when search API is unreachable.
         if (!cancelled) setServerBrands([]);
       }
     }, 400);
@@ -437,7 +289,8 @@ export default function BrandsPage() {
   const validBrands = useMemo(() => {
     const uniqueBrands = new Map<string, Brand>();
 
-    [...serverBrands, ...catalogBrands, ...brands].forEach((brand) => {
+    // Backend-only: server search + catalog list. No hardcoded brands.
+    [...serverBrands, ...catalogBrands].forEach((brand) => {
       if (!isValidBrand(brand)) {
         return;
       }

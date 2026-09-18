@@ -27,6 +27,19 @@ import { useRouter } from "next/navigation";
 
 import { useCart } from "@/app/context/cartcontext";
 import { useWishlist } from "@/app/context/wishlistcontext";
+import {
+  hasSession,
+  SESSION_CHANGED_EVENT,
+} from "@/app/api/api";
+import { customerNotificationsApi } from "@/app/api/services";
+import {
+  isTypeAllowed,
+  loadPrefs,
+  loadReadIds,
+  saveReadIds,
+  toRelativeTime,
+  type CustomerNotificationRow,
+} from "@/app/utils/notifications";
 
 /* =========================================================
    TYPES
@@ -51,60 +64,15 @@ type AlertNotification = {
   message: string;
   time: string;
   read: boolean;
+  link?: string;
 };
 
 /* =========================================================
-   MOCK NOTIFICATIONS
-   TODO: replace with a real API call (e.g. GET /api/notifications)
-   once the backend endpoint is ready. Keep the same shape
-   (id, title, message, time, read) so the dropdown below
-   doesn't need to change.
+   LIVE NOTIFICATIONS — GET /api/v1/notifications?count=
+   (derived from order history, read-only server-side; read
+   state lives in the shared `aanzara-alerts-read` key so the
+   bell, /alerts, and /account/alerts always agree).
 ========================================================= */
-
-const MOCK_NOTIFICATIONS: AlertNotification[] = [
-  {
-    id: "n1",
-    title: "Order Shipped",
-    message: "Your order #AZ10234 has been dispatched.",
-    time: "2h ago",
-    read: false,
-  },
-  {
-    id: "n2",
-    title: "Price Drop",
-    message: "An item in your wishlist just got cheaper.",
-    time: "5h ago",
-    read: false,
-  },
-  {
-    id: "n3",
-    title: "Welcome to Aanzara",
-    message: "Explore wholesale pricing on top FMCG brands.",
-    time: "1d ago",
-    read: true,
-  },
-  {
-    id: "n4",
-    title: "Bulk Quote Approved",
-    message: "Your quote request #BQ4821 has been approved.",
-    time: "2d ago",
-    read: true,
-  },
-  {
-    id: "n5",
-    title: "New Arrivals",
-    message: "Fresh stock just landed in Wholesale.",
-    time: "3d ago",
-    read: true,
-  },
-  {
-    id: "n6",
-    title: "Payment Received",
-    message: "Payment for invoice #INV9021 was confirmed.",
-    time: "4d ago",
-    read: true,
-  },
-];
 
 const ALERTS_PREVIEW_COUNT = 3;
 
@@ -152,40 +120,114 @@ export default function Header({
   ======================================================= */
 
   const [notifications, setNotifications] =
-    useState<AlertNotification[]>(MOCK_NOTIFICATIONS);
+    useState<AlertNotification[]>([]);
 
   const [alertsOpen, setAlertsOpen] =
-    useState(false);
-
-  const [showAllAlerts, setShowAllAlerts] =
     useState(false);
 
   const unreadCount = notifications.filter(
     (item) => !item.read
   ).length;
 
+  const refreshNotifications = async () => {
+    if (!hasSession()) {
+      setNotifications([]);
+      return;
+    }
+    try {
+      const response = await customerNotificationsApi.list(8);
+      const payload: unknown = response?.data;
+      const rawItems: unknown[] = Array.isArray(payload)
+        ? payload
+        : [];
+      const prefs = loadPrefs();
+      const readIds = loadReadIds();
+      const mapped: AlertNotification[] = [];
+      rawItems.forEach((entry) => {
+        if (typeof entry !== "object" || entry === null) return;
+        const row = entry as CustomerNotificationRow;
+        const id = String(row.id ?? "");
+        if (!id) return;
+        if (!isTypeAllowed(row.type, prefs)) return;
+        const title = String(row.title ?? "Notification").trim() || "Notification";
+        const message =
+          (typeof row.message === "string" && row.message.trim()) ||
+          "You have a new update.";
+        mapped.push({
+          id,
+          title,
+          message,
+          time: toRelativeTime(row.createdAt),
+          read: row.isRead === true || readIds.has(id),
+          link:
+            typeof row.link === "string" && row.link.startsWith("/")
+              ? row.link
+              : undefined,
+        });
+      });
+      setNotifications(mapped);
+    } catch {
+      // Bell stays empty rather than showing stale mock data.
+      setNotifications([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshNotifications();
+    const sync = () => {
+      void refreshNotifications();
+    };
+    window.addEventListener(SESSION_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(SESSION_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
   const closeAlerts = () => {
     setAlertsOpen(false);
-    setShowAllAlerts(false);
   };
 
   const toggleAlerts = () => {
     setUserMenuOpen(false);
-    setAlertsOpen((previous) => !previous);
+    setAlertsOpen((previous) => {
+      if (!previous) void refreshNotifications();
+      return !previous;
+    });
   };
 
   const markAllAsRead = () => {
+    const readIds = loadReadIds();
+    notifications.forEach((item) => readIds.add(item.id));
+    saveReadIds(readIds);
     setNotifications((current) =>
       current.map((item) => ({ ...item, read: true }))
     );
   };
 
   const markOneAsRead = (id: string) => {
+    const readIds = loadReadIds();
+    readIds.add(id);
+    saveReadIds(readIds);
     setNotifications((current) =>
       current.map((item) =>
         item.id === id ? { ...item, read: true } : item
       )
     );
+  };
+
+  const openNotification = (item: AlertNotification) => {
+    markOneAsRead(item.id);
+    if (item.link) {
+      closeAlerts();
+      router.push(item.link);
+    }
+  };
+
+  const viewAllAlerts = () => {
+    closeAlerts();
+    router.push("/alerts");
   };
 
   /* =========================================================
@@ -301,38 +343,18 @@ export default function Header({
 
   const handleLogout = async () => {
     /*
-     * Server logout best-effort, then central session clear
-     * (tokens, cookies) so route guards engage.
-     */
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
-      "@/app/api/api"
-    );
-    clearSession();
-
-    localStorage.removeItem(
-      "aanzara_remember_me"
-    );
-
-    /*
-     * Reset UI
+     * Central logout: revokes the server session, clears tokens and
+     * guard cookies, then replaces history so Back cannot return
+     * into this protected page.
      */
     setUser(null);
 
     setUserMenuOpen(false);
 
-    /*
-     * Redirect home
-     */
-    router.push("/");
+    const { logoutAndRedirect } = await import(
+      "@/app/api/api"
+    );
+    await logoutAndRedirect("/login");
   };
 
   /* =========================================================
@@ -567,12 +589,10 @@ export default function Header({
           {/* =================================================
               ALERTS
               Dynamic dropdown: the red dot only renders when
-              unreadCount > 0. Data is mock for now (see
-              MOCK_NOTIFICATIONS above) — swap in a real API
-              call later without changing this markup.
-              "View all alerts" expands the SAME panel in
-              place (no navigation) to show every notification
-              in the existing scrollable list.
+              unreadCount > 0. Data is live from
+              GET /api/v1/notifications (order-derived feed);
+              read state is shared via `aanzara-alerts-read`.
+              "View all alerts" navigates to /alerts.
           ================================================= */}
 
           <div className="relative">
@@ -714,14 +734,11 @@ export default function Header({
                         </p>
                       </div>
                     ) : (
-                      (showAllAlerts
-                        ? notifications
-                        : notifications.slice(0, ALERTS_PREVIEW_COUNT)
-                      ).map((item) => (
+                      notifications.slice(0, ALERTS_PREVIEW_COUNT).map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => markOneAsRead(item.id)}
+                          onClick={() => openNotification(item)}
                           className={`
                             flex
                             w-full
@@ -778,10 +795,10 @@ export default function Header({
 
                   {/* FOOTER */}
 
-                  {!showAllAlerts && notifications.length > ALERTS_PREVIEW_COUNT && (
+                  {notifications.length > ALERTS_PREVIEW_COUNT && (
                     <button
                       type="button"
-                      onClick={() => setShowAllAlerts(true)}
+                      onClick={viewAllAlerts}
                       className="
                         block
                         w-full
@@ -1358,22 +1375,24 @@ export default function Header({
               strokeWidth={1.8}
             />
 
-            {/* RED UNREAD DOT */}
+            {/* RED UNREAD DOT — live count, hidden when all read */}
 
-            <span
-              className="
-                absolute
-                right-[6px]
-                top-[5px]
-                h-2.5
-                w-2.5
-                rounded-full
-                bg-red-500
-                ring-2
-                ring-white
-              "
-              aria-hidden="true"
-            />
+            {unreadCount > 0 && (
+              <span
+                className="
+                  absolute
+                  right-[6px]
+                  top-[5px]
+                  h-2.5
+                  w-2.5
+                  rounded-full
+                  bg-red-500
+                  ring-2
+                  ring-white
+                "
+                aria-hidden="true"
+              />
+            )}
 
           </Link>
 

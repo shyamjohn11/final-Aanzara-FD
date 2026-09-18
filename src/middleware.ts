@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 // remains the real enforcer for every data call.
 //
 // - /admin/*      → session + role=admin (else login / dashboard)
+// - /agent-shop-onboarding → session + role=agent (else login / home)
 // - account/checkout/orders/... → session (else login?redirect=)
 // - /login, /register → public routes (never redirect away unless logged in)
 
@@ -16,8 +17,13 @@ const ROLE_COOKIE = "aanzara_role";
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 // Routes that require authentication (redirect to /login?redirect=…
-// when there is no session). Includes the role home pages so a
-// logged-out visitor always lands on the login page first.
+// when there is no session).
+//
+// /dashboard is deliberately NOT here: it is the public storefront home
+// (Hero, ShopByCategory, PopularProducts, ...), reached by the root "/"
+// redirect, and must render for guests. Signed-in customers still land
+// there after login via homeFor() below — this list only controls the
+// guest-visits-directly case.
 const AUTH_ROUTES = [
   "/account",
   "/checkout",
@@ -25,7 +31,6 @@ const AUTH_ROUTES = [
   "/order-confirmation",
   "/payment",
   "/invoice",
-  "/dashboard",
   "/agent-shop-onboarding",
 ];
 
@@ -79,6 +84,16 @@ function isPublicRoute(pathname: string): boolean {
   );
 }
 
+// Guarded pages must never sit in the back-forward cache or the disk
+// cache: after logout, Back would otherwise redisplay a protected page
+// without ever hitting this guard. Chrome opts out of bfcache for
+// `Cache-Control: no-store` responses.
+function noStore(response: NextResponse): NextResponse {
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const session = request.cookies.get(SESSION_COOKIE)?.value;
@@ -108,17 +123,41 @@ export function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
-      return NextResponse.redirect(url);
+      return noStore(NextResponse.redirect(url));
     }
 
     if (!isAdminRole(role)) {
       const url = request.nextUrl.clone();
       url.pathname = homeFor(role);
       url.search = "";
-      return NextResponse.redirect(url);
+      return noStore(NextResponse.redirect(url));
     }
 
-    return NextResponse.next();
+    return noStore(NextResponse.next());
+  }
+
+  // ---- Agent onboarding: session + agent role ----
+  // Must be checked before the generic AUTH_ROUTES branch, which would
+  // otherwise admit any signed-in user (customers included).
+  if (
+    pathname === "/agent-shop-onboarding" ||
+    pathname.startsWith("/agent-shop-onboarding/")
+  ) {
+    if (!isLoggedIn) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
+      return noStore(NextResponse.redirect(url));
+    }
+
+    if (!isAgentRole(role)) {
+      const url = request.nextUrl.clone();
+      url.pathname = homeFor(role);
+      url.search = "";
+      return noStore(NextResponse.redirect(url));
+    }
+
+    return noStore(NextResponse.next());
   }
 
   // ---- Customer private routes: session only ----
@@ -128,11 +167,15 @@ export function middleware(request: NextRequest) {
       pathname.startsWith(`${route}/`),
   );
 
-  if (needsAuth && !isLoggedIn) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
-    return NextResponse.redirect(url);
+  if (needsAuth) {
+    if (!isLoggedIn) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
+      return noStore(NextResponse.redirect(url));
+    }
+
+    return noStore(NextResponse.next());
   }
 
   return NextResponse.next();

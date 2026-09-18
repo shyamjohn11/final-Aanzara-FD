@@ -31,12 +31,14 @@ import {
 import {
   hasSession,
   SESSION_CHANGED_EVENT,
+  extractErrorMessage,
 } from "@/app/api/api";
 import {
   isGuid,
   loadProductSnapshot,
   saveProductSnapshot,
 } from "@/app/api/productcache";
+import { toast } from "react-toastify";
 
 export type CartLine = {
   product: Product;
@@ -250,8 +252,14 @@ export function CartProvider({
         setMode("remote");
 
         // Merge any guest lines with real backend product ids.
-        const guestItems = readLocalItems().filter(
+        // Lines the server rejects (unknown/inactive/out-of-stock product)
+        // stay local so they are not lost; only synced lines are dropped.
+        const allLocal = readLocalItems();
+        const guestItems = allLocal.filter(
           (line) => isGuid(line.product.id)
+        );
+        const unsyncable = allLocal.filter(
+          (line) => !isGuid(line.product.id)
         );
 
         if (guestItems.length > 0) {
@@ -261,13 +269,26 @@ export function CartProvider({
             )
           );
 
-          if (
-            active &&
-            results.every(
-              (result) => result.status === "fulfilled"
-            )
-          ) {
-            writeLocalItems([]);
+          if (active) {
+            const failed = guestItems.filter(
+              (_, index) =>
+                results[index]?.status === "rejected"
+            );
+
+            writeLocalItems([...unsyncable, ...failed]);
+
+            const firstFailure = results.find(
+              (result) => result.status === "rejected"
+            );
+
+            if (firstFailure) {
+              toast.error(
+                extractErrorMessage(
+                  (firstFailure as PromiseRejectedResult).reason,
+                  "Some cart items could not be synced."
+                )
+              );
+            }
           }
         }
 
@@ -339,6 +360,16 @@ export function CartProvider({
     // re-enriched on later loads.
     saveProductSnapshot(product);
 
+    // The backend rejects inactive/out-of-stock products with 400, so
+    // block them before the optimistic update instead of syncing a
+    // phantom line that the server will never accept.
+    if (product.inStock === false) {
+      toast.error(
+        `${product.name} is currently unavailable.`
+      );
+      return;
+    }
+
     const mergeLine = (
       prev: CartLine[]
     ): CartLine[] => {
@@ -366,9 +397,19 @@ export function CartProvider({
       cartApi
         .addItem(product.id, safeQty)
         .then(reloadRemote)
-        .catch((error) =>
-          console.error("Unable to sync cart:", error)
-        );
+        .catch((error) => {
+          // Roll back the optimistic line so the cart matches the
+          // server, and show the real reason (e.g. insufficient stock)
+          // instead of a generic sync warning.
+          console.error("Unable to sync cart:", error);
+          toast.error(
+            extractErrorMessage(
+              error,
+              "Unable to sync cart. Please try again."
+            )
+          );
+          void reloadRemote();
+        });
       return;
     }
 
@@ -413,12 +454,16 @@ export function CartProvider({
         cartApi
           .updateItem(cartItemId, clampedQty)
           .then(reloadRemote)
-          .catch((error) =>
-            console.error(
-              "Unable to sync cart:",
-              error
-            )
-          );
+          .catch((error) => {
+            console.error("Unable to sync cart:", error);
+            toast.error(
+              extractErrorMessage(
+                error,
+                "Unable to sync cart. Please try again."
+              )
+            );
+            void reloadRemote();
+          });
       }
       return;
     }
@@ -446,12 +491,16 @@ export function CartProvider({
         cartApi
           .removeItem(cartItemId)
           .then(reloadRemote)
-          .catch((error) =>
-            console.error(
-              "Unable to sync cart:",
-              error
-            )
-          );
+          .catch((error) => {
+            console.error("Unable to sync cart:", error);
+            toast.error(
+              extractErrorMessage(
+                error,
+                "Unable to sync cart. Please try again."
+              )
+            );
+            void reloadRemote();
+          });
       }
       return;
     }
