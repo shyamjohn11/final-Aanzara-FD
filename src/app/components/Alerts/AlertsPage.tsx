@@ -17,6 +17,7 @@ import {
   type CustomerNotification,
 } from "@/app/api/services";
 import { hasSession } from "@/app/api/api";
+import { isTypeAllowed, loadPrefs } from "@/app/utils/notifications";
 
 /* =========================================================
    FILTER TYPES
@@ -197,10 +198,14 @@ export default function AlertsPage() {
         if (cancelled) return;
 
         const readIds = readStoredReadIds();
-        const mapped: AlertItem[] = list.map((n, i) => {
+        const prefs = loadPrefs();
+        const mapped: AlertItem[] = [];
+        list.forEach((n, i) => {
           const t = String(
             n.type ?? "system"
           ).toLowerCase();
+          // Preference toggles (orderUpdates/offers) filter the feed.
+          if (!isTypeAllowed(t, prefs)) return;
           const type = (
             [
               "order",
@@ -218,18 +223,28 @@ export default function AlertsPage() {
           const id = String(
             n.id ?? `notif-${i}`
           ).trim();
-          return {
+          if (!id) return;
+          // Remarks can be null — fall back instead of dropping the row.
+          const message =
+            (typeof n.message === "string" && n.message.trim()) ||
+            (type === "order" || type === "delivery"
+              ? "There's a new update on your order — tap to view it."
+              : "Tap to view details.");
+          // Prefer the backend deep-link (/orders?order=<guid>, honored
+          // by /orders) over regex-derived routes.
+          const link =
+            typeof n.link === "string" && n.link.startsWith("/")
+              ? n.link
+              : undefined;
+          mapped.push({
             id,
             type,
-            title: String(
-              n.title ?? "Notification"
-            ),
-            message: String(n.message ?? ""),
+            title: String(n.title ?? "Notification").trim() || "Notification",
+            message,
             date: created,
-            read:
-              Boolean(n.isRead) ||
-              readIds.has(id),
-          };
+            read: Boolean(n.isRead) || readIds.has(id),
+            actionHref: link,
+          });
         });
         setAlerts(getSafeAlerts(mapped));
       } catch {

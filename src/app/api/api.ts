@@ -195,9 +195,16 @@ function clearGuardCookie(name: string) {
 
 export function clearSession(options?: { silent?: boolean }) {
   if (typeof window === "undefined") return;
-  [ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, SESSION_ID_KEY, USER_KEY].forEach(
-    (key) => localStorage.removeItem(key),
-  );
+  [
+    ACCESS_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    SESSION_ID_KEY,
+    USER_KEY,
+    // Legacy AuthContext display name + per-page profile drafts.
+    // Stale values here repopulate the UI after logout.
+    "userName",
+    "aanzara-profile",
+  ].forEach((key) => localStorage.removeItem(key));
   [
     "aanzara_logged_in",
     "aanzara_user_id",
@@ -244,6 +251,29 @@ export function hasSession(): boolean {
 }
 
 /**
+ * Full logout in one call: revoke the server session (best-effort),
+ * clear every client token/cookie, then hard-navigate with
+ * `location.replace` so the protected page leaves the history stack —
+ * the Back button can no longer land back inside it, and the fresh
+ * document forces the edge middleware to re-evaluate.
+ */
+export async function logoutAndRedirect(to = "/login"): Promise<void> {
+  try {
+    await api.post("/api/v1/auth/logout");
+  } catch {
+    // Local clear below applies regardless.
+  }
+  clearSession();
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("aanzara_remember_me");
+  } catch {
+    // Ignore storage errors.
+  }
+  window.location.replace(to);
+}
+
+/**
  * Reconcile the middleware presence cookies with real session state.
  *
  * - Guard cookie without a token (e.g. a logout that only cleared
@@ -277,7 +307,8 @@ export function reconcileGuardCookies(): "cleared" | "restored" | null {
 
 // Routes that only make sense for a signed-in user. When a dead session
 // is detected on one of them we bounce back to the login page; on public
-// storefront pages we just drop to guest mode instead.
+// storefront pages (including /dashboard, the storefront home) we just
+// drop to guest mode instead.
 export const PROTECTED_PREFIXES = [
   "/account",
   "/checkout",
@@ -286,7 +317,6 @@ export const PROTECTED_PREFIXES = [
   "/payment",
   "/invoice",
   "/admin",
-  "/dashboard",
   "/agent-shop-onboarding",
 ];
 

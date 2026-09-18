@@ -281,8 +281,8 @@ export default function MobileMenu({
 
             {/* ALERTS */}
 
-            <button
-              type="button"
+            <Link
+              href="/alerts"
               onClick={handleNavigation}
               className="
                 flex
@@ -305,7 +305,7 @@ export default function MobileMenu({
               <span className="text-[13px]">
                 Alerts
               </span>
-            </button>
+            </Link>
 
             {/* SIGN IN */}
 

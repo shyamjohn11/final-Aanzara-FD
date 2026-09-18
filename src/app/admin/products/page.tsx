@@ -182,6 +182,26 @@ export default function ProductsAdminPage() {
   const [submitting, setSubmitting] = useState(false);
 
   /* ==========================================================
+     IMAGE PREVIEW LIGHTBOX
+  ========================================================== */
+
+  const [previewImage, setPreviewImage] = useState("");
+  const [previewVisible, setPreviewVisible] = useState(false);
+
+  // Two-step open/close so the fade/scale transition can play before
+  // the lightbox unmounts (matches the 200ms duration in its classes).
+  const openPreview = (src?: string) => {
+    if (!src) return;
+    setPreviewImage(src);
+    requestAnimationFrame(() => setPreviewVisible(true));
+  };
+
+  const closePreview = () => {
+    setPreviewVisible(false);
+    setTimeout(() => setPreviewImage(""), 200);
+  };
+
+  /* ==========================================================
      FORM STATE
   ========================================================== */
 

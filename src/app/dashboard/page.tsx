@@ -4,9 +4,10 @@ import { useState } from "react";
 import TopBar from "@/app/components/Dashboard/TopBar";
 import Header from "@/app/components/Header";
 import MainNav from "@/app/MainNav";
-import FeatureStrip from "@/app/components/Dashboard/FeatureStrip";
+import UserLocation from "@/app/components/Dashboard/UserLocation";
 import Hero from "@/app/components/Dashboard/Hero";
 import ShopByCategory from "@/app/components/Dashboard/ShopByCategory";
+import PopularBrands from "@/app/components/Dashboard/PopularBrands";
 import PopularProducts from "@/app/components/Dashboard/PopularProducts";
 import BusinessBulkOrders from "@/app/components/Dashboard/BusinessBulkOrders";
 import IndustrySolutions from "@/app/components/Dashboard/IndustrySolutions";
@@ -31,11 +32,12 @@ export default function DashboardPage() {
         />
       </div>
 
-      <FeatureStrip />
+      <UserLocation />
 
       <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-10">
         <Hero />
         <ShopByCategory />
+        <PopularBrands />
         <PopularProducts />
         <BusinessBulkOrders />
         <IndustrySolutions />

@@ -7,6 +7,7 @@ import {
   MapPin,
   Heart,
   Bell,
+  BellRing,
   LockKeyhole,
   MonitorSmartphone,
   LogOut,
@@ -43,6 +44,11 @@ const accountMenu = [
     label: "Alerts",
     icon: Bell,
     href: "/account/alerts",
+  },
+  {
+    label: "Notification Settings",
+    icon: BellRing,
+    href: "/account/notifications",
   },
   {
     label: "Change Password",
@@ -84,27 +90,11 @@ export default function AccountSidebar({
 
     if (!confirmed) return;
 
-    // Server logout best-effort, then central session clear
-    // (tokens, cookies) so route guards engage.
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
+    // Central logout replaces history so Back cannot return here.
+    const { logoutAndRedirect } = await import(
       "@/app/api/api"
     );
-    clearSession();
-
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userName");
-
-    router.push("/login");
+    await logoutAndRedirect("/login");
   };
 
   return (
