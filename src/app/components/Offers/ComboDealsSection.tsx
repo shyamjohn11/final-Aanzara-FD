@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, ShoppingBag } from "lucide-react";
 import type { ComboDeal as ComboDealType } from "@/app/data/offers";
-import { combosApi } from "@/app/api/services";
+import { dealsApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -119,7 +119,7 @@ function getSafeComboDeals(
 }
 
 /* --------------------------------
- * API mapping (combosApi.list)
+  * API mapping (dealsApi.combos — public, active only)
  * -------------------------------- */
 
 const COMBO_SWATCHES = [
@@ -251,7 +251,8 @@ export default function ComboDealsSection() {
       setLoading(true);
       setFetchError("");
       try {
-        const response = await combosApi.list(1, 25);
+        // Public storefront combos (active only, no auth required).
+        const response = await dealsApi.combos(25);
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
         const rawItems = unwrapItems(payload);

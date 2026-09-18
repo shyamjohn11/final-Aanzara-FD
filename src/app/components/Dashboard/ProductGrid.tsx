@@ -163,7 +163,7 @@ export default function ProductGrid({
 
     const productId = str(raw.productId ?? raw.id);
     const productName = str(raw.productName ?? raw.name, "Product");
-    const brand = str(raw.brandName ?? raw.brand, "Generic");
+    const brand = str(raw.brandName ?? raw.brand, "Unbranded");
     const price = num(raw.unitPrice ?? raw.price);
     const mrp = num(raw.mrp, price);
     const moq = num(raw.moq ?? raw.minOrderQuantity, 1) || 1;

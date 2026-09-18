@@ -315,7 +315,7 @@ export default function Navbar() {
                   {/* PROFILE */}
 
                   <Link
-                    href="/profile"
+                    href="/account/profile"
                     onClick={() =>
                       setShowMenu(false)
                     }

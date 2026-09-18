@@ -155,6 +155,78 @@ export default function AdminHeader({
     };
   }, []);
 
+  /* ========================================================
+     LOGGED-IN ADMIN USER (same shape as storefront Header)
+  ======================================================== */
+
+  const [adminUser, setAdminUser] =
+    useState<AdminUser | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadUser = () => {
+      try {
+        const saved =
+          window.localStorage.getItem("aanzara_user");
+
+        if (!saved) {
+          setAdminUser(null);
+          return;
+        }
+
+        const parsed: unknown = JSON.parse(saved);
+
+        if (typeof parsed !== "object" || parsed === null) {
+          setAdminUser(null);
+          return;
+        }
+
+        const record = parsed as Record<string, unknown>;
+
+        const text = (value: unknown) =>
+          typeof value === "string" ? value : undefined;
+
+        setAdminUser({
+          id:
+            typeof record.id === "string" ||
+            typeof record.id === "number"
+              ? record.id
+              : undefined,
+          name: text(record.name),
+          email: text(record.email),
+          role: text(record.role),
+          accountType: text(record.accountType),
+        });
+      } catch {
+        setAdminUser(null);
+      } finally {
+        setUserLoaded(true);
+      }
+    };
+
+    loadUser();
+
+    window.addEventListener("storage", loadUser);
+    window.addEventListener("aanzara-user-updated", loadUser);
+
+    return () => {
+      window.removeEventListener("storage", loadUser);
+      window.removeEventListener(
+        "aanzara-user-updated",
+        loadUser
+      );
+    };
+  }, []);
+
+  const displayName =
+    adminUser?.name?.trim() || "Admin";
+  const displayEmail =
+    adminUser?.email?.trim() || "";
+  const displayRole =
+    adminUser?.role?.trim() ||
+    adminUser?.accountType?.trim() ||
+    "Super Admin";
+
   const handleSearch = () => {
     const query = normalizeSearch(search);
 

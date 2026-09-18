@@ -2,13 +2,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { brandsApi } from "@/app/api/services";
+import { storefrontBrandsApi } from "@/app/api/services";
 
 export default function PopularBrands() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
 
   /* ============================================================
-     BRANDS — live list from GET /api/admin/brands (#43)
+     BRANDS — live list from GET /api/v1/brands (public, active only)
   ============================================================ */
 
   const [brands, setBrands] = useState<string[]>([]);
@@ -20,7 +20,7 @@ export default function PopularBrands() {
     const loadBrands = async () => {
       try {
         setLoading(true);
-        const { data } = await brandsApi.list();
+        const { data } = await storefrontBrandsApi.list({ count: 12 });
         const items = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
         if (cancelled) return;
 

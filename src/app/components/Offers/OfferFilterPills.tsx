@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { offersApi, categoriesApi } from "@/app/api/services";
+import { dealsApi, categoriesApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -90,7 +90,8 @@ export default function OfferFilterPills({
       setLoading(true);
       setFetchError("");
       try {
-        const offersResponse = await offersApi.list(1, 50);
+        // Public storefront offers (active only, no auth required).
+        const offersResponse = await dealsApi.offers(50);
         const offersPayload: unknown =
           (offersResponse as { data?: unknown })?.data ?? offersResponse;
         const offerItems = unwrapItems(offersPayload);

@@ -6,7 +6,7 @@ import {
   Building2,
   ArrowRight,
 } from "lucide-react";
-import { brandsApi } from "@/app/api/services";
+import { storefrontBrandsApi } from "@/app/api/services";
 
 type BrandTile = {
   name: string;
@@ -15,7 +15,7 @@ type BrandTile = {
 
 export default function CategoryBrandsGrid() {
   // =====================================================
-  // LIVE DATA — GET /api/admin/brands (#43)
+  // LIVE DATA — GET /api/v1/brands (public, active only)
   // =====================================================
 
   const [tiles, setTiles] = useState<BrandTile[]>([]);
@@ -29,7 +29,7 @@ export default function CategoryBrandsGrid() {
       try {
         setLoading(true);
         setError("");
-        const { data } = await brandsApi.list();
+        const { data } = await storefrontBrandsApi.list({ count: 25 });
         const items = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
         if (cancelled) return;
 

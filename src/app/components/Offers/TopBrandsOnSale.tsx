@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Tag } from "lucide-react";
 import type { BrandOnSale as BrandOnSaleType } from "@/app/data/offers";
-import { brandsApi } from "@/app/api/services";
+import { storefrontBrandsApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -99,7 +99,7 @@ function getSafeTopBrands(
 }
 
 /* --------------------------------
- * API mapping (brandsApi.list)
+ * API mapping (storefrontBrandsApi.list — public, active only)
  * -------------------------------- */
 
 const BRAND_SWATCHES = [
@@ -196,7 +196,7 @@ export default function TopBrandsOnSale() {
       setLoading(true);
       setFetchError("");
       try {
-        const response = await brandsApi.list();
+        const response = await storefrontBrandsApi.list({ count: 25 });
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
         const rawItems = unwrapItems(payload);

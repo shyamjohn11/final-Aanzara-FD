@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search, Check } from "lucide-react";
-import { brandsApi } from "@/app/api/services";
+import { storefrontBrandsApi } from "@/app/api/services";
 
 /* ============================================================
    TYPES
@@ -234,7 +234,7 @@ function Toggle({
 
 export default function FiltersSidebar() {
   /* ==========================================================
-     LIVE BRAND DATA — GET /api/admin/brands (#43)
+     LIVE BRAND DATA — GET /api/v1/brands (public, active only)
   ========================================================== */
 
   const [brandNames, setBrandNames] = useState<string[]>([]);
@@ -248,7 +248,7 @@ export default function FiltersSidebar() {
       try {
         setBrandsLoading(true);
         setBrandsError("");
-        const { data } = await brandsApi.list();
+        const { data } = await storefrontBrandsApi.list({ count: 100 });
         const items = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
         if (cancelled) return;
         const names = items

@@ -7,6 +7,7 @@ import type { NextRequest } from "next/server";
 //
 // - /admin/*      → session + role=admin (else login / dashboard)
 // - /agent-shop-onboarding → session + role=agent (else login / home)
+// - /wholesale/*   → session + role=admin|agent (else login / dashboard)
 // - account/checkout/orders/... → session (else login?redirect=)
 // - /login, /register → public routes (never redirect away unless logged in)
 
@@ -160,6 +161,30 @@ export function middleware(request: NextRequest) {
     return noStore(NextResponse.next());
   }
 
+  // ---- Wholesale: session + admin/agent role (customers never see it) ----
+  // Must be checked before the generic AUTH_ROUTES branch, which would
+  // otherwise admit any signed-in user (customers included).
+  if (
+    pathname === "/wholesale" ||
+    pathname.startsWith("/wholesale/")
+  ) {
+    if (!isLoggedIn) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
+      return noStore(NextResponse.redirect(url));
+    }
+
+    if (!isAdminRole(role) && !isAgentRole(role)) {
+      const url = request.nextUrl.clone();
+      url.pathname = homeFor(role);
+      url.search = "";
+      return noStore(NextResponse.redirect(url));
+    }
+
+    return noStore(NextResponse.next());
+  }
+
   // ---- Customer private routes: session only ----
   const needsAuth = AUTH_ROUTES.some(
     (route) =>
@@ -204,6 +229,8 @@ export const config = {
     "/dashboard/:path*",
     "/agent-shop-onboarding",
     "/agent-shop-onboarding/:path*",
+    "/wholesale",
+    "/wholesale/:path*",
     "/login",
     "/register",
   ],

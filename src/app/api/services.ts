@@ -972,6 +972,37 @@ export const dealsApi = {
   coupons(count = 8) {
     return api.get(`/api/v1/deals/coupons?count=${count}`);
   },
+
+  // GET /api/v1/deals/cart-rules?count= — active cart rules for bulk pricing
+  cartRules(count = 25) {
+    return api.get(`/api/v1/deals/cart-rules?count=${count}`);
+  },
+
+  // GET /api/v1/deals/bulk-tiers?count= — wholesale price tiers
+  bulkTiers(count = 25) {
+    return api.get(`/api/v1/deals/bulk-tiers?count=${count}`);
+  },
+
+  // GET /api/v1/deals/banners?count= — active banners for promo tiles
+  banners(count = 25) {
+    return api.get(`/api/v1/deals/banners?count=${count}`);
+  },
+};
+
+// ============================================================
+// STOREFRONT BRANDS — StorefrontBrandsController (public, active only)
+// Brand shelves, filters and the customer brands page. No auth required.
+// The admin brand console keeps using brandsApi above.
+// ============================================================
+
+export const storefrontBrandsApi = {
+  // GET /api/v1/brands?search=&count= — active brands, newest first
+  list(query: { search?: string; count?: number } = {}) {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", query.search);
+    params.set("count", String(query.count ?? 50));
+    return api.get(`/api/v1/brands?${params.toString()}`);
+  },
 };
 
 // ============================================================

@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useWholesaleAudience } from "@/app/api/api";
 import {
   X,
   Heart,
@@ -21,7 +22,6 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  LayoutDashboard,
 } from "lucide-react";
 
 type MobileMenuProps = {
@@ -34,6 +34,9 @@ export default function MobileMenu({
   onClose,
 }: MobileMenuProps) {
   const router = useRouter();
+
+  // Wholesale is admin/agent-only — customers and guests don't see the link.
+  const showWholesale = useWholesaleAudience();
 
   const [categoriesOpen, setCategoriesOpen] =
     useState(false);
@@ -528,64 +531,39 @@ export default function MobileMenu({
             )}
 
             {/* =========================
-                WHOLESALE
+                WHOLESALE (admin/agent only)
             ========================= */}
 
-            <Link
-              href="/wholesale"
-              onClick={handleNavigation}
-              className="
-                mt-1
-                flex
-                min-h-[52px]
-                items-center
-                rounded-xl
-                px-2
-                text-[16px]
-                font-medium
-                text-[#506a8b]
-                hover:bg-[#f5f8fc]
-              "
-            >
-              <ShoppingBag
-                size={20}
-                className="mr-4"
-                strokeWidth={1.8}
-              />
+            {showWholesale && (
+              <Link
+                href="/wholesale"
+                onClick={handleNavigation}
+                className="
+                  mt-1
+                  flex
+                  min-h-[52px]
+                  items-center
+                  rounded-xl
+                  px-2
+                  text-[16px]
+                  font-medium
+                  text-[#506a8b]
+                  hover:bg-[#f5f8fc]
+                "
+              >
+                <ShoppingBag
+                  size={20}
+                  className="mr-4"
+                  strokeWidth={1.8}
+                />
 
-              <span className="flex-1">
-                Wholesale
-              </span>
+                <span className="flex-1">
+                  Wholesale
+                </span>
 
-              <ChevronRight size={18} />
-            </Link>
-
-            {/* WHOLESALE DASHBOARD */}
-
-            <Link
-              href="/wholesale/dashboard"
-              onClick={handleNavigation}
-              className="
-                ml-10
-                flex
-                min-h-[45px]
-                items-center
-                rounded-lg
-                px-3
-                text-[14px]
-                font-medium
-                text-[#2d63d7]
-                hover:bg-[#eef4ff]
-              "
-            >
-              <LayoutDashboard
-                size={17}
-                className="mr-3"
-                strokeWidth={1.8}
-              />
-
-              Wholesale Dashboard
-            </Link>
+                <ChevronRight size={18} />
+              </Link>
+            )}
 
             {/* =========================
                 RETAIL
