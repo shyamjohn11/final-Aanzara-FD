@@ -23,7 +23,6 @@ import {
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { categoriesApi, categoryImagesApi } from "@/app/api/services";
-import { ImagePopup } from "@/app/components/Admin/ImagePopup";
 
 /* ============================================================
    TYPES
@@ -808,7 +807,16 @@ export default function CategoriesAdminPage() {
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                                <CategoryThumb category={category} />
+                                <CategoryThumb
+                                  category={category}
+                                  onClick={() =>
+                                    setImagePopup({
+                                      isOpen: true,
+                                      imageUrl: categoriesApi.primaryImageUrl(category.categoryId),
+                                      alt: category.categoryName,
+                                    })
+                                  }
+                                />
                               </div>
 
                               <div className="min-w-0">
@@ -889,7 +897,16 @@ export default function CategoriesAdminPage() {
                     <div key={category.categoryId} className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                          <CategoryThumb category={category} />
+                          <CategoryThumb
+                            category={category}
+                            onClick={() =>
+                              setImagePopup({
+                                isOpen: true,
+                                imageUrl: categoriesApi.primaryImageUrl(category.categoryId),
+                                alt: category.categoryName,
+                              })
+                            }
+                          />
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -1247,15 +1264,6 @@ export default function CategoriesAdminPage() {
                   )}
                 </div>
 
-                {imagePopup.isOpen && (
-                  <ImagePopup
-                    isOpen={imagePopup.isOpen}
-                    onClose={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
-                    imageUrl={imagePopup.imageUrl}
-                    alt={imagePopup.alt}
-                  />
-                )}
-
                 {/* HAS SUB CATEGORY - Only for Create */}
                 {!editingCategory && (
                   <div>
@@ -1394,6 +1402,44 @@ export default function CategoriesAdminPage() {
             </div>
           </div>
         )}
+
+        {/* ====================================================
+            IMAGE LIGHTBOX (table thumbnails + gallery)
+
+            Inlined here rather than a separate component. Fixed
+            box size (500×400) so every image sits in the same
+            frame regardless of its own aspect ratio, and the
+            close button is anchored to the card's own corner —
+            not the full viewport — so it's always found right
+            next to the image, not floating off near the header.
+        ===================================================== */}
+
+        {imagePopup.isOpen && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-6"
+            onClick={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
+          >
+            <div
+              className="relative flex h-[400px] w-[500px] max-h-[85vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-xl bg-white p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
+                aria-label="Close image preview"
+                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#1F2F49] text-white shadow-md transition hover:bg-[#0F1B30] focus:outline-none focus:ring-2 focus:ring-[#1769F5]"
+              >
+                <X size={16} />
+              </button>
+
+              <img
+                src={imagePopup.imageUrl}
+                alt={imagePopup.alt}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
@@ -1403,7 +1449,13 @@ export default function CategoriesAdminPage() {
    CATEGORY THUMB
 ============================================================ */
 
-function CategoryThumb({ category }: { category: Category }) {
+function CategoryThumb({
+  category,
+  onClick,
+}: {
+  category: Category;
+  onClick?: () => void;
+}) {
   const [broken, setBroken] = useState(false);
 
   if (broken) {
@@ -1411,13 +1463,20 @@ function CategoryThumb({ category }: { category: Category }) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={categoriesApi.primaryImageUrl(category.categoryId)}
-      alt={category.categoryName}
-      className="h-full w-full object-cover"
-      onError={() => setBroken(true)}
-    />
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-full w-full"
+      aria-label={`View ${category.categoryName} image`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={categoriesApi.primaryImageUrl(category.categoryId)}
+        alt={category.categoryName}
+        className="h-full w-full object-cover"
+        onError={() => setBroken(true)}
+      />
+    </button>
   );
 }
 

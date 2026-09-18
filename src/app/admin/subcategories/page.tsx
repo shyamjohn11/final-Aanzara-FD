@@ -1,9 +1,18 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  type ChangeEvent,
+  type ElementType,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { extractErrorMessage } from "@/app/api/api";
+import { ImagePopup } from "@/app/components/Admin/ImagePopup";
 import { categoriesApi, subcategoriesApi } from "@/app/api/services";
 import {
   ArrowLeft,
@@ -123,6 +132,12 @@ export default function SubCategoriesAdminPage() {
 
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [imagePopup, setImagePopup] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    alt: string;
+  }>({ isOpen: false, imageUrl: "", alt: "" });
 
   /* ==========================================================
      FETCH DATA
@@ -258,7 +273,7 @@ export default function SubCategoriesAdminPage() {
      IMAGE HANDLING
   ========================================================== */
 
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -716,13 +731,26 @@ export default function SubCategoriesAdminPage() {
                           >
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                                   {item.imageUrl ? (
-                                    <img
-                                      src={item.imageUrl}
-                                      alt={item.subCategoryName}
-                                      className="h-10 w-10 rounded-lg object-cover"
-                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setImagePopup({
+                                          isOpen: true,
+                                          imageUrl: item.imageUrl as string,
+                                          alt: item.subCategoryName,
+                                        })
+                                      }
+                                      className="h-full w-full"
+                                      aria-label={`View ${item.subCategoryName} image`}
+                                    >
+                                      <img
+                                        src={item.imageUrl}
+                                        alt={item.subCategoryName}
+                                        className="h-10 w-10 rounded-lg object-cover"
+                                      />
+                                    </button>
                                   ) : (
                                     <FolderTree size={18} />
                                   )}
@@ -803,13 +831,26 @@ export default function SubCategoriesAdminPage() {
                     return (
                       <div key={item.subCategoryId} className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                             {item.imageUrl ? (
-                              <img
-                                src={item.imageUrl}
-                                alt={item.subCategoryName}
-                                className="h-10 w-10 rounded-lg object-cover"
-                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setImagePopup({
+                                    isOpen: true,
+                                    imageUrl: item.imageUrl as string,
+                                    alt: item.subCategoryName,
+                                  })
+                                }
+                                className="h-full w-full"
+                                aria-label={`View ${item.subCategoryName} image`}
+                              >
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.subCategoryName}
+                                  className="h-10 w-10 rounded-lg object-cover"
+                                />
+                              </button>
                             ) : (
                               <FolderTree size={18} />
                             )}
@@ -1230,6 +1271,16 @@ export default function SubCategoriesAdminPage() {
             </div>
           </div>
         )}
+
+        {/* IMAGE LIGHTBOX (table/card thumbnails) */}
+        {imagePopup.isOpen && (
+          <ImagePopup
+            isOpen={imagePopup.isOpen}
+            onClose={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
+            imageUrl={imagePopup.imageUrl}
+            alt={imagePopup.alt}
+          />
+        )}
       </div>
     </AdminLayout>
   );
@@ -1248,7 +1299,7 @@ function StatBox({
 }: {
   label: string;
   value: string | number;
-  icon: React.ElementType;
+  icon: ElementType;
   iconClass?: string;
   bgClass?: string;
 }) {
@@ -1278,7 +1329,7 @@ function ActionButton({
   onClick,
   danger = false,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   label: string;
   onClick: () => void;
   danger?: boolean;

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeEvent, ReactNode } from "react";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +24,7 @@ import StatCard from "@/app/components/Admin/StatCard";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { brandsApi } from "@/app/api/services";
 import { toast } from "react-toastify";
+import { ImagePopup } from "@/app/components/Admin/ImagePopup";
 
 /* =========================================================
    TYPES
@@ -122,6 +124,16 @@ export default function BrandsAdminPage() {
   ======================================================== */
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  /* =======================================================
+     IMAGE LIGHTBOX
+  ======================================================== */
+
+  const [imagePopup, setImagePopup] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    alt: string;
+  }>({ isOpen: false, imageUrl: "", alt: "" });
 
   /* =======================================================
      SHELF (#49 brand products, paginated)
@@ -347,7 +359,7 @@ export default function BrandsAdminPage() {
      LOGO CHANGE
   ======================================================== */
 
-  const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -794,11 +806,11 @@ export default function BrandsAdminPage() {
 
                 <div className="flex rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] p-1">
 
-                  {(["All", "Active", "Inactive"] as const).map((status) => (
+                  {(["All", "Active", "Inactive"] as const).map((filterOption) => (
                     <button
-                      key={status}
+                      key={filterOption}
                       type="button"
-                      onClick={() => setStatusFilter(status)}
+                      onClick={() => setStatusFilter(filterOption)}
                       className={`
                         rounded-md
                         px-3
@@ -806,13 +818,13 @@ export default function BrandsAdminPage() {
                         text-[9px]
                         font-semibold
                         transition
-                        ${statusFilter === status
+                        ${statusFilter === filterOption
                           ? "bg-[#173B7A] text-white"
                           : "text-[#65748A] hover:bg-white"
                         }
                       `}
                     >
-                      {status}
+                      {filterOption}
                     </button>
                   ))}
 
@@ -913,11 +925,24 @@ export default function BrandsAdminPage() {
 
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                                 {brand.imageUrl ? (
-                                  <img
-                                    src={brand.imageUrl}
-                                    alt={brand.brandName}
-                                    className="h-full w-full object-cover"
-                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setImagePopup({
+                                        isOpen: true,
+                                        imageUrl: brand.imageUrl,
+                                        alt: brand.brandName,
+                                      })
+                                    }
+                                    className="h-full w-full"
+                                    aria-label={`View ${brand.brandName} image`}
+                                  >
+                                    <img
+                                      src={brand.imageUrl}
+                                      alt={brand.brandName}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </button>
                                 ) : (
                                   <Tag size={18} />
                                 )}
@@ -1032,11 +1057,24 @@ export default function BrandsAdminPage() {
 
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EDF3FF] text-[#3260B4]">
                           {brand.imageUrl ? (
-                            <img
-                              src={brand.imageUrl}
-                              alt={brand.brandName}
-                              className="h-full w-full object-cover"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setImagePopup({
+                                  isOpen: true,
+                                  imageUrl: brand.imageUrl,
+                                  alt: brand.brandName,
+                                })
+                              }
+                              className="h-full w-full"
+                              aria-label={`View ${brand.brandName} image`}
+                            >
+                              <img
+                                src={brand.imageUrl}
+                                alt={brand.brandName}
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
                           ) : (
                             <Tag size={18} />
                           )}
@@ -1700,6 +1738,19 @@ export default function BrandsAdminPage() {
           </div>
         )}
 
+        {/* =================================================
+            IMAGE LIGHTBOX (table/card thumbnails)
+        ================================================== */}
+
+        {imagePopup.isOpen && (
+          <ImagePopup
+            isOpen={imagePopup.isOpen}
+            onClose={() => setImagePopup({ isOpen: false, imageUrl: "", alt: "" })}
+            imageUrl={imagePopup.imageUrl}
+            alt={imagePopup.alt}
+          />
+        )}
+
       </div>
     </AdminLayout>
   );
@@ -1715,7 +1766,7 @@ function ActionButton({
   onClick,
   danger = false,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   label: string;
   onClick: () => void;
   danger?: boolean;

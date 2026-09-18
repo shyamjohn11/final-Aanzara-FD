@@ -24,6 +24,22 @@ type AdminHeaderProps = {
   onMenuClick?: () => void;
 };
 
+/* ============================================================
+   LOGGED-IN ADMIN USER
+   Same localStorage key/shape the storefront Header.tsx reads
+   ("aanzara_user"), plus optional role fields — different auth
+   responses have used different keys for this in the past, so
+   we check a few and fall back gracefully if none are present.
+============================================================ */
+
+type AdminUser = {
+  id?: string | number;
+  name?: string;
+  email?: string;
+  role?: string;
+  accountType?: string;
+};
+
 const ROUTES = {
   admin: "/admin",
   dashboard: "/dashboard",
@@ -439,12 +455,14 @@ export default function AdminHeader({
             <div className="hidden text-left lg:block">
               <p
                 className="
+                  max-w-[120px]
+                  truncate
                   text-[10px]
                   font-bold
                   text-[#33415A]
                 "
               >
-                Admin
+                {userLoaded ? displayName : "Admin"}
               </p>
 
               <p
@@ -454,7 +472,7 @@ export default function AdminHeader({
                   text-[#8B97A7]
                 "
               >
-                Super Admin
+                {userLoaded ? displayRole : "Super Admin"}
               </p>
             </div>
 
@@ -541,18 +559,20 @@ export default function AdminHeader({
                           text-[#33415A]
                         "
                       >
-                        Administrator
+                        {userLoaded ? displayName : "Admin"}
                       </p>
 
-                      <p
-                        className="
-                          mt-1 truncate
-                          text-[9px]
-                          text-[#8A96A7]
-                        "
-                      >
-                        admin@aanzara.com
-                      </p>
+                      {displayEmail && (
+                        <p
+                          className="
+                            mt-1 truncate
+                            text-[9px]
+                            text-[#8A96A7]
+                          "
+                        >
+                          {displayEmail}
+                        </p>
+                      )}
 
                       <span
                         className="
@@ -565,7 +585,7 @@ export default function AdminHeader({
                           text-[#219653]
                         "
                       >
-                        Super Admin
+                        {userLoaded ? displayRole : "Super Admin"}
                       </span>
                     </div>
                   </div>
