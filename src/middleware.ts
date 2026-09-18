@@ -139,16 +139,28 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // NOTE: both the exact path and its children must be listed — ":path*"
+  // alone does not match the bare path ("/admin" or "/account"), and the
+  // bare entry alone does not cover nested pages ("/orders/123").
   matcher: [
+    "/admin",
     "/admin/:path*",
+    "/account",
     "/account/:path*",
     "/checkout",
+    "/checkout/:path*",
     "/orders",
+    "/orders/:path*",
     "/order-confirmation",
+    "/order-confirmation/:path*",
     "/payment",
+    "/payment/:path*",
     "/invoice",
+    "/invoice/:path*",
     "/dashboard",
+    "/dashboard/:path*",
     "/agent-shop-onboarding",
+    "/agent-shop-onboarding/:path*",
     "/login",
     "/register",
   ],

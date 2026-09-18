@@ -118,7 +118,7 @@ function createDefaultAlerts(): AlertItem[] {
       time: "2 days ago",
       createdAt: now - 2 * 24 * 60 * 60 * 1000,
       read: true,
-      href: "/shop",
+      href: "/retail",
     },
     {
       id: "profile-updated",
@@ -140,7 +140,7 @@ function createDefaultAlerts(): AlertItem[] {
       time: "5 days ago",
       createdAt: now - 5 * 24 * 60 * 60 * 1000,
       read: true,
-      href: "/shop",
+      href: "/retail",
     },
   ];
 }

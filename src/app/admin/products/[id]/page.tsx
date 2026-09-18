@@ -4,7 +4,13 @@
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import {
+  brandsApi,
+  categoriesApi,
+  productsApi,
+  subcategoriesApi,
+} from "@/app/api/services";
 import {
   ArrowLeft,
   Package,
@@ -120,8 +126,8 @@ export default function ProductDetailsPage() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get<Product>(`/api/v1/products/${productId}`);
-      const data = response.data;
+      const response = await productsApi.details(productId);
+      const data = response.data as Product;
       setProduct(data);
       // Populate form
       setProductName(data.productName || "");
@@ -148,8 +154,10 @@ export default function ProductDetailsPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get<{ items: Category[] }>("/api/v1/categories");
-      setCategories(response.data.items || []);
+      const response = await categoriesApi.list();
+      setCategories(
+        (response.data as { items: Category[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
@@ -157,8 +165,10 @@ export default function ProductDetailsPage() {
 
   const fetchSubCategories = async () => {
     try {
-      const response = await api.get<{ items: SubCategory[] }>("/api/v1/subcategories");
-      setSubCategories(response.data.items || []);
+      const response = await subcategoriesApi.list();
+      setSubCategories(
+        (response.data as { items: SubCategory[] })?.items || []
+      );
     } catch (err) {
       console.error("Error fetching subcategories:", err);
     }
@@ -166,8 +176,8 @@ export default function ProductDetailsPage() {
 
   const fetchBrands = async () => {
     try {
-      const response = await api.get<{ items: Brand[] }>("/api/v1/admin/brands");
-      setBrands(response.data.items || []);
+      const response = await brandsApi.list();
+      setBrands((response.data as { items: Brand[] })?.items || []);
     } catch (err) {
       console.error("Error fetching brands:", err);
     }
@@ -336,7 +346,7 @@ export default function ProductDetailsPage() {
         status,
       };
 
-      await api.put(`/api/v1/products/${productId}`, payload);
+      await productsApi.update(productId, payload);
       setSaved(true);
       setIsEditing(false);
       setTimeout(() => setSaved(false), 3000);
@@ -356,7 +366,7 @@ export default function ProductDetailsPage() {
 
   const handleDelete = async () => {
     try {
-      await api.delete(`/api/v1/products/${productId}`);
+      await productsApi.remove(productId);
       setShowDelete(false);
       router.push("/admin/products");
     } catch (err) {

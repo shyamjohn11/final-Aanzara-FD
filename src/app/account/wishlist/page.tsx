@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
+import { useCart } from "@/app/context/cartcontext";
+
+import { useWishlist } from "@/app/context/wishlistcontext";
+
 import {
   ArrowLeft,
   ShoppingBag,
@@ -42,62 +46,6 @@ type WishlistProduct = {
 /* =========================================================
    CONSTANTS
 ========================================================= */
-
-const WISHLIST_KEY = "aanzara-wishlist";
-const CART_KEY = "aanzara-cart";
-
-/*
-  Change these demo products to your real product data.
-  If your product page already stores wishlist data in
-  localStorage, this page will read it automatically.
-*/
-
-const DEMO_PRODUCTS: WishlistProduct[] = [
-  {
-    id: "product-001",
-    name: "Premium Cotton Shirt",
-    image: "/images/products/product-1.jpg",
-    price: 1299,
-    originalPrice: 1799,
-    rating: 4.5,
-    reviews: 128,
-    category: "Men",
-    inStock: true,
-  },
-  {
-    id: "product-002",
-    name: "Classic Casual Sneakers",
-    image: "/images/products/product-2.jpg",
-    price: 1899,
-    originalPrice: 2499,
-    rating: 4.6,
-    reviews: 94,
-    category: "Footwear",
-    inStock: true,
-  },
-  {
-    id: "product-003",
-    name: "Elegant Handbag",
-    image: "/images/products/product-3.jpg",
-    price: 2199,
-    originalPrice: 2999,
-    rating: 4.7,
-    reviews: 76,
-    category: "Accessories",
-    inStock: true,
-  },
-  {
-    id: "product-004",
-    name: "Premium Casual Watch",
-    image: "/images/products/product-4.jpg",
-    price: 2499,
-    originalPrice: 3499,
-    rating: 4.4,
-    reviews: 61,
-    category: "Accessories",
-    inStock: false,
-  },
-];
 
 /* =========================================================
    ACCOUNT MENU
@@ -150,63 +98,6 @@ const formatPrice = (value: number) => {
 };
 
 /* =========================================================
-   NORMALIZE PRODUCT
-========================================================= */
-
-const normalizeProduct = (value: unknown): WishlistProduct | null => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const item = value as Record<string, unknown>;
-
-  if (typeof item.id !== "string" || typeof item.name !== "string") {
-    return null;
-  }
-
-  const price =
-    typeof item.price === "number" ? item.price : Number(item.price);
-
-  if (!Number.isFinite(price) || price < 0) {
-    return null;
-  }
-
-  return {
-    id: item.id,
-
-    name: item.name.trim(),
-
-    image:
-      typeof item.image === "string"
-        ? item.image
-        : "/images/products/product-placeholder.jpg",
-
-    price,
-
-    originalPrice:
-      typeof item.originalPrice === "number"
-        ? item.originalPrice
-        : typeof item.compareAtPrice === "number"
-          ? item.compareAtPrice
-          : undefined,
-
-    rating:
-      typeof item.rating === "number"
-        ? Math.min(Math.max(item.rating, 0), 5)
-        : undefined,
-
-    reviews:
-      typeof item.reviews === "number"
-        ? Math.max(item.reviews, 0)
-        : undefined,
-
-    category: typeof item.category === "string" ? item.category : "",
-
-    inStock: item.inStock !== false,
-  };
-};
-
-/* =========================================================
    PAGE
 ========================================================= */
 
@@ -214,12 +105,45 @@ export default function WishlistPage() {
   const router = useRouter();
 
   /* =======================================================
-     WISHLIST
+     WISHLIST (API-BACKED CONTEXT)
   ======================================================= */
 
-  const [wishlist, setWishlist] = useState<WishlistProduct[]>([]);
+  const {
+    items: wishlistItems,
+    removeFromWishlist: removeWishlistItem,
+    clearWishlist: clearWishlistRemote,
+  } = useWishlist();
+
+  const { addToCart: addProductToCart } = useCart();
+
+  const wishlist: WishlistProduct[] = useMemo(
+    () =>
+      wishlistItems.map((product) => ({
+        id: product.id,
+        name: product.name,
+        image: product.image || "/images/products/product-placeholder.jpg",
+        price: product.price,
+        originalPrice: product.mrp > product.price ? product.mrp : undefined,
+        rating: product.rating > 0 ? product.rating : undefined,
+        reviews: product.reviews > 0 ? product.reviews : undefined,
+        category: product.brand || "",
+        inStock: product.inStock,
+      })),
+    [wishlistItems]
+  );
 
   const [isLoading, setIsLoading] = useState(true);
+
+  /*
+    The context hydrates asynchronously (guest copy or backend
+    load); give it a short grace period before showing content.
+  */
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 400);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   /* =======================================================
      UI
@@ -232,100 +156,6 @@ export default function WishlistPage() {
   const [movingProductId, setMovingProductId] = useState<string | null>(
     null
   );
-
-  /* =======================================================
-     LOAD WISHLIST
-  ======================================================= */
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(WISHLIST_KEY);
-
-      if (!saved) {
-        /*
-          Demo data is used only when
-          no wishlist exists yet.
-        */
-
-        setWishlist(DEMO_PRODUCTS);
-
-        return;
-      }
-
-      const parsed = JSON.parse(saved);
-
-      /*
-        Supports:
-        [
-          {...product}
-        ]
-
-        and
-
-        [
-          "product-001",
-          "product-002"
-        ]
-      */
-
-      if (!Array.isArray(parsed)) {
-        setWishlist([]);
-        return;
-      }
-
-      const products = parsed
-        .map((item) => {
-          /*
-            Product object
-          */
-
-          if (item && typeof item === "object") {
-            return normalizeProduct(item);
-          }
-
-          /*
-            Product ID
-          */
-
-          if (typeof item === "string") {
-            return (
-              DEMO_PRODUCTS.find((product) => product.id === item) || null
-            );
-          }
-
-          return null;
-        })
-        .filter(
-          (product): product is WishlistProduct => product !== null
-        );
-
-      setWishlist(products);
-    } catch (err) {
-      console.error("Unable to load wishlist:", err);
-
-      setError("Unable to load your wishlist.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  /* =======================================================
-     SAVE WISHLIST
-  ======================================================= */
-
-  useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-
-    try {
-      localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
-    } catch (err) {
-      console.error("Unable to save wishlist:", err);
-
-      setError("Unable to save your wishlist.");
-    }
-  }, [wishlist, isLoading]);
 
   /* =======================================================
      TOTAL SAVINGS
@@ -360,16 +190,7 @@ export default function WishlistPage() {
     setError("");
     setSuccess("");
 
-    const exists = wishlist.some((product) => product.id === productId);
-
-    if (!exists) {
-      setError("Product was not found in your wishlist.");
-      return;
-    }
-
-    setWishlist((current) =>
-      current.filter((product) => product.id !== productId)
-    );
+    removeWishlistItem(productId);
 
     setSuccess("Product removed from wishlist.");
 
@@ -399,7 +220,7 @@ export default function WishlistPage() {
       return;
     }
 
-    setWishlist([]);
+    clearWishlistRemote();
 
     setSuccess("Wishlist cleared successfully.");
 
@@ -417,96 +238,34 @@ export default function WishlistPage() {
     setSuccess("");
     setMovingProductId(product.id);
 
-    try {
-      if (!product.inStock) {
-        setError(`${product.name} is currently out of stock.`);
+    if (!product.inStock) {
+      setError(`${product.name} is currently out of stock.`);
 
-        return;
-      }
-
-      let cart: unknown[] = [];
-
-      const savedCart = localStorage.getItem(CART_KEY);
-
-      if (savedCart) {
-        try {
-          const parsed = JSON.parse(savedCart);
-
-          if (Array.isArray(parsed)) {
-            cart = parsed;
-          }
-        } catch {
-          cart = [];
-        }
-      }
-
-      /*
-        Supports simple product cart objects.
-      */
-
-      const existingIndex = cart.findIndex((item) => {
-        if (!item || typeof item !== "object") {
-          return false;
-        }
-
-        const cartItem = item as Record<string, unknown>;
-
-        return cartItem.id === product.id;
-      });
-
-      if (existingIndex >= 0) {
-        const existing = cart[existingIndex] as Record<string, unknown>;
-
-        const currentQuantity =
-          typeof existing.quantity === "number" ? existing.quantity : 1;
-
-        cart[existingIndex] = {
-          ...existing,
-          quantity: currentQuantity + 1,
-        };
-      } else {
-        cart.push({
-          id: product.id,
-          name: product.name,
-          image: product.image,
-          price: product.price,
-          originalPrice: product.originalPrice,
-          quantity: 1,
-          category: product.category,
-        });
-      }
-
-      localStorage.setItem(CART_KEY, JSON.stringify(cart));
-
-      /*
-        Remove from wishlist
-        after adding to cart.
-      */
-
-      setWishlist((current) =>
-        current.filter((item) => item.id !== product.id)
-      );
-
-      /*
-        Notify other components.
-      */
-
-      window.dispatchEvent(new Event("cart-updated"));
-
-      window.dispatchEvent(new Event("wishlist-updated"));
-
-      setSuccess(`${product.name} added to cart.`);
-
-      setTimeout(() => {
-        setSuccess("");
-      }, 3000);
-    } catch (err) {
-      console.error("Unable to add product to cart:", err);
-
-      setError("Unable to add this product to cart.");
-    } finally {
       setMovingProductId(null);
+
+      return;
     }
+
+    const source = wishlistItems.find((item) => item.id === product.id);
+
+    if (source) {
+      addProductToCart(source);
+    }
+
+    /*
+      Remove from wishlist
+      after adding to cart.
+    */
+
+    removeWishlistItem(product.id);
+
+    setSuccess(`${product.name} added to cart.`);
+
+    setTimeout(() => {
+      setSuccess("");
+    }, 3000);
+
+    setMovingProductId(null);
   };
 
   /* =======================================================
@@ -712,7 +471,7 @@ export default function WishlistPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/shop")}
+            onClick={() => router.push("/retail")}
             className="mt-6 inline-flex h-[46px] items-center gap-2 rounded-[10px] bg-[#1769F5] px-6 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(23,105,245,0.20)] transition hover:bg-[#0F5DDD]"
           >
             <ShoppingBag size={17} />

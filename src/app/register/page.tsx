@@ -21,10 +21,10 @@ import {
 } from "lucide-react";
 
 // Import your pre-configured axios instance and helpers
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 
-import { api, extractErrorMessage } from "@/app/api/api";
+import { extractErrorMessage } from "@/app/api/api";
+import { authApi } from "@/app/api/services";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -126,8 +126,8 @@ export default function RegisterPage() {
     try {
       setLoading(true);
 
-      // --- call API ---
-      await api.post("/api/v1/auth/register", {
+      // --- call API --- POST /api/v1/auth/register
+      await authApi.register({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.mobile.trim(),
@@ -164,17 +164,6 @@ export default function RegisterPage() {
         bg-[#F7F9FC]
       "
     >
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
-
       {/* =====================================================
           LEFT HERO
       ===================================================== */}

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "react-toastify";
 
 export type Brand = {
   id: string;
@@ -103,29 +104,28 @@ export function BrandProvider({
     };
 
     if (!cleanBrand.name) {
-      alert("Brand name is required.");
+      toast.error("Brand name is required.");
       return;
     }
 
     if (!cleanBrand.category) {
-      alert("Brand category is required.");
+      toast.error("Brand category is required.");
       return;
     }
 
-    setBrands((current) => {
-      const exists = current.some(
-        (item) =>
-          item.name.trim().toLowerCase() ===
-          cleanBrand.name.toLowerCase()
-      );
+    const exists = brands.some(
+      (item) =>
+        item.name.trim().toLowerCase() ===
+        cleanBrand.name.toLowerCase()
+    );
 
-      if (exists) {
-        alert("This brand already exists.");
-        return current;
-      }
+    if (exists) {
+      toast.error("This brand already exists.");
+      return;
+    }
 
-      return [...current, cleanBrand];
-    });
+    setBrands((current) => [...current, cleanBrand]);
+    toast.success("Brand added successfully.");
   };
 
   // ==========================================
@@ -133,13 +133,15 @@ export function BrandProvider({
   // ==========================================
 
   const deleteBrand = (id: string) => {
-    if (!id) return;
+    if (!id) {
+      toast.error("Invalid brand id.");
+      return;
+    }
 
     setBrands((current) =>
-      current.filter(
-        (brand) => brand.id !== id
-      )
+      current.filter((brand) => brand.id !== id)
     );
+    toast.success("Brand deleted successfully.");
   };
 
   // ==========================================
@@ -150,7 +152,10 @@ export function BrandProvider({
     id: string,
     updatedBrand: Brand
   ) => {
-    if (!id) return;
+    if (!id) {
+      toast.error("Invalid brand id.");
+      return;
+    }
 
     const cleanBrand: Brand = {
       id: updatedBrand.id.trim() || id,
@@ -160,37 +165,38 @@ export function BrandProvider({
     };
 
     if (!cleanBrand.name) {
-      alert("Brand name is required.");
+      toast.error("Brand name is required.");
       return;
     }
 
     if (!cleanBrand.category) {
-      alert("Brand category is required.");
+      toast.error("Brand category is required.");
       return;
     }
 
-    setBrands((current) => {
-      const duplicate = current.some(
-        (brand) =>
-          brand.id !== id &&
-          brand.name.trim().toLowerCase() ===
-            cleanBrand.name.toLowerCase()
-      );
+    const duplicate = brands.some(
+      (brand) =>
+        brand.id !== id &&
+        brand.name.trim().toLowerCase() ===
+          cleanBrand.name.toLowerCase()
+    );
 
-      if (duplicate) {
-        alert("Another brand with this name already exists.");
-        return current;
-      }
+    if (duplicate) {
+      toast.error("Another brand with this name already exists.");
+      return;
+    }
 
-      return current.map((brand) =>
+    setBrands((current) =>
+      current.map((brand) =>
         brand.id === id
           ? {
               ...cleanBrand,
               id,
             }
           : brand
-      );
-    });
+      )
+    );
+    toast.success("Brand updated successfully.");
   };
 
   // ==========================================
