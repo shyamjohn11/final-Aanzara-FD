@@ -2,6 +2,7 @@
 "use client";
 
 import { FileText, Download } from "lucide-react";
+import { useWholesaleAudience } from "@/app/api/api";
 
 /* ============================================================
    CONSTANTS
@@ -20,6 +21,9 @@ const DESCRIPTION =
 ============================================================ */
 
 export default function BusinessBulkOrders() {
+  // Wholesale is admin/agent-only — customers and guests don't see it.
+  const showWholesale = useWholesaleAudience();
+
   const handleQuotation = () => {
     // Add quotation flow here.
     // Example:
@@ -31,6 +35,10 @@ export default function BusinessBulkOrders() {
     // Example:
     // window.open("/documents/price-list.pdf", "_blank");
   };
+
+  if (!showWholesale) {
+    return null;
+  }
 
   return (
     <section

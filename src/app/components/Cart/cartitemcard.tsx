@@ -77,7 +77,7 @@ export default function CartItemCard({
     typeof product.brand === "string" &&
     product.brand.trim().length > 0
       ? product.brand
-      : "Generic";
+      : "Unbranded";
 
   const validName =
     typeof product.name === "string" &&

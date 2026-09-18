@@ -305,7 +305,7 @@ export default function UserAccount() {
           ================================================= */}
 
           <Link
-            href="/dashboard/profile"
+            href="/account/profile"
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-4 py-3 text-[13px] font-medium text-[#34445d] transition hover:bg-[#f5f8fc] hover:text-[#102c5d]"
           >
@@ -322,7 +322,7 @@ export default function UserAccount() {
           ================================================= */}
 
           <Link
-            href="/dashboard/orders"
+            href="/account/orders"
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-4 py-3 text-[13px] font-medium text-[#34445d] transition hover:bg-[#f5f8fc] hover:text-[#102c5d]"
           >

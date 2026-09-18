@@ -4,6 +4,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useWholesaleAudience } from "@/app/api/api";
 
 import {
   X,
@@ -70,6 +71,12 @@ export default function MainNav({
   const router = useRouter();
   const pathname = usePathname();
 
+  // Wholesale is admin/agent-only — customers and guests don't see the link.
+  const showWholesale = useWholesaleAudience();
+  const visibleLinks = showWholesale
+    ? LINKS
+    : LINKS.filter((link) => link !== "Wholesale");
+
   /* ==========================================================
      NAVIGATION
   ========================================================== */
@@ -113,7 +120,7 @@ export default function MainNav({
       <nav className="hidden w-full border-b border-line bg-[#F6F8FB] lg:block">
         <div className="mx-auto max-w-[1360px] px-4 sm:px-6">
           <div className="flex h-[52px] items-center gap-7">
-            {LINKS.map((link) => {
+            {visibleLinks.map((link) => {
               const path = ROUTES[link];
               const active = isActive(path);
 
@@ -450,16 +457,18 @@ export default function MainNav({
             />
 
             {/* =================================================
-                WHOLESALE
+                WHOLESALE (admin/agent only)
             ================================================= */}
 
-            <DrawerItem
-              icon={<LayoutDashboard size={20} />}
-              label="Wholesale Dashboard"
-              active={isActive("/wholesale")}
-              blue
-              onClick={() => navigate("/wholesale")}
-            />
+            {showWholesale && (
+              <DrawerItem
+                icon={<LayoutDashboard size={20} />}
+                label="Wholesale Dashboard"
+                active={isActive("/wholesale")}
+                blue
+                onClick={() => navigate("/wholesale")}
+              />
+            )}
 
             {/* =================================================
                 RETAIL

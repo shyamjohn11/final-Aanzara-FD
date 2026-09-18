@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
+import { useEffect, useState } from "react";
 
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
@@ -239,6 +240,45 @@ export function getSessionRole(): string {
 // token refreshes). Cart/Wishlist contexts listen for this to switch
 // between guest (localStorage) mode and backend-synced mode.
 export const SESSION_CHANGED_EVENT = "aanzara:session-changed";
+
+/**
+ * Wholesale surfaces (/wholesale, wholesale nav entries, bulk-order promos)
+ * are restricted to admin and agent roles. Customers and guests never see
+ * them. There is no separate dealer login role — dealer/shop owners sign
+ * in with agent accounts, so they are covered by the agent branch.
+ */
+export function isWholesaleAudience(role: unknown): boolean {
+  const normalized = String(role ?? "").trim().toLowerCase();
+  return (
+    ADMIN_ROLE_VALUES.includes(normalized) ||
+    AGENT_ROLE_VALUES.includes(normalized)
+  );
+}
+
+/**
+ * Mounted-safe audience flag for conditional rendering. Reads the role
+ * after mount (and on session changes) so server HTML and the first
+ * client paint agree — no hydration mismatch, no wholesale flash for
+ * customers.
+ */
+export function useWholesaleAudience(): boolean {
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    const sync = () => {
+      setAllowed(isWholesaleAudience(getSessionRole()));
+    };
+    sync();
+    window.addEventListener(SESSION_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(SESSION_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  return allowed;
+}
 
 export function notifySessionChanged() {
   if (typeof window === "undefined") return;

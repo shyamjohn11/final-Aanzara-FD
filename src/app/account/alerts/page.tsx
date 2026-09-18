@@ -7,7 +7,7 @@ import {
   customerNotificationsApi,
   notificationsApi,
 } from "@/app/api/services";
-import { getSessionRole, hasSession } from "@/app/api/api";
+import { getSessionRole, hasSession, useWholesaleAudience } from "@/app/api/api";
 import {
   isTypeAllowed,
   loadPrefs,
@@ -570,21 +570,35 @@ export default function AlertsPage() {
   }, []);
 
   // ==========================================================
-  // COUNTS
+  // COUNTS (wholesale promos hidden from customers)
   // ==========================================================
 
-  const totalAlerts = alerts.length;
-  const unreadCount = alerts.filter((alert) => !alert.read).length;
+  const showWholesale = useWholesaleAudience();
 
-  const orderCount = alerts.filter(
+  const visibleAlerts = useMemo(
+    () =>
+      showWholesale
+        ? alerts
+        : alerts.filter(
+            (alert) =>
+              alert.id !== "wholesale-offer" &&
+              alert.href !== "/wholesale"
+          ),
+    [alerts, showWholesale]
+  );
+
+  const totalAlerts = visibleAlerts.length;
+  const unreadCount = visibleAlerts.filter((alert) => !alert.read).length;
+
+  const orderCount = visibleAlerts.filter(
     (alert) => alert.type === "order" || alert.type === "delivery"
   ).length;
 
-  const offerCount = alerts.filter(
+  const offerCount = visibleAlerts.filter(
     (alert) => alert.type === "offer"
   ).length;
 
-  const accountCount = alerts.filter(
+  const accountCount = visibleAlerts.filter(
     (alert) => alert.type === "account"
   ).length;
 
@@ -595,20 +609,20 @@ export default function AlertsPage() {
   const filteredAlerts = useMemo(() => {
     switch (activeFilter) {
       case "unread":
-        return alerts.filter((alert) => !alert.read);
+        return visibleAlerts.filter((alert) => !alert.read);
       case "orders":
-        return alerts.filter(
+        return visibleAlerts.filter(
           (alert) => alert.type === "order" || alert.type === "delivery"
         );
       case "offers":
-        return alerts.filter((alert) => alert.type === "offer");
+        return visibleAlerts.filter((alert) => alert.type === "offer");
       case "account":
-        return alerts.filter((alert) => alert.type === "account");
+        return visibleAlerts.filter((alert) => alert.type === "account");
       case "all":
       default:
-        return alerts;
+        return visibleAlerts;
     }
-  }, [alerts, activeFilter]);
+  }, [visibleAlerts, activeFilter]);
 
   // ==========================================================
   // ACTIONS
@@ -740,7 +754,7 @@ export default function AlertsPage() {
           <button
             type="button"
             onClick={() => setShowClearModal(true)}
-            disabled={alerts.length === 0}
+            disabled={visibleAlerts.length === 0}
             className="h-11 px-4 sm:px-5 rounded-xl border border-red-300 bg-white text-red-500 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <Trash2 size={18} />
@@ -858,16 +872,16 @@ export default function AlertsPage() {
             </div>
 
             <h3 className="mt-5 text-xl font-bold text-[#0d2d62]">
-              {alerts.length === 0 ? "No alerts yet" : "No alerts found"}
+              {visibleAlerts.length === 0 ? "No alerts yet" : "No alerts found"}
             </h3>
 
             <p className="max-w-md mx-auto mt-2 text-sm leading-6 text-slate-500">
-              {alerts.length === 0
+              {visibleAlerts.length === 0
                 ? "Your latest order updates, offers and account notifications will appear here automatically."
                 : "There are no notifications available for the selected filter."}
             </p>
 
-            {alerts.length > 0 && activeFilter !== "all" && (
+            {visibleAlerts.length > 0 && activeFilter !== "all" && (
               <button
                 type="button"
                 onClick={() => setActiveFilter("all")}

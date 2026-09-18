@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import type { PromoTile as PromoTileType } from "@/app/data/offers";
-import { bannersApi } from "@/app/api/services";
+import { dealsApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -93,7 +93,7 @@ function getSafePromoTiles(
 }
 
 /* --------------------------------
- * API mapping (bannersApi.list)
+ * API mapping (dealsApi.banners — public, active only)
  * -------------------------------- */
 
 const TILE_GRADIENTS = [
@@ -187,7 +187,8 @@ export default function PromoTilesRow() {
       setLoading(true);
       setFetchError("");
       try {
-        const response = await bannersApi.list(1, 25);
+        // Public storefront banners (active only, no auth required).
+        const response = await dealsApi.banners(25);
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
         const rawItems = unwrapItems(payload);

@@ -77,6 +77,11 @@ const PERMISSIONS: Permission[] = [
     description: "Manage pricing and wholesale rates",
   },
   {
+    key: "wholesale",
+    label: "Wholesale",
+    description: "View and update wholesale pricing",
+  },
+  {
     key: "offers",
     label: "Offers",
     description: "Manage offers, coupons and promotions",

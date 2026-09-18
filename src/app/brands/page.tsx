@@ -13,7 +13,7 @@ import {
 import Header from "@/app/components/Header";
 import MainNav from "@/app/MainNav";
 import TopBar from "../components/Dashboard/TopBar";
-import { brandsApi } from "@/app/api/services";
+import { storefrontBrandsApi } from "@/app/api/services";
 import { toast } from "react-toastify";
 
 type Brand = {
@@ -23,19 +23,8 @@ type Brand = {
   logoClass?: string;
 };
 
-const categories = [
-  "All Brands",
-  "Food & Beverages",
-  "Personal Care",
-  "Home Care",
-  "Health Care",
-  "Baby Care",
-  "Snacks & Branded Foods",
-  "Dairy & Bakery",
-];
-
 /* ---------------------------------------------------------
-   BRANDS — backend only (GET /api/admin/brands).
+   BRANDS — backend only (GET /api/v1/brands, public, active only).
    No hardcoded brands: the grid below renders live API data only.
 --------------------------------------------------------- */
 
@@ -92,46 +81,6 @@ function sanitizeSearch(value: string): string {
 }
 
 /* ---------------------------------------------------------
-   CATEGORY MAP
---------------------------------------------------------- */
-
-const categoryMap: Record<string, string[]> = {
-  "Food & Beverages": [
-    "Food & Beverages",
-    "Beverages",
-    "Beverages & Foods",
-  ],
-
-  "Personal Care": [
-    "Personal Care",
-    "Oral Care",
-  ],
-
-  "Home Care": [
-    "Home Care",
-  ],
-
-  "Health Care": [
-    "Health Care",
-    "Health Drinks",
-  ],
-
-  "Baby Care": [
-    "Baby Care",
-  ],
-
-  "Snacks & Branded Foods": [
-    "Snacks",
-    "Biscuits & Snacks",
-    "Breakfast Foods",
-  ],
-
-  "Dairy & Bakery": [
-    "Dairy & Bakery",
-  ],
-};
-
-/* ---------------------------------------------------------
    PAGE
 --------------------------------------------------------- */
 
@@ -148,7 +97,8 @@ export default function BrandsPage() {
     useState<number>(21);
 
   /* -------------------------------------------------------
-     LIVE CATALOG (#43) + SERVER SEARCH (#48) — backend only.
+     LIVE CATALOG + SERVER SEARCH (GET /api/v1/brands) — backend only.
+     Public endpoint: works for guests and signed-in users alike.
      No static fallback: only backend data is displayed.
   ------------------------------------------------------- */
 
@@ -163,8 +113,8 @@ export default function BrandsPage() {
       try {
         setCatalogLoading(true);
         setCatalogError("");
-        // #43 GET /api/admin/brands — full brand catalogue
-        const response = await brandsApi.list();
+        // GET /api/v1/brands — full public brand catalogue
+        const response = await storefrontBrandsApi.list({ count: 100 });
         const payload: unknown = response.data;
         const items: unknown[] = Array.isArray(payload)
           ? payload
@@ -232,9 +182,11 @@ export default function BrandsPage() {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        // #48 GET /api/admin/brands/search?query=&limit= (backend binds
-        // query/keyword/q + limit, max 50)
-        const response = await brandsApi.search(query, 21);
+        // GET /api/v1/brands?search= — public name-filtered catalogue
+        const response = await storefrontBrandsApi.list({
+          search: query,
+          count: 21,
+        });
         const payload: unknown = response.data;
         const rawItems: unknown[] = Array.isArray(payload)
           ? payload
@@ -313,6 +265,27 @@ export default function BrandsPage() {
   }, [serverBrands, catalogBrands]);
 
   /* -------------------------------------------------------
+     CATEGORIES — derived from live data (backend brands carry
+     no category grouping, so the buttons follow the data).
+  ------------------------------------------------------- */
+
+  const categories = useMemo(() => {
+    const distinct = new Set<string>();
+    validBrands.forEach((brand) => {
+      if (brand.category) distinct.add(brand.category);
+    });
+    return ["All Brands", ...Array.from(distinct).sort()];
+  }, [validBrands]);
+
+  useEffect(() => {
+    if (!categories.includes(activeCategory)) {
+      setActiveCategory("All Brands");
+      setVisibleCount(21);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
+
+  /* -------------------------------------------------------
      SEARCH + CATEGORY FILTER
   ------------------------------------------------------- */
 
@@ -336,16 +309,7 @@ export default function BrandsPage() {
         return true;
       }
 
-      const allowedCategories =
-        categoryMap[activeCategory];
-
-      if (!allowedCategories) {
-        return false;
-      }
-
-      return allowedCategories.includes(
-        brand.category
-      );
+      return brand.category === activeCategory;
     });
   }, [
     validBrands,

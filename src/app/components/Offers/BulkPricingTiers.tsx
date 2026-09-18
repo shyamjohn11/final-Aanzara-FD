@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { BulkTier as BulkTierType } from "@/app/data/offers";
-import { cartRulesApi, wholesalePricingApi } from "@/app/api/services";
+import { dealsApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -89,7 +89,7 @@ function getSafeBulkTiers(
 }
 
 /* --------------------------------
- * API mapping (cartRulesApi + wholesalePricingApi)
+ * API mapping (dealsApi.cartRules + dealsApi.bulkTiers — public)
  * -------------------------------- */
 
 function unwrapItems(payload: unknown): Record<string, unknown>[] {
@@ -216,7 +216,8 @@ export default function BulkPricingTiers() {
       setLoading(true);
       setFetchError("");
       try {
-        const rulesResponse = await cartRulesApi.list(1, 25);
+        // Public storefront sources (active only, no auth required).
+        const rulesResponse = await dealsApi.cartRules(25);
         const rulesPayload: unknown =
           (rulesResponse as { data?: unknown })?.data ?? rulesResponse;
         const ruleItems = unwrapItems(rulesPayload);
@@ -224,7 +225,7 @@ export default function BulkPricingTiers() {
         let mapped: BulkTier[] = ruleItems.map(mapCartRuleToTier);
 
         if (mapped.length === 0) {
-          const wholesaleResponse = await wholesalePricingApi.list();
+          const wholesaleResponse = await dealsApi.bulkTiers(25);
           const wholesalePayload: unknown =
             (wholesaleResponse as { data?: unknown })?.data ??
             wholesaleResponse;
