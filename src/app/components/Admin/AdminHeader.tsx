@@ -138,32 +138,18 @@ export default function AdminHeader({
 
   /**
    * Sign out: revoke the server session, clear the client session and the
-   * middleware guard cookies, then hard-navigate to /login. Without the
-   * clear, the guard cookie survives and the middleware bounces /login
-   * straight back to /admin, so logout never visibly completes.
+   * middleware guard cookies, then replace history with /login so Back
+   * cannot return into /admin. Without the clear, the guard cookie
+   * survives and the middleware bounces /login straight back to /admin,
+   * so logout never visibly completes.
    */
   const handleAdminLogout = async () => {
     closeProfile();
 
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
+    const { logoutAndRedirect } = await import(
       "@/app/api/api"
     );
-    clearSession();
-
-    localStorage.removeItem(
-      "aanzara_remember_me"
-    );
-
-    window.location.assign(ROUTES.login);
+    await logoutAndRedirect(ROUTES.login);
   };
 
   const handleMobileMenu = () => {

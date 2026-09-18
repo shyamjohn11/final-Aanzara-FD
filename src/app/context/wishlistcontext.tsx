@@ -164,9 +164,10 @@ function productFromBackend(
     bulkRate: snapshot?.bulkRate ?? price,
     bulkMoq: snapshot?.bulkMoq ?? 1,
     moq: snapshot?.moq ?? 1,
-    // Backend sends Product.Status ("Active"/"Inactive") — there is no
-    // "OutOfStock" value, so compare against Active.
-    inStock: item.status === "Active",
+    // Backend sends Product.Status ("Active"/"Inactive", casing can vary from
+    // older imports) — there is no "OutOfStock" value, so compare against
+    // Active case-insensitively.
+    inStock: (item.status ?? "").trim().toLowerCase() === "active",
     dispatch: snapshot?.dispatch ?? "",
     image: snapshot?.image,
     swatch: snapshot?.swatch ?? "#f4f4f5",

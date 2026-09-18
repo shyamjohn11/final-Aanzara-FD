@@ -499,31 +499,9 @@ export default function ChangePasswordPage() {
   // ==========================================================
 
   const handleLogout = async () => {
-    // #6 POST /api/v1/auth/logout best-effort, then central session
-    // clear (tokens, cookies) so route guards engage.
-    try {
-      const { authApi } = await import("@/app/api/services");
-      await authApi.logout();
-    } catch (error) {
-      console.error(
-        "Server logout failed:",
-        error
-      );
-    }
-
-    try {
-      const { clearSession } = await import(
-        "@/app/api/api"
-      );
-      clearSession();
-    } catch (error) {
-      console.error(
-        "Unable to clear authentication:",
-        error
-      );
-    }
-
-    router.push("/login");
+    // Central logout replaces history so Back cannot return here.
+    const { logoutAndRedirect } = await import("@/app/api/api");
+    await logoutAndRedirect("/login");
   };
 
   // ==========================================================

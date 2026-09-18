@@ -149,6 +149,19 @@ export default function AccountSidebar() {
       NAV_ITEMS
     );
 
+  const handleLogout =
+    async () => {
+      // Central logout: revokes the server session, clears tokens and
+      // guard cookies, then replaces history so Back cannot return here.
+      const { logoutAndRedirect } =
+        await import(
+          "@/app/api/api"
+        );
+      await logoutAndRedirect(
+        "/login"
+      );
+    };
+
   return (
     <aside className="hidden w-[220px] shrink-0 lg:block">
       <nav
@@ -211,6 +224,7 @@ export default function AccountSidebar() {
             <button
               type="button"
               aria-label="Logout from your account"
+              onClick={handleLogout}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13.5px] text-red-500 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"
             >
               <LogOut

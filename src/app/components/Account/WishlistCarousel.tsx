@@ -8,7 +8,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
-import { wishlistApi } from "@/app/api/services";
+import { wishlistApi, productImagesApi } from "@/app/api/services";
 
 /* =========================================================
    TYPES
@@ -18,6 +18,7 @@ type WishlistItem = {
   name: string;
   pack: string;
   price: string | number;
+  imageUrl: string;
 };
 
 /* =========================================================
@@ -175,6 +176,7 @@ function getValidWishlistItems(
         item.pack
       ),
       price: item.price,
+      imageUrl: "",
     });
   }
 
@@ -209,12 +211,36 @@ export default function WishlistCarousel() {
           Array.isArray(payload) ? payload : []
         ) as Record<string, unknown>[];
         if (cancelled) return;
-        const mapped: WishlistItem[] = list.map((w) => ({
-          name: String(w["productName"] ?? "Product"),
-          pack: String(w["sku"] ?? ""),
-          price: `₹${Number(w["price"] ?? 0).toLocaleString("en-IN")}`,
-        }));
-        setRaw(mapped);
+        const enriched = await Promise.all(
+          list.map(async (w) => {
+            const productId = w["productId"] as string | undefined;
+            let imageUrl = "";
+            if (productId) {
+              try {
+                const imagesResponse = await productImagesApi.list(productId);
+                const images = imagesResponse.data as Array<{
+                  imageUrl?: string;
+                  isPrimary?: boolean;
+                }>;
+                const primary = images.find(
+                  (img) => img.isPrimary
+                );
+                imageUrl =
+                  primary?.imageUrl ?? images[0]?.imageUrl ?? "";
+              } catch {
+                // Ignore image fetch errors; fallback to empty string
+              }
+            }
+            return {
+              name: String(w["productName"] ?? "Product"),
+              pack: String(w["sku"] ?? ""),
+              price: `₹${Number(w["price"] ?? 0).toLocaleString("en-IN")}`,
+              imageUrl,
+            };
+          })
+        );
+        if (cancelled) return;
+        setRaw(enriched as WishlistItem[]);
       } catch {
         if (!cancelled) setError("Unable to load wishlist.");
       } finally {
@@ -371,15 +397,28 @@ export default function WishlistCarousel() {
                 className="w-[180px] shrink-0 rounded-lg border border-slate-100 p-3"
               >
                 {/* =====================================
-                    PRODUCT IMAGE PLACEHOLDER
+                    PRODUCT IMAGE
                 ===================================== */}
 
-                <div
-                  className="mb-3 flex h-24 items-center justify-center rounded-md bg-slate-50 text-[11px] text-slate-300"
-                  aria-label={`Product image placeholder for ${item.name}`}
-                >
-                  Product image
-                </div>
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-full h-24 object-cover rounded-md"
+                  loading="lazy"
+                />
+
+                {/* =====================================
+                    FALLBACK WHEN NO IMAGE
+                ===================================== */}
+
+                {item.imageUrl === "" && (
+                  <div
+                    className="mb-3 flex h-24 items-center justify-center rounded-md bg-slate-50 text-[11px] text-slate-300"
+                    aria-label={`Product image placeholder for ${item.name}`}
+                  >
+                    Product image
+                  </div>
+                )}
 
                 {/* =====================================
                     PRODUCT NAME

@@ -127,24 +127,14 @@ export default function UserAccount() {
   ======================================================= */
 
   const handleLogout = async () => {
-    try {
-      const { authApi } = await import(
-        "@/app/api/services"
-      );
-      await authApi.logout();
-    } catch {
-      // Local clear still applies below.
-    }
-
-    const { clearSession } = await import(
-      "@/app/api/api"
-    );
-    clearSession();
-
     setUser(null);
     setOpen(false);
 
-    window.location.href = "/login";
+    // Central logout replaces history so Back cannot return here.
+    const { logoutAndRedirect } = await import(
+      "@/app/api/api"
+    );
+    await logoutAndRedirect("/login");
   };
 
   /* =======================================================
