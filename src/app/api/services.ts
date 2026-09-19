@@ -1195,8 +1195,21 @@ export const quotesApi = {
   },
 };
 
-// Reviews come from customers but backend now supports full CRUD (A1).
-// #127 list · #128 details · POST create · PUT update · #129 status · #130 delete
+// Storefront public reviews + admin CRUD
+export const storefrontReviewsApi = {
+  // GET /api/v1/reviews?productName=&count= — approved only, public
+  list(productName?: string, count = 25) {
+    const params = new URLSearchParams();
+    if (productName) params.set("productName", productName);
+    params.set("count", String(count));
+    return api.get(`/api/v1/reviews?${params.toString()}`);
+  },
+  create(payload: Record<string, unknown>) {
+    return api.post("/api/v1/reviews", payload);
+  },
+};
+
+// Reviews admin — #127 list · #128 details · POST create · PUT update · #129 status · #130 delete
 export const reviewsApi = {
   list: (page = 1, pageSize = 25) =>
     adminResource("/api/admin/reviews").list(page, pageSize),

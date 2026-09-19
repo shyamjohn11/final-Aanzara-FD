@@ -7,6 +7,9 @@ import {
   dashboardApi,
   inventoryApi,
   categoriesApi,
+  dealersApi,
+  productsApi,
+  storefrontReviewsApi,
 } from "@/app/api/services";
 
 import {
@@ -109,6 +112,12 @@ export default function AdminDashboardPage() {
   const [categories, setCategories] =
     useState<any[]>([]);
   const [salesData, setSalesData] =
+    useState<any[]>([]);
+  const [dealerShops, setDealerShops] =
+    useState<any[]>([]);
+  const [riceProduct, setRiceProduct] =
+    useState<any | null>(null);
+  const [riceReviews, setRiceReviews] =
     useState<any[]>([]);
   const [statValues, setStatValues] = useState({
     revenue: "₹0",
@@ -309,6 +318,80 @@ export default function AdminDashboardPage() {
               ),
             }))
           );
+        }
+      } catch {
+        // Leave state empty on failure.
+      }
+
+      // Home>Products>RIce — exact product 0de6ec0c-8018-4989-a79e-850de18f8a24 (RRS)
+      try {
+        const r: any = await productsApi.details("0de6ec0c-8018-4989-a79e-850de18f8a24");
+        const rp: any = r?.data ?? r;
+        const prod = rp && typeof rp === "object" && (rp.productId || rp.id) ? rp : null;
+        if (!cancelled && prod) {
+          // Map ProductResponse to summary shape the card expects (imageUrl/brandName)
+          const mapped: any = {
+            productId: prod.productId ?? prod.id,
+            productName: prod.productName ?? prod.name,
+            sku: prod.sku,
+            price: prod.price,
+            moq: prod.moq,
+            status: prod.status,
+            brandName: prod.brandName ?? prod.brand ?? "",
+            // details has no imageUrl; fetch via list enrichment fallback
+            imageUrl: undefined,
+          };
+          // Enriched image via list search for that exact sku
+          try {
+            const lr: any = await productsApi.list({ search: "RRS", page: 1, pageSize: 1 });
+            const lp: any = lr?.data ?? lr;
+            const li: any[] = Array.isArray(lp) ? lp : Array.isArray(lp?.items) ? lp.items : [];
+            const found = li.find((x: any) => String(x.productId) === String(mapped.productId));
+            if (found?.imageUrl) mapped.imageUrl = found.imageUrl;
+            if (found?.brandName) mapped.brandName = found.brandName;
+            if (found?.stockStatus) mapped.stockStatus = found.stockStatus;
+          } catch {}
+          setRiceProduct(mapped);
+        }
+      } catch {}
+      try {
+        const r: any = await storefrontReviewsApi.list("RIce", 5);
+        const rp: any = r?.data ?? r;
+        const revs: any[] = Array.isArray(rp) ? rp : Array.isArray(rp?.items) ? rp.items : Array.isArray(rp?.data) ? rp.data : [];
+        if (!cancelled && revs.length > 0) setRiceReviews(revs.slice(0, 5));
+      } catch {}
+
+      // Agent dealer shops (Dealers table) — show agent-added shops on Dashboard.
+      try {
+        const res: any = await dealersApi.list({ page: 1, pageSize: 6 });
+        const payload: any = res?.data ?? res;
+        const rawItems: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+        if (!cancelled && rawItems.length > 0) {
+          setDealerShops(
+            rawItems.map((raw: any) => ({
+              id: String(raw.id ?? raw.dealerId ?? ""),
+              shopName: String(raw.shopName ?? "Shop"),
+              dealerCode: String(raw.dealerCode ?? ""),
+              ownerName: String(raw.ownerName ?? ""),
+              city: String(raw.city ?? ""),
+              phone: String(raw.phone ?? ""),
+              status: String(raw.status ?? "Active"),
+              productCount: Number(raw.productCount ?? 0),
+              agentName: String(raw.agentName ?? ""),
+            }))
+          );
+          // Keep Quick Overview Business Accounts in sync with dealer shops
+          setStatValues((current) => ({
+            ...current,
+            businessAccounts: String(rawItems.length),
+            accountsPct: Math.min(100, rawItems.length * 10),
+          }));
         }
       } catch {
         // Leave state empty on failure.
@@ -879,6 +962,143 @@ export default function AdminDashboardPage() {
 
             </div>
 
+          </section>
+
+          {/* ==================================================
+              AGENT DEALER SHOPS (Business Accounts)
+          =================================================== */}
+
+          <section className="mt-6 rounded-2xl border border-[#E4E8EF] bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-[#253650]">
+                  Agent Dealer Shops
+                </h2>
+                <p className="mt-1 text-[10px] text-[#8793A4]">
+                  Shops added by agents — dealer details live from Dealers table
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/admin/agents")}
+                className="rounded-xl bg-[#EDF3FF] px-4 py-2.5 text-[10px] font-semibold text-[#3260B4] transition hover:bg-[#DCE8FF]"
+              >
+                Manage Agents & Dealers
+              </button>
+            </div>
+
+            {dealerShops.length === 0 ? (
+              <div
+                role="status"
+                className="rounded-xl border border-[#EDF0F4] p-6 text-center text-[10px] text-[#9AA4B2]"
+              >
+                No dealer shops added by agents yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {dealerShops.map((shop) => (
+                  <div
+                    key={shop.id}
+                    onClick={() => navigate(`/admin/agents`)}
+                    className="cursor-pointer overflow-hidden rounded-xl border border-[#EDF0F4] p-4 transition hover:border-[#B9CCEC] hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
+                        <Users size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[11px] font-bold text-[#33415A]">
+                          {shop.shopName}
+                        </p>
+                        <p className="truncate text-[9px] text-[#9AA4B2]">
+                          {shop.dealerCode} · {shop.ownerName}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-semibold ${
+                          shop.status === "Active"
+                            ? "bg-[#EAF8F0] text-[#249357]"
+                            : "bg-[#FFF0F0] text-[#D85A5A]"
+                        }`}
+                      >
+                        {shop.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-1 text-[9px] text-[#66758A]">
+                      <p>
+                        <span className="font-semibold text-[#33415A]">Agent:</span> {shop.agentName || "—"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-[#33415A]">City:</span> {shop.city || "—"} · {shop.phone || "—"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-[#33415A]">Products:</span> {shop.productCount}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ==================================================
+              HOME > PRODUCTS > RICE + REVIEWS (live)
+          =================================================== */}
+
+          <section className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+            {/* RIce live product */}
+            <div className="rounded-2xl border border-[#E4E8EF] bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-[#253650]">Home › Products › RIce</h2>
+                <button
+                  type="button"
+                  onClick={() => riceProduct && navigate(`/product/${riceProduct.productId ?? riceProduct.id}`)}
+                  className="text-[10px] font-semibold text-[#3260B4] hover:underline"
+                >
+                  View product
+                </button>
+              </div>
+              {!riceProduct ? (
+                <p className="rounded-xl border border-[#EDF0F4] p-6 text-center text-[10px] text-[#9AA4B2]">No RIce product found. Add one in Admin › Products.</p>
+              ) : (
+                <div className="flex gap-3 rounded-xl border border-[#EDF0F4] p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {riceProduct.imageUrl && <img src={riceProduct.imageUrl} alt={riceProduct.productName} className="h-16 w-16 shrink-0 rounded-lg object-cover border border-[#EDF0F4]" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-bold text-[#33415A]">{riceProduct.productName}</p>
+                    <p className="truncate text-[9px] text-[#9AA4B2]">SKU: {riceProduct.sku} · {riceProduct.brandName ?? riceProduct.brand ?? ""}</p>
+                    <p className="mt-1 text-[10px] font-bold text-[#33415A]">₹{Number(riceProduct.price).toLocaleString("en-IN")}</p>
+                    <p className="text-[9px] text-[#9AA4B2]">MOQ {riceProduct.moq ?? 1} · {riceProduct.status} · {riceProduct.stockStatus ?? "in_stock"}</p>
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 text-[9px] text-[#7F8B9B]">Live via <span className="font-mono">GET /api/v1/products?search=RIce</span> + images + brand + stock enrichment.</p>
+            </div>
+
+            {/* RIce reviews live */}
+            <div className="rounded-2xl border border-[#E4E8EF] bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-[#253650]">RIce — Recent Reviews</h2>
+                <button type="button" onClick={() => navigate("/admin/reviews")} className="text-[10px] font-semibold text-[#3260B4] hover:underline">Manage reviews</button>
+              </div>
+              {riceReviews.length === 0 ? (
+                <p className="rounded-xl border border-[#EDF0F4] p-6 text-center text-[10px] text-[#9AA4B2]">No approved reviews yet. Storefront `POST /api/v1/reviews` creates them.</p>
+              ) : (
+                <div className="space-y-2">
+                  {riceReviews.map((rv: any) => (
+                    <div key={String(rv.id ?? rv._id ?? Math.random())} className="rounded-xl border border-[#EDF0F4] p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold text-[#33415A]">{String(rv.customerName ?? rv.name ?? "Customer")}</span>
+                        <span className="text-[10px] text-amber-600">{"★".repeat(Number(rv.rating ?? 0))} {Number(rv.rating ?? 0)}/5</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[10px] text-[#66758A]">{String(rv.comment ?? rv.text ?? "")}</p>
+                      <p className="mt-1 text-[8px] text-[#9AA4B2]">{String(rv.productName ?? "RIce")} · {String(rv.status ?? "Approved")} · {new Date(rv.createdAt ?? Date.now()).toLocaleDateString("en-IN")}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-[9px] text-[#7F8B9B]">Live via <span className="font-mono">GET /api/v1/reviews?productName=RIce</span> (Approved only).</p>
+            </div>
           </section>
 
           {/* ==================================================

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
-import { reviewsApi } from "@/app/api/services";
+import { storefrontReviewsApi } from "@/app/api/services";
 import {
   REVIEW_SUMMARY,
   REVIEWS,
@@ -167,7 +167,8 @@ export default function ReviewsSection() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  // Live reviews — #127 reviewsApi.list(), static fallback.
+  // Live reviews — public storefront GET /api/v1/reviews?productName=RIce, Approved only.
+  // Tries product-specific first (Rice page), then generic latest.
   useEffect(() => {
     let cancelled = false;
 
@@ -175,13 +176,30 @@ export default function ReviewsSection() {
       setLoading(true);
       setLoadError(false);
 
+      // Try to scope to the current product name if available from URL / product context
+      const productName =
+        typeof window !== "undefined"
+          ? decodeURIComponent(window.location.pathname.split("/").pop() || "")
+              .replace(/-/g, " ")
+              .trim() || undefined
+          : undefined;
+
       try {
-        const { data } = await reviewsApi.list(1, 25);
-        const live = extractRows(data)
-          .map(mapReviewRow)
-          .filter(
-            (review): review is LiveReview => review !== null,
-          );
+        let live: LiveReview[] = [];
+        // 1) product-scoped (e.g., RIce)
+        if (productName && productName.length >= 2) {
+          try {
+            const res = await storefrontReviewsApi.list(productName, 25);
+            const payload: unknown = (res as { data?: unknown })?.data ?? res;
+            live = extractRows(payload).map(mapReviewRow).filter((r): r is LiveReview => r !== null);
+          } catch {}
+        }
+        // 2) fallback to latest approved reviews
+        if (live.length === 0) {
+          const res = await storefrontReviewsApi.list(undefined, 25);
+          const payload: unknown = (res as { data?: unknown })?.data ?? res;
+          live = extractRows(payload).map(mapReviewRow).filter((r): r is LiveReview => r !== null);
+        }
 
         if (!cancelled) {
           setReviews(live.length > 0 ? live : mapStaticReviews());

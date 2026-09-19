@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { api, extractErrorMessage } from "@/app/api/api";
-import { inventoryApi, warehousesApi } from "@/app/api/services";
+import { inventoryApi, warehousesApi, productsApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Search,
@@ -115,14 +115,10 @@ export default function InventoryPage() {
               : [];
 
         if (cancelled) return;
-        if (rawItems.length === 0) {
-          setInventory([]);
-          return;
-        }
 
         const mapped: InventoryItem[] = rawItems.map((item, index) => {
           const stock = Number(
-            item.quantity ?? item.stock ?? item.availableQuantity ?? 0
+            item.quantity ?? item.stock ?? item.stockQuantity ?? item.availableQuantity ?? 0
           );
           const minStock = Number(
             item.reorderLevel ?? item.minStock ?? item.minimumStock ?? 0
@@ -144,6 +140,39 @@ export default function InventoryPage() {
             status: getStatus(stock, minStock),
           };
         });
+
+        // Also show products with no inventory row (stock 0) so every product appears
+        try {
+          const prodRes: any = await productsApi.list({ page: 1, pageSize: 100 });
+          const prodPayload: any = prodRes?.data ?? prodRes;
+          const prodRaw: any[] = Array.isArray(prodPayload)
+            ? prodPayload
+            : Array.isArray(prodPayload?.items)
+              ? prodPayload.items
+              : [];
+          const existingIds = new Set(mapped.map((m) => m.productId));
+          let nextId = mapped.length + 1;
+          prodRaw.forEach((p: any) => {
+            const pid = String(p.productId ?? p.id ?? "");
+            if (!pid || existingIds.has(pid)) return;
+            mapped.push({
+              id: nextId++,
+              productId: pid,
+              name: String(p.productName ?? p.name ?? "Unnamed product"),
+              sku: String(p.sku ?? ""),
+              category: String(p.categoryName ?? "Uncategorized"),
+              brand: String(p.brandName ?? p.brand ?? ""),
+              stock: 0,
+              minStock: 10,
+              status: getStatus(0, 10),
+            });
+          });
+        } catch {}
+
+        if (mapped.length === 0) {
+          setInventory([]);
+          return;
+        }
 
         setInventory(mapped);
       } catch (error) {
