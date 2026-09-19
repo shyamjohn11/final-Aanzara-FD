@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   NEW_ARRIVAL_SORT_OPTIONS,
@@ -279,8 +279,8 @@ export default function NewArrivalsResults() {
   const [priceMax, setPriceMax] =
     useState<number>(priceCeiling);
 
-  const [visibleCount, setVisibleCount] =
-    useState<number>(PAGE_SIZE);
+  const [currentPage, setCurrentPage] =
+    useState<number>(1);
 
   /* Keep the price slider in sync when the server data arrives. */
 
@@ -341,7 +341,7 @@ export default function NewArrivalsResults() {
         : next;
     });
 
-    setVisibleCount(PAGE_SIZE);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -365,7 +365,7 @@ export default function NewArrivalsResults() {
         : [...previous, brand],
     );
 
-    setVisibleCount(PAGE_SIZE);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -385,7 +385,7 @@ export default function NewArrivalsResults() {
 
     setActiveTab("All Products");
 
-    setVisibleCount(PAGE_SIZE);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -405,7 +405,7 @@ export default function NewArrivalsResults() {
     }
 
     setSort(value);
-    setVisibleCount(PAGE_SIZE);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -425,7 +425,7 @@ export default function NewArrivalsResults() {
     );
 
     setPriceMax(safeValue);
-    setVisibleCount(PAGE_SIZE);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -527,31 +527,68 @@ export default function NewArrivalsResults() {
    * Pagination
    * -------------------------------- */
 
-  const safeVisibleCount =
-    isValidNumber(visibleCount)
-      ? Math.max(
-          PAGE_SIZE,
-          Math.floor(visibleCount),
-        )
-      : PAGE_SIZE;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filtered.length / PAGE_SIZE),
+  );
 
-  const visibleProducts =
-    filtered.slice(
-      0,
-      safeVisibleCount,
-    );
+  const safeCurrentPage = Math.min(
+    Math.max(currentPage, 1),
+    totalPages,
+  );
 
-  const hasMore =
-    safeVisibleCount <
-    filtered.length;
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+    // Only re-sync when the clamped value itself changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeCurrentPage]);
+
+  const visibleProducts = filtered.slice(
+    (safeCurrentPage - 1) * PAGE_SIZE,
+    safeCurrentPage * PAGE_SIZE,
+  );
 
   const showingStart =
     filtered.length > 0
-      ? 1
+      ? (safeCurrentPage - 1) * PAGE_SIZE + 1
       : 0;
 
   const showingEnd =
+    (safeCurrentPage - 1) * PAGE_SIZE +
     visibleProducts.length;
+
+  const goToPage = (page: number): void => {
+    if (page < 1 || page > totalPages || page === safeCurrentPage) {
+      return;
+    }
+
+    setCurrentPage(page);
+
+    document
+      .getElementById("new-arrivals-grid")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const getPageNumbers = (): (number | "ellipsis")[] => {
+    const pages: (number | "ellipsis")[] = [];
+    const windowSize = 1;
+
+    for (let i = 1; i <= totalPages; i++) {
+      const isEdge = i === 1 || i === totalPages;
+      const isNearCurrent =
+        Math.abs(i - safeCurrentPage) <= windowSize;
+
+      if (isEdge || isNearCurrent) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "ellipsis") {
+        pages.push("ellipsis");
+      }
+    }
+
+    return pages;
+  };
 
   /* --------------------------------
    * Status message for empty results
@@ -587,7 +624,7 @@ export default function NewArrivalsResults() {
           }
 
           setActiveTab(tab.trim());
-          setVisibleCount(PAGE_SIZE);
+          setCurrentPage(1);
         }}
       />
 
@@ -784,59 +821,124 @@ export default function NewArrivalsResults() {
               </div>
 
               {/* --------------------------------
-               * Load More
+               * Pagination
                * -------------------------------- */}
 
-              {hasMore && (
-                <div
+              {totalPages > 1 && (
+                <nav
+                  aria-label="New arrivals pagination"
                   className="
                     flex
+                    items-center
                     justify-center
+                    gap-2
                     mt-6
                   "
                 >
+                  {/* PREVIOUS */}
                   <button
                     type="button"
                     onClick={() =>
-                      setVisibleCount(
-                        (current) =>
-                          Math.min(
-                            current +
-                              PAGE_SIZE,
-                            filtered.length,
-                          ),
-                      )
+                      goToPage(safeCurrentPage - 1)
                     }
+                    disabled={safeCurrentPage === 1}
+                    aria-label="Previous page"
                     className="
                       flex
+                      h-9
+                      w-9
                       items-center
-                      gap-1.5
+                      justify-center
+                      rounded-lg
                       border
                       border-line
-                      text-ink
-                      text-[12.5px]
-                      font-bold
-                      px-6
-                      py-2.5
-                      rounded-lg
+                      bg-white
+                      text-ink-soft
+                      transition-colors
                       hover:border-green
                       hover:text-green-deep
-                      transition-colors
-                      cursor-pointer
-                      focus:outline-none
-                      focus-visible:ring-2
-                      focus-visible:ring-green
-                      focus-visible:ring-offset-2
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      disabled:hover:border-line
+                      disabled:hover:text-ink-soft
                     "
                   >
-                    Load More Products
-
-                    <ChevronDown
-                      size={13}
-                      aria-hidden="true"
-                    />
+                    <ChevronLeft size={16} />
                   </button>
-                </div>
+
+                  {/* PAGE NUMBERS */}
+                  {getPageNumbers().map((page, idx) =>
+                    page === "ellipsis" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1 text-[12px] text-ink-faint"
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        aria-current={
+                          page === safeCurrentPage
+                            ? "page"
+                            : undefined
+                        }
+                        className={`
+                          flex
+                          h-9
+                          w-9
+                          items-center
+                          justify-center
+                          rounded-lg
+                          border
+                          text-[12px]
+                          font-semibold
+                          transition-colors
+                          ${
+                            page === safeCurrentPage
+                              ? "border-green bg-green text-white"
+                              : "border-line bg-white text-ink-soft hover:border-green hover:text-green-deep"
+                          }
+                        `}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+
+                  {/* NEXT */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      goToPage(safeCurrentPage + 1)
+                    }
+                    disabled={safeCurrentPage === totalPages}
+                    aria-label="Next page"
+                    className="
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      rounded-lg
+                      border
+                      border-line
+                      bg-white
+                      text-ink-soft
+                      transition-colors
+                      hover:border-green
+                      hover:text-green-deep
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      disabled:hover:border-line
+                      disabled:hover:text-ink-soft
+                    "
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </nav>
               )}
             </>
           )}

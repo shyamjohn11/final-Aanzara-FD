@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  ChevronLeft,
   ChevronRight,
   Heart,
   Minus,
@@ -18,6 +19,7 @@ import {
 import TopBar from "@/app/components/Dashboard/TopBar";
 import Header from "@/app/components/Header";
 import MainNav from "@/app/MainNav";
+import Footer from "@/app/components/Footer";
 
 import { useCart } from "@/app/context/cartcontext";
 import { useWishlist } from "@/app/context/wishlistcontext";
@@ -27,6 +29,8 @@ import ShoppingListSavePopup from "@/app/components/ShoppingListSavePopup";
 import { productsApi } from "@/app/api/services";
 import { mapProductSummaries } from "@/app/api/productmap";
 import { type Product } from "@/app/data/products";
+
+const PAGE_SIZE = 20;
 
 export default function RetailPage() {
   /* =========================================================
@@ -40,6 +44,13 @@ export default function RetailPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+
+  /* =========================================================
+     PAGINATION
+  ========================================================= */
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   /* =========================================================
      SHOPPING LIST POPUP
@@ -62,6 +73,11 @@ export default function RetailPage() {
     "Out of Stock": "out_of_stock",
   };
 
+  // Reset back to page 1 whenever search or filter changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeFilter]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -70,17 +86,37 @@ export default function RetailPage() {
 
       try {
         const response = await productsApi.list({
-          page: 1,
-          pageSize: 60,
+          page: currentPage,
+          pageSize: PAGE_SIZE,
           search: searchQuery,
           status: filterToStatus[activeFilter],
         });
 
         const mapped = mapProductSummaries(response.data);
 
+        // NOTE: adjust these fallbacks to match your API's actual
+        // response shape for total count / total pages.
+        const responseAny = response as any;
+        const totalCount: number | undefined =
+          responseAny.total ??
+          responseAny.totalCount ??
+          responseAny.meta?.total ??
+          responseAny.meta?.totalCount;
+
+        const computedTotalPages: number | undefined =
+          responseAny.totalPages ??
+          responseAny.meta?.totalPages ??
+          (typeof totalCount === "number"
+            ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+            : undefined);
+
         if (!cancelled) {
           setProducts(mapped);
           setLoadFailed(false);
+          setTotalPages(
+            computedTotalPages ??
+              (mapped.length < PAGE_SIZE ? currentPage : currentPage + 1)
+          );
         }
       } catch {
         if (!cancelled) {
@@ -99,7 +135,7 @@ export default function RetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [searchQuery, activeFilter]);
+  }, [searchQuery, activeFilter, currentPage]);
 
   /* =========================================================
      CART
@@ -215,6 +251,40 @@ export default function RetailPage() {
     }
 
     updateQty(product.id, quantity - 1);
+  };
+
+  /* =========================================================
+     PAGINATION HELPERS
+  ========================================================= */
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) {
+      return;
+    }
+
+    setCurrentPage(page);
+
+    document
+      .getElementById("products")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    const windowSize = 1;
+
+    for (let i = 1; i <= totalPages; i++) {
+      const isEdge = i === 1 || i === totalPages;
+      const isNearCurrent = Math.abs(i - currentPage) <= windowSize;
+
+      if (isEdge || isNearCurrent) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "ellipsis") {
+        pages.push("ellipsis");
+      }
+    }
+
+    return pages;
   };
 
   /* =========================================================
@@ -1054,8 +1124,123 @@ export default function RetailPage() {
                 )}
             </div>
           )}
+
+          {/* =================================================
+              PAGINATION
+          ================================================== */}
+
+          {!loading && filteredProducts.length > 0 && totalPages > 1 && (
+            <nav
+              aria-label="Product pagination"
+              className="mt-8 flex items-center justify-center gap-2"
+            >
+              {/* PREVIOUS */}
+              <button
+                type="button"
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+                className="
+                  flex
+                  h-9
+                  w-9
+                  items-center
+                  justify-center
+                  rounded-lg
+                  border
+                  border-line
+                  bg-white
+                  text-ink-soft
+                  transition
+                  hover:border-blue
+                  hover:text-blue
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
+                  disabled:hover:border-line
+                  disabled:hover:text-ink-soft
+                "
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              {/* PAGE NUMBERS */}
+              {getPageNumbers().map((page, idx) =>
+                page === "ellipsis" ? (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="px-1 text-[12px] text-ink-faint"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    aria-current={
+                      page === currentPage ? "page" : undefined
+                    }
+                    className={`
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      rounded-lg
+                      border
+                      text-[12px]
+                      font-semibold
+                      transition
+                      ${
+                        page === currentPage
+                          ? "border-navy bg-navy text-white"
+                          : "border-line bg-white text-ink-soft hover:border-blue hover:text-blue"
+                      }
+                    `}
+                  >
+                    {page}
+                  </button>
+                )
+              )}
+
+              {/* NEXT */}
+              <button
+                type="button"
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                aria-label="Next page"
+                className="
+                  flex
+                  h-9
+                  w-9
+                  items-center
+                  justify-center
+                  rounded-lg
+                  border
+                  border-line
+                  bg-white
+                  text-ink-soft
+                  transition
+                  hover:border-blue
+                  hover:text-blue
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
+                  disabled:hover:border-line
+                  disabled:hover:text-ink-soft
+                "
+              >
+                <ChevronRight size={16} />
+              </button>
+            </nav>
+          )}
         </section>
       </main>
+
+      {/* =====================================================
+          FOOTER
+      ====================================================== */}
+
+      <Footer />
 
       {/* =====================================================
           SHOPPING LIST POPUP

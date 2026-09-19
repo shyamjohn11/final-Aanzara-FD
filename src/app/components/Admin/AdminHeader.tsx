@@ -77,48 +77,73 @@ export default function AdminHeader({
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
+<<<<<<< HEAD
   // Logged-in admin user state
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
 
   // Live unread count for the admin inbox (Notifications table).
   // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
+=======
+  /* ==========================================================
+     LOGGED-IN ADMIN USER
+  ========================================================== */
+
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("aanzara_user");
+
+      if (raw) {
+        const parsed = JSON.parse(raw) as AdminUser;
+        setAdminUser(parsed);
+      }
+    } catch (err) {
+      console.error("Failed to read admin user from storage:", err);
+    } finally {
+      setUserLoaded(true);
+    }
+  }, []);
+
+  const displayName = adminUser?.name || adminUser?.email || "Admin";
+  const displayRole = adminUser?.role || adminUser?.accountType || "Super Admin";
+  const displayEmail = adminUser?.email || "";
+
+  /* ==========================================================
+     UNREAD NOTIFICATIONS
+     notificationsApi has no dedicated unreadCount endpoint —
+     use list({ unreadOnly: true }) and read the pagination
+     totalCount back, the same pattern the admin list pages use.
+  ========================================================== */
+
+>>>>>>> J-Devops
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadUnread = async () => {
+    let isMounted = true;
+
+    const fetchUnreadCount = async () => {
       try {
         const response = await notificationsApi.list({
           unreadOnly: true,
-          page: 1,
           pageSize: 1,
         });
-        if (cancelled) return;
-        const payload = response?.data as
-          | { totalCount?: number; totalcount?: number }
-          | undefined;
-        const total =
-          typeof payload?.totalCount === "number"
-            ? payload.totalCount
-            : typeof payload?.totalcount === "number"
-              ? payload.totalcount
-              : 0;
-        setUnreadNotifications(total);
-      } catch {
-        if (!cancelled) setUnreadNotifications(0);
+        const payload: any = (response as any)?.data ?? response;
+
+        if (isMounted) {
+          setUnreadNotifications(Number(payload?.totalCount ?? 0));
+        }
+      } catch (err) {
+        console.error("Failed to fetch unread notifications:", err);
       }
     };
-    void loadUnread();
-    const timer = setInterval(loadUnread, 30000);
-    const sync = () => {
-      void loadUnread();
-    };
-    window.addEventListener("focus", sync);
+
+    fetchUnreadCount();
+
     return () => {
-      cancelled = true;
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
+      isMounted = false;
     };
   }, []);
 
