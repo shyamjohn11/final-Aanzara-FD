@@ -22,7 +22,7 @@ import {
   FileText,
 } from "lucide-react";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { businessAccountsApi } from "@/app/api/services";
+import { businessAccountsApi, dealersApi } from "@/app/api/services";
 
 type AccountStatus = "Active" | "Pending" | "Inactive";
 
@@ -37,6 +37,9 @@ type BusinessAccount = {
   address: string;
   status: AccountStatus;
   createdAt: string;
+  source: "business" | "dealer";
+  dealerCode?: string;
+  agentName?: string;
 };
 
 type FormErrors = {
@@ -54,10 +57,12 @@ export default function BusinessAccountsPage() {
   const [accounts, setAccounts] =
     useState<BusinessAccount[]>([]);
 
-  /* Backend: fetch on mount. */
+  /* Backend: fetch business accounts + agent dealers together. */
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      const combined: BusinessAccount[] = [];
+      let idx = 1;
       try {
         const res: any = await businessAccountsApi.list(1, 100);
         const payload = res?.data ?? res;
@@ -66,8 +71,7 @@ export default function BusinessAccountsPage() {
           : Array.isArray(payload?.items)
             ? payload.items
             : [];
-        if (cancelled || raw.length === 0) return;
-        const mapped: BusinessAccount[] = raw.map((r: any, index: number) => {
+        raw.forEach((r: any) => {
           const s = String(r.status ?? "Active");
           const status: AccountStatus =
             s.toLowerCase() === "pending"
@@ -75,8 +79,8 @@ export default function BusinessAccountsPage() {
               : s.toLowerCase() === "inactive"
                 ? "Inactive"
                 : "Active";
-          return {
-            id: index + 1,
+          combined.push({
+            id: idx++,
             serverId: String(r.businessAccountId ?? r.accountId ?? r.id ?? ""),
             businessName: String(r.businessName ?? r.name ?? r.company ?? r.companyName ?? ""),
             ownerName: String(r.ownerName ?? r.owner ?? r.contactPerson ?? ""),
@@ -86,10 +90,45 @@ export default function BusinessAccountsPage() {
             address: String(r.address ?? r.businessAddress ?? r.location ?? ""),
             status,
             createdAt: String(r.createdAt ?? r.createdDate ?? r.registeredOn ?? ""),
-          };
+            source: "business",
+          });
         });
-        if (mapped.length > 0) setAccounts(mapped);
       } catch {}
+      // Agent-added dealer shops — same list, so Business Account List shows all shops
+      try {
+        const res: any = await dealersApi.list({ page: 1, pageSize: 100 });
+        const payload = res?.data ?? res;
+        const raw: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
+        raw.forEach((r: any) => {
+          const s = String(r.status ?? "Active");
+          const status: AccountStatus =
+            s.toLowerCase() === "pending"
+              ? "Pending"
+              : s.toLowerCase() === "inactive"
+                ? "Inactive"
+                : "Active";
+          combined.push({
+            id: idx++,
+            serverId: String(r.id ?? r.dealerId ?? ""),
+            businessName: String(r.shopName ?? r.businessName ?? ""),
+            ownerName: String(r.ownerName ?? ""),
+            email: String(r.email ?? ""),
+            phone: String(r.phone ?? ""),
+            gst: String(r.gstNumber ?? r.gst ?? ""),
+            address: String([r.address, r.city, r.state].filter(Boolean).join(", ") ?? ""),
+            status,
+            createdAt: String(r.createdAt ?? ""),
+            source: "dealer",
+            dealerCode: String(r.dealerCode ?? ""),
+            agentName: String(r.agentName ?? ""),
+          });
+        });
+      } catch {}
+      if (!cancelled && combined.length > 0) setAccounts(combined);
     };
     load();
     return () => {
@@ -769,7 +808,7 @@ export default function BusinessAccountsPage() {
 
                             <div className="flex items-center gap-3">
 
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EDF3FF] text-[#3260B4]">
+                              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${account.source === "dealer" ? "bg-[#FFF5DF] text-[#C17B19]" : "bg-[#EDF3FF] text-[#3260B4]"}`}>
                                 <Building2 size={17} />
                               </div>
 
@@ -779,11 +818,16 @@ export default function BusinessAccountsPage() {
                                   {account.businessName}
                                 </p>
 
-                                <p className="mt-1 text-[8px] text-[#8995A5]">
-                                  ID: BA-
-                                  {String(
-                                    account.id
-                                  ).padStart(4, "0")}
+                                <p className="mt-1 flex items-center gap-1 text-[8px] text-[#8995A5]">
+                                  {account.source === "dealer" ? (
+                                    <>
+                                      <span className="rounded bg-[#FFF5DF] px-1.5 py-0.5 text-[7px] font-bold text-[#C17B19]">Dealer</span>
+                                      {account.dealerCode && <span>{account.dealerCode}</span>}
+                                      {account.agentName && <span>· {account.agentName}</span>}
+                                    </>
+                                  ) : (
+                                    <>ID: BA-{String(account.id).padStart(4, "0")}</>
+                                  )}
                                 </p>
 
                               </div>

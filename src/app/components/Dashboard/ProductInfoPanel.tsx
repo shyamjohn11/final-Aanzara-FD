@@ -452,45 +452,45 @@ function ValidatedProductInfoPanel({
   };
 
   /* ==========================================================
-     ADD TO CART
+      ADD TO CART — live cartApi via context, works for RIce + any product
   ========================================================== */
 
   const handleAddToCart = () => {
-    if (
-      !Number.isFinite(qty) ||
-      qty < minimumQty ||
-      qty > 9999
-    ) {
-      return;
-    }
+    if (!Number.isFinite(qty) || qty < minimumQty || qty > 9999) return;
+
+    // Resolve the live product id: prefer liveProp/fetched id, fallback to sku/code
+    const liveId = (p as unknown as Record<string, unknown>).productId as string | undefined;
+    const fallbackId = liveId || p.sku || p.productCode;
+    if (!fallbackId) return;
 
     try {
-      /*
-       * PRODUCT_DETAIL must be compatible with the
-       * Product type expected by cartcontext.
-       *
-       * If PRODUCT_DETAIL is not the same product shape,
-       * connect this button to your product/cart adapter.
-       */
-      console.log(
-        "Add to wholesale cart:",
-        {
-          product: p,
-          quantity: qty,
-          carton,
-        }
-      );
+      // Build a minimal Product shape the cart context expects — price/moq come from live tier
+      const cartProduct = {
+        id: String(fallbackId),
+        name: p.name,
+        brand: p.brand,
+        sku: p.sku,
+        pack: `Carton of ${minimumQty}`,
+        rating: safeRating,
+        reviews: reviewCount,
+        discount: 0,
+        mrp: p.priceTiers[0]?.price ?? 0,
+        price: p.priceTiers[0]?.price ?? 0,
+        bulkRate: p.priceTiers[0]?.price ?? 0,
+        bulkMoq: minimumQty,
+        moq: minimumQty,
+        inStock: p.inStock,
+        dispatch: p.deliveryEstimate,
+        swatch: "#2563EB",
+        accent: "#1E40AF",
+      } as unknown as import("@/app/data/products").Product;
+
+      addToCart(cartProduct, qty);
 
       setAdded(true);
-
-      window.setTimeout(() => {
-        setAdded(false);
-      }, 1500);
+      window.setTimeout(() => setAdded(false), 1500);
     } catch (error) {
-      console.error(
-        "Failed to add product to cart:",
-        error
-      );
+      console.error("Failed to add product to cart:", error);
     }
   };
 
