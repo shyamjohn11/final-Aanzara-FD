@@ -155,13 +155,9 @@ export default function AdminHeader({
     };
   }, []);
 
-  /* ========================================================
+/* ========================================================
      LOGGED-IN ADMIN USER (same shape as storefront Header)
-  ======================================================== */
-
-  const [adminUser, setAdminUser] =
-    useState<AdminUser | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+   ======================================================== */
 
   useEffect(() => {
     const loadUser = () => {
@@ -217,15 +213,6 @@ export default function AdminHeader({
       );
     };
   }, []);
-
-  const displayName =
-    adminUser?.name?.trim() || "Admin";
-  const displayEmail =
-    adminUser?.email?.trim() || "";
-  const displayRole =
-    adminUser?.role?.trim() ||
-    adminUser?.accountType?.trim() ||
-    "Super Admin";
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
