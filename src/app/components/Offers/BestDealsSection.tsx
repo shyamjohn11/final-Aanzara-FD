@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { OfferProduct } from "@/app/data/offers";
-import { getSessionRole, hasSession } from "@/app/api/api";
-import { dealsApi, offersApi } from "@/app/api/services";
+import { dealsApi } from "@/app/api/services";
 
 import OfferProductCard from "./OfferProductCard";
 
@@ -293,34 +292,12 @@ export default function BestDealsSection() {
       setLoading(true);
       setFetchError("");
       try {
-        // Admins see the full list (including drafts/inactive) via the
-        // admin endpoint; everyone else uses the public active-only feed.
-        // Each side falls back to the other so one outage never blanks
-        // the shelf when the alternative could serve.
-        const isStaff =
-          hasSession() && getSessionRole() === "admin";
-        const loadPublic = async () => {
-          const publicResponse = await dealsApi.offers(50);
-          return (
-            (publicResponse as { data?: unknown })?.data ?? publicResponse
-          );
-        };
-        const loadAdmin = async () => {
-          const adminResponse = await offersApi.list(1, 50);
-          return (
-            (adminResponse as { data?: unknown })?.data ?? adminResponse
-          );
-        };
-        let payload: unknown = null;
-        try {
-          payload = isStaff ? await loadAdmin() : await loadPublic();
-        } catch (primaryError) {
-          console.error(
-            "Primary deals feed failed, trying fallback:",
-            primaryError,
-          );
-          payload = isStaff ? await loadPublic() : await loadAdmin();
-        }
+        // Storefront always uses the public active-only feed — no admin
+        // call for guests (would 401). Admins also see the same shelf;
+        // admin console has its own full management page.
+        const publicResponse = await dealsApi.offers(50);
+        const payload: unknown =
+          (publicResponse as { data?: unknown })?.data ?? publicResponse;
         const rawItems = unwrapItems(payload);
         const mapped = rawItems.map(mapOfferToProduct);
         const nextTabs = deriveTabs(rawItems);

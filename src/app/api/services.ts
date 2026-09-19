@@ -1057,6 +1057,10 @@ export const agentOnboardingApi = adminResource(
 
 // #156 GET /api/admin/agents?Page=&PageSize=&search=&status=
 // #157 GET /api/admin/agents/{id}
+// #158 POST /api/admin/agents {name, email, phone, passphrase, employeeCode, status}
+// #159 PUT /api/admin/agents/{id} {name, email, phone, employeeCode, status}
+// #160 DELETE /api/admin/agents/{id}
+// #161 PATCH /api/admin/agents/{id}/status {status}
 export const agentsApi = {
   list(query: {
     page?: number;
@@ -1075,6 +1079,22 @@ export const agentsApi = {
 
   details(agentId: string | number) {
     return api.get(`/api/admin/agents/${agentId}`);
+  },
+
+  create(payload: Record<string, unknown>) {
+    return api.post("/api/admin/agents", payload);
+  },
+
+  update(agentId: string | number, payload: Record<string, unknown>) {
+    return api.put(`/api/admin/agents/${agentId}`, payload);
+  },
+
+  remove(agentId: string | number) {
+    return api.delete(`/api/admin/agents/${agentId}`);
+  },
+
+  setStatus(agentId: string | number, status: string) {
+    return api.patch(`/api/admin/agents/${agentId}/status`, { status });
   },
 
   // Dealers of one agent — same shape as dealersApi.list with agentId preset.

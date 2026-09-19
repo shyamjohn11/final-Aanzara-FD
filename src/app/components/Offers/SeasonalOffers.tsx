@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SeasonalOffer as SeasonalOfferType } from "@/app/data/offers";
-import { bannersApi } from "@/app/api/services";
+import { dealsApi } from "@/app/api/services";
 
 /* --------------------------------
  * Types
@@ -130,7 +130,7 @@ function unwrapItems(payload: unknown): Record<string, unknown>[] {
 
 function resolveBannerImage(
   raw: Record<string, unknown>,
-  fallbackId: string,
+  _fallbackId: string,
 ): string {
   const direct = String(
     raw.imageUrl ??
@@ -160,9 +160,7 @@ function resolveBannerImage(
       return nested;
     }
   }
-  if (fallbackId) {
-    return bannersApi.imageFileUrl(fallbackId);
-  }
+  // Public banners already carry imageUrl; no admin imageFileUrl fallback for guests.
   return "";
 }
 
@@ -213,7 +211,8 @@ export default function SeasonalOffers() {
       setLoading(true);
       setFetchError("");
       try {
-        const response = await bannersApi.list(1, 25);
+        // Public active banners — no auth, works for guests.
+        const response = await dealsApi.banners(25);
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
         const rawItems = unwrapItems(payload);

@@ -109,12 +109,15 @@ function ValidatedProductGallery({
   const activeImage = images[safeActive];
 
   /* ============================================================
-     IMAGE COLOR VALIDATION
-     
-     Your existing component treats each image value as a color
-     such as "#2448C4". We validate it before using it inside
-     inline CSS.
+      IMAGE vs COLOR DETECTION
+      - Streaming URLs: /api/v1/products/.../file or http(s)://
+      - Otherwise treat as color like "#2448C4"
   ============================================================ */
+
+  const isImageUrl = (value: string) => {
+    const v = value.trim();
+    return v.startsWith("/api/") || v.startsWith("/uploads/") || /^https?:\/\//i.test(v);
+  };
 
   const isValidColor = (value: string) => {
     const color = value.trim();
@@ -126,9 +129,8 @@ function ValidatedProductGallery({
     );
   };
 
-  const safeColor = isValidColor(activeImage)
-    ? activeImage
-    : "#E4E8EF";
+  const activeIsImage = isImageUrl(activeImage);
+  const safeColor = !activeIsImage && isValidColor(activeImage) ? activeImage : "#E4E8EF";
 
   /* ============================================================
      DISPLAY COUNT
@@ -197,27 +199,39 @@ function ValidatedProductGallery({
           <Expand size={14} />
         </button>
 
-        {/* PRODUCT IMAGE PLACEHOLDER */}
-
-        <div
-          className="
-            w-24
-            sm:w-28
-            h-36
-            sm:h-44
-            rounded-lg
-            shadow-md
-          "
-          style={{
-            background: `linear-gradient(
-              160deg,
-              ${safeColor},
-              ${safeColor}CC
-            )`,
-          }}
-          role="img"
-          aria-label={`Product image ${safeActive + 1}`}
-        />
+        {/* PRODUCT IMAGE */}
+        {activeIsImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={activeImage}
+            alt={`Product image ${safeActive + 1}`}
+            className="max-h-[240px] sm:max-h-[340px] max-w-[90%] object-contain rounded-lg"
+            loading="eager"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <div
+            className="
+              w-24
+              sm:w-28
+              h-36
+              sm:h-44
+              rounded-lg
+              shadow-md
+            "
+            style={{
+              background: `linear-gradient(
+                160deg,
+                ${safeColor},
+                ${safeColor}CC
+              )`,
+            }}
+            role="img"
+            aria-label={`Product image ${safeActive + 1}`}
+          />
+        )}
 
         {/* IMAGE COUNTER */}
 
@@ -251,24 +265,18 @@ function ValidatedProductGallery({
           pb-1
         "
       >
-        {images.map((color, i) => {
-          const safeThumbnailColor =
-            isValidColor(color)
-              ? color
-              : "#E4E8EF";
-
-          const isActive =
-            safeActive === i;
+        {images.map((value, i) => {
+          const thumbIsImage = isImageUrl(value);
+          const safeThumbnailColor = !thumbIsImage && isValidColor(value) ? value : "#E4E8EF";
+          const isActive = safeActive === i;
 
           return (
             <button
-              key={`${color}-${i}`}
+              key={`${value}-${i}`}
               type="button"
               onClick={() => setActive(i)}
               aria-label={`Show product image ${i + 1}`}
-              aria-current={
-                isActive ? "true" : undefined
-              }
+              aria-current={isActive ? "true" : undefined}
               className={`
                 w-14
                 h-14
@@ -280,32 +288,24 @@ function ValidatedProductGallery({
                 items-center
                 justify-center
                 shrink-0
+                overflow-hidden
                 transition-colors
-                ${
-                  isActive
-                    ? "border-blue"
-                    : "border-line hover:border-blue/50"
-                }
+                ${isActive ? "border-blue" : "border-line hover:border-blue/50"}
               `}
-              style={{
-                background: `linear-gradient(
-                  160deg,
-                  ${safeThumbnailColor}22,
-                  ${safeThumbnailColor}0A
-                )`,
-              }}
+              style={
+                thumbIsImage
+                  ? { background: "#fff" }
+                  : {
+                      background: `linear-gradient(160deg, ${safeThumbnailColor}22, ${safeThumbnailColor}0A)`,
+                    }
+              }
             >
-              <div
-                className="
-                  w-5
-                  h-8
-                  rounded-sm
-                "
-                style={{
-                  background:
-                    safeThumbnailColor,
-                }}
-              />
+              {thumbIsImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={value} alt="" className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="w-5 h-8 rounded-sm" style={{ background: safeThumbnailColor }} />
+              )}
             </button>
           );
         })}

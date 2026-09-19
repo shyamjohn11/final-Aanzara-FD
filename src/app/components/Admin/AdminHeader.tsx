@@ -77,42 +77,9 @@ export default function AdminHeader({
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Logged-in admin user
+  // Logged-in admin user state
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
-
-  const displayName =
-    adminUser?.name?.trim() ||
-    adminUser?.email?.split("@")[0] ||
-    "Admin";
-
-  const displayEmail = adminUser?.email || "";
-
-  const displayRole =
-    adminUser?.role ||
-    adminUser?.accountType ||
-    "Super Admin";
-
-  useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem("aanzara_user");
-
-      if (!storedUser) {
-        setAdminUser(null);
-        setUserLoaded(false);
-        return;
-      }
-
-      const parsedUser = JSON.parse(storedUser) as AdminUser;
-
-      setAdminUser(parsedUser);
-      setUserLoaded(true);
-    } catch (error) {
-      console.error("Failed to load admin user:", error);
-      setAdminUser(null);
-      setUserLoaded(false);
-    }
-  }, []);
 
   // Live unread count for the admin inbox (Notifications table).
   // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
@@ -213,6 +180,17 @@ export default function AdminHeader({
       );
     };
   }, []);
+
+  const displayName =
+    adminUser?.name?.trim() ||
+    adminUser?.email?.split("@")[0] ||
+    "Admin";
+  const displayEmail =
+    adminUser?.email?.trim() || "";
+  const displayRole =
+    adminUser?.role?.trim() ||
+    adminUser?.accountType?.trim() ||
+    "Super Admin";
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
