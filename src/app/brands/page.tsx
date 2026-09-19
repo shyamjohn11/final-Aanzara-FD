@@ -11,6 +11,7 @@ import {
   Truck,
 } from "lucide-react";
 
+import { useRouter } from "next/navigation";
 import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
 import MainNav from "@/app/MainNav";
@@ -23,10 +24,10 @@ type Brand = {
   category: string;
   logo: string;
   logoClass?: string;
+  imageUrl?: string;
+  brandId?: string;
 };
 
-<<<<<<< HEAD
-=======
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -46,7 +47,6 @@ const categories = [
   "Dairy & Bakery",
 ];
 
->>>>>>> J-Devops
 /* ---------------------------------------------------------
    BRANDS — backend only (GET /api/v1/brands, public, active only).
    No hardcoded brands: the grid below renders live API data only.
@@ -109,16 +109,16 @@ function sanitizeSearch(value: string): string {
 --------------------------------------------------------- */
 
 export default function BrandsPage() {
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const [activeCategory, setActiveCategory] =
-    useState<string>("All Brands");
 
   const [searchQuery, setSearchQuery] =
     useState<string>("");
 
   const [visibleCount, setVisibleCount] =
     useState<number>(21);
+
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   /* -------------------------------------------------------
      LIVE CATALOG + SERVER SEARCH (GET /api/v1/brands) — backend only.
@@ -160,14 +160,16 @@ export default function BrandsPage() {
           ).trim();
           if (!name) return;
 
+          const brandId = String(raw.brandId ?? raw.id ?? "").trim();
+          const imageUrl = String(raw.imageUrl ?? "").trim();
           mapped.push({
             name,
             category: String(
               raw.categoryName ?? raw.category ?? "General",
             ),
-            // Backend rows reuse the brand name as logo text
-            // until CDN logos land.
             logo: name.slice(0, 24),
+            imageUrl: imageUrl || undefined,
+            brandId: brandId || undefined,
           });
         });
 
@@ -232,14 +234,16 @@ export default function BrandsPage() {
           ).trim();
           if (!name) return;
 
+          const brandId = String(raw.brandId ?? raw.id ?? "").trim();
+          const imageUrl = String(raw.imageUrl ?? "").trim();
           mapped.push({
             name,
             category: String(
               raw.categoryName ?? raw.category ?? "General",
             ),
-            // Backend rows reuse the brand name as logo text
-            // until CDN logos land.
             logo: name.slice(0, 24),
+            imageUrl: imageUrl || undefined,
+            brandId: brandId || undefined,
           });
         });
 
@@ -289,57 +293,16 @@ export default function BrandsPage() {
   }, [serverBrands, catalogBrands]);
 
   /* -------------------------------------------------------
-     CATEGORIES — derived from live data (backend brands carry
-     no category grouping, so the buttons follow the data).
-  ------------------------------------------------------- */
-
-  const categories = useMemo(() => {
-    const distinct = new Set<string>();
-    validBrands.forEach((brand) => {
-      if (brand.category) distinct.add(brand.category);
-    });
-    return ["All Brands", ...Array.from(distinct).sort()];
-  }, [validBrands]);
-
-  useEffect(() => {
-    if (!categories.includes(activeCategory)) {
-      setActiveCategory("All Brands");
-      setVisibleCount(21);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories]);
-
-  /* -------------------------------------------------------
-     SEARCH + CATEGORY FILTER
+     SEARCH FILTER — by brand name only (no "General" category)
   ------------------------------------------------------- */
 
   const filteredBrands = useMemo(() => {
     const query = sanitizeSearch(searchQuery).toLowerCase();
-
-    return validBrands.filter((brand) => {
-      const brandName = brand.name.toLowerCase();
-      const brandCategory = brand.category.toLowerCase();
-
-      const matchesSearch =
-        !query ||
-        brandName.includes(query) ||
-        brandCategory.includes(query);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      if (activeCategory === "All Brands") {
-        return true;
-      }
-
-      return brand.category === activeCategory;
-    });
-  }, [
-    validBrands,
-    searchQuery,
-    activeCategory,
-  ]);
+    if (!query) return validBrands;
+    return validBrands.filter((brand) =>
+      brand.name.toLowerCase().includes(query)
+    );
+  }, [validBrands, searchQuery]);
 
   /* -------------------------------------------------------
      VISIBLE BRANDS
@@ -370,18 +333,6 @@ export default function BrandsPage() {
     setVisibleCount(21);
   };
 
-  const handleCategoryChange = (
-    category: string
-  ) => {
-    // Validate category before setting state.
-    if (!categories.includes(category)) {
-      return;
-    }
-
-    setActiveCategory(category);
-    setVisibleCount(21);
-  };
-
   const handleLoadMore = () => {
     setVisibleCount((current) => {
       const nextCount = current + 14;
@@ -395,7 +346,6 @@ export default function BrandsPage() {
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setActiveCategory("All Brands");
     setVisibleCount(21);
   };
 
@@ -403,9 +353,7 @@ export default function BrandsPage() {
      COUNTS
   ------------------------------------------------------- */
 
-  const hasFilters =
-    searchQuery.trim().length > 0 ||
-    activeCategory !== "All Brands";
+  const hasFilters = searchQuery.trim().length > 0;
 
   const hasMore =
     visibleCount < filteredBrands.length;
@@ -567,38 +515,6 @@ export default function BrandsPage() {
             CATEGORY BUTTONS
         ================================================= */}
 
-        <section
-          aria-label="Brand categories"
-          className="mt-5 flex gap-3 overflow-x-auto pb-2"
-        >
-          {categories.map(
-            (category) => {
-              const isActive =
-                activeCategory === category;
-
-              return (
-                <button
-                  type="button"
-                  key={category}
-                  onClick={() =>
-                    handleCategoryChange(
-                      category
-                    )
-                  }
-                  aria-pressed={isActive}
-                  className={`shrink-0 rounded-lg border px-4 py-2 text-[12px] font-medium transition ${
-                    isActive
-                      ? "border-navy bg-navy text-white"
-                      : "border-line bg-white text-ink-soft hover:border-[#94a3b8]"
-                  }`}
-                >
-                  {category}
-                </button>
-              );
-            }
-          )}
-        </section>
-
         {/* =================================================
             RESULT INFO
         ================================================= */}
@@ -659,8 +575,8 @@ export default function BrandsPage() {
                     </span>
                   </div>
 
-                  <p className="mt-3 text-center text-[11px] text-ink-soft">
-                    {brand.category}
+                  <p className="mt-2 text-center text-[13px] font-bold text-ink truncate w-full px-2" title={brand.name}>
+                    {brand.name}
                   </p>
                 </Link>
               )

@@ -114,7 +114,7 @@ export default function BrandsAdminPage() {
 
   /* =======================================================
      MODAL
-  ======================================================== */
+  ======================================================== */ 
 
   const [showModal, setShowModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);

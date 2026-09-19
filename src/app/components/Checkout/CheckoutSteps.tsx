@@ -1,9 +1,9 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CHECKOUT_STEPS,
-  CURRENT_STEP_INDEX,
 } from "@/app/data/checkout";
 
 // UI stepper labels — no backend publishes these, so fall back to the
@@ -15,6 +15,14 @@ const FALLBACK_STEPS = [
   "Review",
   "Confirmation",
 ];
+
+const STEP_ROUTES: Record<string, string> = {
+  Cart: "/cart",
+  "Delivery Address": "/checkout",
+  Payment: "/payment",
+  Review: "/order-confirmation",
+  Confirmation: "/orders",
+};
 
 export default function CheckoutSteps() {
   // =====================================================
@@ -37,20 +45,27 @@ export default function CheckoutSteps() {
       : FALLBACK_STEPS;
 
   // =====================================================
-  // CURRENT STEP VALIDATION
+  // CURRENT STEP — dynamic from route
   // =====================================================
 
-  const rawStepIndex =
-    typeof CURRENT_STEP_INDEX === "number"
-      ? CURRENT_STEP_INDEX
-      : Number(CURRENT_STEP_INDEX);
+  const pathname = usePathname();
+  const router = useRouter();
 
+  const getStepIndexFromPath = (path: string): number => {
+    if (path.startsWith("/cart")) return 0;
+    if (path.startsWith("/checkout")) return 1;
+    if (path.startsWith("/payment")) return 2;
+    if (path.startsWith("/order-confirmation")) return 4;
+    if (path.startsWith("/orders") || path.startsWith("/invoice")) return 4;
+    // Review is between payment and confirmation — treat /payment?review as 3
+    // For now, any other checkout-related path defaults to Review
+    if (path.includes("review")) return 3;
+    return 0;
+  };
+
+  const pathStep = getStepIndexFromPath(pathname || "");
   const validStepIndex =
-    Number.isInteger(rawStepIndex) &&
-    rawStepIndex >= 0 &&
-    rawStepIndex < validSteps.length
-      ? rawStepIndex
-      : 0;
+    pathStep >= 0 && pathStep < validSteps.length ? pathStep : 0;
 
   // =====================================================
   // EMPTY STATE
@@ -110,74 +125,44 @@ export default function CheckoutSteps() {
               "
             >
               {/* =================================================
-                  STEP
+                  STEP — clickable for completed/current
               ================================================== */}
 
-              <div className="flex flex-col items-center gap-1.5 shrink-0">
-
+              <button
+                type="button"
+                onClick={() => {
+                  const target = STEP_ROUTES[step];
+                  if (target && index <= validStepIndex) router.push(target);
+                }}
+                disabled={index > validStepIndex}
+                className={`flex flex-col items-center gap-1.5 shrink-0 ${index <= validStepIndex ? "cursor-pointer" : "cursor-default"}`}
+                aria-current={active ? "step" : undefined}
+                aria-label={
+                  done ? `${step} completed` : active ? `${step} current step` : `${step} upcoming step`
+                }
+              >
                 {/* STEP NUMBER / CHECK */}
-
                 <span
-                  className={`
-                    w-8
-                    h-8
-                    rounded-full
-                    flex
-                    items-center
-                    justify-center
-                    text-[12px]
-                    font-bold
-                    shrink-0
-                    ${
-                      done
-                        ? "bg-green text-white"
-                        : active
-                          ? "bg-navy text-white"
-                          : "bg-paper border border-line text-ink-faint"
-                    }
-                  `}
-                  aria-current={
-                    active
-                      ? "step"
-                      : undefined
-                  }
-                  aria-label={
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${
                     done
-                      ? `${step} completed`
+                      ? "bg-green text-white"
                       : active
-                        ? `${step} current step`
-                        : `${step} upcoming step`
-                  }
+                        ? "bg-navy text-white"
+                        : "bg-paper border border-line text-ink-faint"
+                  }`}
                 >
-                  {done ? (
-                    <Check
-                      size={14}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    index + 1
-                  )}
+                  {done ? <Check size={14} aria-hidden="true" /> : index + 1}
                 </span>
 
                 {/* STEP LABEL */}
-
                 <span
-                  className={`
-                    text-[11px]
-                    font-semibold
-                    whitespace-nowrap
-                    ${
-                      active
-                        ? "text-navy"
-                        : done
-                          ? "text-green-deep"
-                          : "text-ink-faint"
-                    }
-                  `}
+                  className={`text-[11px] font-semibold whitespace-nowrap ${
+                    active ? "text-navy" : done ? "text-green-deep" : "text-ink-faint"
+                  }`}
                 >
                   {step}
                 </span>
-              </div>
+              </button>
 
               {/* =================================================
                   CONNECTOR

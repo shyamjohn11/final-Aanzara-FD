@@ -532,9 +532,8 @@ export default function ProductsAdminPage() {
       next.categoryId = "Category is required.";
     }
 
-    if (!subCategoryId) {
-      next.subCategoryId = "Sub category is required.";
-    } else if (
+    if (
+      subCategoryId &&
       categoryId &&
       filteredSubCategories.length > 0 &&
       !filteredSubCategories.some((s) => s.subCategoryId === subCategoryId)
@@ -1694,7 +1693,7 @@ export default function ProductsAdminPage() {
                 <button
                   type="button"
                   onClick={saveProduct}
-                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !subCategoryId || !brandId || !price || !mrp}
+                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !price || !mrp}
                   className="h-9 rounded-lg bg-[#1769F5] px-5 text-[10px] font-semibold text-white transition hover:bg-[#0F5BDE] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting

@@ -33,7 +33,7 @@ type InventoryItem = {
   status: "In Stock" | "Low Stock" | "Out of Stock";
 };
 
-const CATEGORIES = [
+const FALLBACK_CATEGORIES = [
   "Staples",
   "Biscuits",
   "Home Care",
@@ -51,12 +51,19 @@ export default function InventoryPage() {
 
   const [search, setSearch] = useState("");
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const [filter, setFilter] = useState<
     "All" | "In Stock" | "Low Stock" | "Out of Stock"
   >("All");
 
   const [category, setCategory] =
     useState("All");
+
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const [adjustId, setAdjustId] =
     useState<number | null>(null);
@@ -84,6 +91,8 @@ export default function InventoryPage() {
   const [warehousesLoading, setWarehousesLoading] =
     useState(false);
 
+  const [liveCategories, setLiveCategories] = useState<string[]>([]);
+
   // #56 below-reorder view + #60 movement history drawer state.
   const [lowOnly, setLowOnly] = useState(false);
   const [lowRows, setLowRows] = useState<InventoryItem[] | null>(null);
@@ -95,17 +104,34 @@ export default function InventoryPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filter, category, warehouseId]);
+
   /* ==========================================================
-     LOAD STOCK LIST (GET /api/admin/inventory)
+     LOAD STOCK LIST (GET /api/admin/inventory with backend pagination/filter)
   ========================================================== */
 
   useEffect(() => {
     let cancelled = false;
 
     const loadInventory = async () => {
+      setLoading(true);
       try {
-        const response = await inventoryApi.list();
-        const payload = response.data;
+        const response = await inventoryApi.list({
+          page,
+          pageSize,
+          search: debouncedSearch || undefined,
+          status: filter === "All" ? undefined : filter,
+          category: category === "All" ? undefined : category,
+          warehouseId: warehouseId || undefined,
+        });
+        const payload: any = response.data ?? response;
         const rawItems: any[] = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.items)
@@ -113,6 +139,7 @@ export default function InventoryPage() {
             : Array.isArray(payload?.data)
               ? payload.data
               : [];
+        const total = Number(payload?.totalCount ?? payload?.total ?? rawItems.length);
 
         if (cancelled) return;
 
@@ -125,13 +152,9 @@ export default function InventoryPage() {
           );
 
           return {
-            id: index + 1,
-            productId: String(
-              item.productId ?? item.id ?? ""
-            ),
-            name: String(
-              item.productName ?? item.name ?? "Unnamed product"
-            ),
+            id: (page - 1) * pageSize + index + 1,
+            productId: String(item.productId ?? item.id ?? ""),
+            name: String(item.productName ?? item.name ?? "Unnamed product"),
             sku: String(item.sku ?? item.skuCode ?? ""),
             category: String(item.category ?? item.categoryName ?? "Uncategorized"),
             brand: String(item.brand ?? item.brandName ?? ""),
@@ -141,52 +164,26 @@ export default function InventoryPage() {
           };
         });
 
-        // Also show products with no inventory row (stock 0) so every product appears
-        try {
-          const prodRes: any = await productsApi.list({ page: 1, pageSize: 100 });
-          const prodPayload: any = prodRes?.data ?? prodRes;
-          const prodRaw: any[] = Array.isArray(prodPayload)
-            ? prodPayload
-            : Array.isArray(prodPayload?.items)
-              ? prodPayload.items
-              : [];
-          const existingIds = new Set(mapped.map((m) => m.productId));
-          let nextId = mapped.length + 1;
-          prodRaw.forEach((p: any) => {
-            const pid = String(p.productId ?? p.id ?? "");
-            if (!pid || existingIds.has(pid)) return;
-            mapped.push({
-              id: nextId++,
-              productId: pid,
-              name: String(p.productName ?? p.name ?? "Unnamed product"),
-              sku: String(p.sku ?? ""),
-              category: String(p.categoryName ?? "Uncategorized"),
-              brand: String(p.brandName ?? p.brand ?? ""),
-              stock: 0,
-              minStock: 10,
-              status: getStatus(0, 10),
-            });
-          });
-        } catch {}
-
-        if (mapped.length === 0) {
-          setInventory([]);
-          return;
-        }
-
         setInventory(mapped);
+        setTotalCount(total);
       } catch (error) {
         console.error("Unable to load inventory:", error);
-        if (!cancelled) setInventory([]);
+        if (!cancelled) {
+          setInventory([]);
+          setTotalCount(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
-    loadInventory();
+    // Skip low-stock alternate source when that pill is active — it has its own fetch
+    if (!lowOnly) loadInventory();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page, pageSize, debouncedSearch, filter, category, warehouseId, lowOnly]);
 
   /* ==========================================================
      LOAD WAREHOUSES (needed for receive/adjust calls)
@@ -291,6 +288,33 @@ export default function InventoryPage() {
   }, []);
 
   /* ==========================================================
+     LOAD CATEGORIES FOR FILTER
+  ========================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCats = async () => {
+      try {
+        const res: any = await categoriesApi.list();
+        const payload: any = res?.data ?? res;
+        const raw: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
+        const names = raw
+          .map((r: any) => String(r.categoryName ?? r.name ?? "").trim())
+          .filter((n: string) => n.length > 0);
+        if (!cancelled && names.length > 0) setLiveCategories(names);
+      } catch {}
+    };
+    loadCats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ==========================================================
      UPDATE STATUS
   ========================================================== */
 
@@ -314,71 +338,37 @@ export default function InventoryPage() {
   ========================================================== */
 
   const filteredInventory = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
-
-    // #56 below-reorder source when the pill is active.
-    const source =
-      lowOnly && lowRows !== null ? lowRows : inventory;
-
-    return source.filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.name
-          .toLowerCase()
-          .includes(query) ||
-        item.sku
-          .toLowerCase()
-          .includes(query) ||
-        item.brand
-          .toLowerCase()
-          .includes(query);
-
-      const matchesFilter =
-        filter === "All" ||
-        item.status === filter;
-
-      const matchesCategory =
-        category === "All" ||
-        item.category === category;
-
-      return (
-        matchesSearch &&
-        matchesFilter &&
-        matchesCategory
-      );
-    });
-  }, [
-    inventory,
-    lowOnly,
-    lowRows,
-    search,
-    filter,
-    category,
-  ]);
+    // Backend already filters by search/status/category when lowOnly is off;
+    // keep client-side filter only for the low-stock alternate source.
+    if (lowOnly && lowRows !== null) {
+      const query = debouncedSearch.trim().toLowerCase();
+      return lowRows.filter((item) => {
+        const matchesSearch =
+          !query ||
+          item.name.toLowerCase().includes(query) ||
+          item.sku.toLowerCase().includes(query) ||
+          item.brand.toLowerCase().includes(query);
+        const matchesFilter = filter === "All" || item.status === filter;
+        const matchesCategory = category === "All" || item.category === category;
+        return matchesSearch && matchesFilter && matchesCategory;
+      });
+    }
+    return inventory;
+  }, [inventory, lowOnly, lowRows, debouncedSearch, filter, category]);
 
   /* ==========================================================
      STATS
   ========================================================== */
 
-  const totalProducts = inventory.length;
+  const totalProducts = lowOnly && lowRows !== null ? lowRows.length : totalCount || inventory.length;
 
-  const inStock = inventory.filter(
-    (item) => item.status === "In Stock"
-  ).length;
+  const inStock = inventory.filter((item) => item.status === "In Stock").length;
 
-  const lowStock = inventory.filter(
-    (item) => item.status === "Low Stock"
-  ).length;
+  const lowStock = inventory.filter((item) => item.status === "Low Stock").length;
 
-  const outOfStock = inventory.filter(
-    (item) => item.status === "Out of Stock"
-  ).length;
+  const outOfStock = inventory.filter((item) => item.status === "Out of Stock").length;
 
-  const totalUnits = inventory.reduce(
-    (total, item) => total + item.stock,
-    0
-  );
+  const totalUnits = inventory.reduce((total, item) => total + item.stock, 0);
 
   /* ==========================================================
      OPEN ADJUST MODAL
@@ -896,7 +886,7 @@ export default function InventoryPage() {
                 All Categories
               </option>
 
-              {CATEGORIES.map(
+              {(liveCategories.length > 0 ? liveCategories : FALLBACK_CATEGORIES).map(
                 (item) => (
                   <option
                     key={item}
@@ -993,7 +983,7 @@ export default function InventoryPage() {
               </h2>
 
               <p className="mt-1 text-[9px] text-[#8995A5]">
-                {filteredInventory.length} products found
+                {lowOnly && lowRows !== null ? filteredInventory.length : totalCount} products found {loading ? "· loading…" : ""}
               </p>
 
             </div>
@@ -1494,31 +1484,27 @@ export default function InventoryPage() {
                 </p>
 
                 <div className="flex items-center gap-1">
-
                   <button
                     type="button"
-                    disabled
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#4D5C72] hover:bg-[#F1F4F8] disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <ChevronLeft
-                      size={14}
-                    />
+                    <ChevronLeft size={14} />
                   </button>
 
                   <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-[#173B7A] px-2 text-[9px] font-semibold text-white">
-                    1
+                    {page} / {Math.max(1, Math.ceil((lowOnly && lowRows !== null ? lowRows.length : totalCount) / pageSize))}
                   </span>
 
                   <button
                     type="button"
-                    disabled
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#B3BBC6]"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={loading || page >= Math.ceil((lowOnly && lowRows !== null ? lowRows.length : totalCount) / pageSize)}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[#E1E6ED] text-[#4D5C72] hover:bg-[#F1F4F8] disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <ChevronRight
-                      size={14}
-                    />
+                    <ChevronRight size={14} />
                   </button>
-
                 </div>
 
               </div>

@@ -19,6 +19,7 @@ type RelatedItem = {
   name: string;
   price: number;
   swatch: string;
+  image?: string;
 };
 
 export default function RelatedProducts() {
@@ -58,6 +59,7 @@ export default function RelatedProducts() {
             name: product.name,
             price: product.price,
             swatch: product.swatch || "#E5E7EB",
+            image: product.image,
           }));
 
         if (!cancelled) {
@@ -268,23 +270,14 @@ export default function RelatedProducts() {
                   ? product.swatch
                   : "#E5E7EB";
 
+              const productImage = (product as RelatedItem).image;
+
               return (
                 <div
                   key={`${productName}-${index}`}
-                  className="
-                    shrink-0
-                    w-[calc(50%-8px)]
-                    sm:w-[calc(33.333%-11px)]
-                    lg:w-[calc(20%-13px)]
-                  "
+                  className="shrink-0 w-[calc(50%-8px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(20%-13px)]"
                 >
-                  <CompactProductCard
-                    name={productName}
-                    price={productPrice}
-                    swatch={
-                      productSwatch
-                    }
-                  />
+                  <CompactProductCard name={productName} price={productPrice} swatch={productSwatch} image={productImage} />
                 </div>
               );
             }

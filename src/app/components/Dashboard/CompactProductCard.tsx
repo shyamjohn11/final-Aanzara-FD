@@ -5,6 +5,7 @@ type CompactProductCardProps = {
   name: string;
   price: number;
   swatch: string;
+  image?: string;
 };
 
 /* ============================================================
@@ -87,6 +88,7 @@ export default function CompactProductCard({
   name,
   price,
   swatch,
+  image,
 }: CompactProductCardProps) {
   const safeName = getSafeName(name);
   const safePrice = getSafePrice(price);
@@ -136,34 +138,26 @@ export default function CompactProductCard({
 
       <div
         aria-hidden="true"
-        className="
-          flex
-          h-24
-          items-center
-          justify-center
-        "
-        style={{
-          background: `linear-gradient(
-            160deg,
-            ${safeSwatch}22,
-            ${safeSwatch}0A
-          )`,
-        }}
+        className="flex h-24 items-center justify-center overflow-hidden bg-white border-b border-line"
       >
-        <div
-          className="
-            h-14
-            w-9
-            rounded-sm
-          "
-          style={{
-            background: `linear-gradient(
-              160deg,
-              ${safeSwatch},
-              ${safeSwatch}CC
-            )`,
-          }}
-        />
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt={safeName} className="h-full w-full object-contain p-2" loading="lazy" />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{
+              background: `linear-gradient(160deg, ${safeSwatch}22, ${safeSwatch}0A)`,
+            }}
+          >
+            <div
+              className="h-14 w-9 rounded-sm"
+              style={{
+                background: `linear-gradient(160deg, ${safeSwatch}, ${safeSwatch}CC)`,
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ======================================================

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Star,
   CircleCheck,
@@ -159,6 +160,7 @@ function adaptLiveProduct(live: Product): ProductDetailData {
       : 1;
 
   return {
+    productId: live.id,
     brand: live.brand?.trim() ? live.brand : "Brand",
     name: live.name,
     tags: [],
@@ -339,6 +341,7 @@ function ValidatedProductInfoPanel({
   product: ProductDetailData;
 }) {
   const { addToCart } = useCart();
+  const router = useRouter();
 
   const minimumQty = Math.max(
     1,
@@ -491,6 +494,42 @@ function ValidatedProductInfoPanel({
       window.setTimeout(() => setAdded(false), 1500);
     } catch (error) {
       console.error("Failed to add product to cart:", error);
+    }
+  };
+
+  const handleBuyNow = () => {
+    if (!Number.isFinite(qty) || qty < minimumQty || qty > 9999) return;
+    if (!p.inStock) return;
+
+    const liveId = (p as unknown as Record<string, unknown>).productId as string | undefined;
+    const fallbackId = liveId || p.sku || p.productCode;
+    if (!fallbackId) return;
+
+    try {
+      const cartProduct = {
+        id: String(fallbackId),
+        name: p.name,
+        brand: p.brand,
+        sku: p.sku,
+        pack: `Carton of ${minimumQty}`,
+        rating: safeRating,
+        reviews: reviewCount,
+        discount: 0,
+        mrp: p.priceTiers[0]?.price ?? 0,
+        price: p.priceTiers[0]?.price ?? 0,
+        bulkRate: p.priceTiers[0]?.price ?? 0,
+        bulkMoq: minimumQty,
+        moq: minimumQty,
+        inStock: p.inStock,
+        dispatch: p.deliveryEstimate,
+        swatch: "#2563EB",
+        accent: "#1E40AF",
+      } as unknown as import("@/app/data/products").Product;
+
+      addToCart(cartProduct, qty);
+      router.push("/checkout");
+    } catch (error) {
+      console.error("Failed to buy now:", error);
     }
   };
 
@@ -1211,6 +1250,8 @@ function ValidatedProductInfoPanel({
 
         <button
           type="button"
+          onClick={handleBuyNow}
+          disabled={!p.inStock}
           className="
             bg-green
             hover:bg-green-deep
@@ -1221,6 +1262,8 @@ function ValidatedProductInfoPanel({
             tracking-wide
             py-3.5
             rounded-lg
+            disabled:opacity-50
+            disabled:cursor-not-allowed
           "
         >
           BUY NOW (INSTANT CHECKOUT)

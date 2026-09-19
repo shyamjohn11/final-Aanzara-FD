@@ -11,6 +11,7 @@ type RecentlyViewedItem = {
   name: string;
   price: number;
   swatch: string;
+  image?: string;
 };
 
 export default function RecentlyViewedProducts() {
@@ -39,6 +40,7 @@ export default function RecentlyViewedProducts() {
             name: product.name,
             price: product.price,
             swatch: product.swatch || "#E5E7EB",
+            image: product.image,
           }));
 
         if (!cancelled) {
@@ -143,15 +145,23 @@ export default function RecentlyViewedProducts() {
                 "
               >
                 {/* Product Visual */}
-                <div
-                  aria-hidden="true"
-                  className="w-10 h-10 rounded-lg shrink-0"
-                  style={{
-                    background: hasSwatch
-                      ? `linear-gradient(160deg, ${item.swatch}, ${item.swatch}CC)`
-                      : "linear-gradient(160deg, #E5E7EB, #F3F4F6)",
-                  }}
-                />
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-10 w-10 rounded-lg object-cover border border-line shrink-0"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="w-10 h-10 rounded-lg shrink-0"
+                    style={{
+                      background: hasSwatch ? `linear-gradient(160deg, ${item.swatch}, ${item.swatch}CC)` : "linear-gradient(160deg, #E5E7EB, #F3F4F6)",
+                    }}
+                  />
+                )}
 
                 {/* Product Details */}
                 <div className="min-w-0 flex-1">

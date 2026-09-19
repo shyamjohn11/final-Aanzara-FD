@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import TopBar from "@/app/components/Dashboard/TopBar";
 import Header from "@/app/components/Header";
@@ -21,7 +22,7 @@ import NewsletterCentered from "@/app/components/Dashboard/NewsletterCentered";
 
 import Footer from "@/app/components/Footer";
 
-import { productsApi, productImagesApi } from "@/app/api/services";
+import { productsApi, productImagesApi, storefrontBrandsApi } from "@/app/api/services";
 import { mapProductSummary } from "@/app/api/productmap";
 import { extractErrorMessage } from "@/app/api/api";
 import type { Product } from "@/app/data/products";
@@ -59,12 +60,9 @@ function extractImageUrls(payload: unknown): string[] {
   return urls;
 }
 
-export default function ProductDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: productId } = use(params);
+export default function ProductDetailPage() {
+  const params = useParams();
+  const productId = String((params as Record<string, string | string[]>)?.id ?? "");
 
   const [navOpen, setNavOpen] = useState(false);
   const [liveProduct, setLiveProduct] = useState<Product | null>(null);
@@ -102,8 +100,30 @@ export default function ProductDetailPage({
           return;
         }
 
+        // Enrich brand name if missing (details endpoint has BrandId but not name) — use public storefront API so guests see it
+        let enriched = mapped;
+        if (!mapped.brand || mapped.brand === "Generic") {
+          try {
+            const brandRes: any = await storefrontBrandsApi.list({ count: 100 });
+            // Try both admin and storefront brand list shapes
+            const brandPayload: any = brandRes?.data ?? brandRes;
+            const brandItems: any[] = Array.isArray(brandPayload)
+              ? brandPayload
+              : Array.isArray(brandPayload?.items)
+                ? brandPayload.items
+                : [];
+            // Try to find by brandId from raw product details if available
+            const rawBrandId = (response as any)?.data?.brandId ?? (response as any)?.brandId;
+            const found = brandItems.find((b: any) => String(b.brandId ?? b.id ?? "") === String(rawBrandId ?? ""));
+            if (found) {
+              const brandName = String(found.brandName ?? found.name ?? "").trim();
+              if (brandName) enriched = { ...mapped, brand: brandName };
+            }
+          } catch {}
+        }
+
         if (!cancelled) {
-          setLiveProduct(mapped);
+          setLiveProduct(enriched);
         }
 
         try {
