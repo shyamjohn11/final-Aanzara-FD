@@ -17,6 +17,7 @@ type FrequentlyBoughtItem = {
   name: string;
   price: number;
   swatch: string;
+  image?: string;
 };
 
 /* ============================================================
@@ -124,6 +125,7 @@ export default function FrequentlyBoughtTogether() {
             name: product.name,
             price: product.price,
             swatch: product.swatch || "#E5E7EB",
+            image: product.image,
           }));
 
         if (!cancelled) {
@@ -407,25 +409,25 @@ export default function FrequentlyBoughtTogether() {
                 min-w-0
               "
             >
-              {/* PRODUCT */}
+              {/* PRODUCT IMAGE */}
 
               <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  aria-hidden="true"
-                  className="
-                    w-11
-                    h-11
-                    rounded-lg
-                    shrink-0
-                  "
-                  style={{
-                    background: `linear-gradient(
-                      160deg,
-                      ${item.swatch},
-                      ${item.swatch}CC
-                    )`,
-                  }}
-                />
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-11 w-11 rounded-lg object-cover border border-line shrink-0"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="w-11 h-11 rounded-lg shrink-0"
+                    style={{
+                      background: `linear-gradient(160deg, ${item.swatch}, ${item.swatch}CC)`,
+                    }}
+                  />
+                )}
 
                 <div className="min-w-0">
                   <div

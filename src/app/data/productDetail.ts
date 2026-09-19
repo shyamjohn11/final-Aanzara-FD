@@ -8,6 +8,7 @@ export type PriceTier = {
 };
 
 export type ProductDetail = {
+  productId?: string;
   brand: string;
   name: string;
   tags: string[];

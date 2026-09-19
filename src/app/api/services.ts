@@ -681,9 +681,16 @@ export const warehousesApi = adminResource("/api/admin/warehouses");
 // ============================================================
 
 export const inventoryApi = {
-  // #55 GET /api/admin/inventory — stock list
-  list() {
-    return api.get("/api/admin/inventory");
+  // #55 GET /api/admin/inventory?Page=&PageSize=&Search=&Status=&Category=&WarehouseId= — stock list with backend pagination/filter
+  list(query: { page?: number; pageSize?: number; search?: string; status?: string; category?: string; warehouseId?: string } = {}) {
+    const params = new URLSearchParams();
+    params.set("Page", String(query.page ?? 1));
+    params.set("PageSize", String(query.pageSize ?? 25));
+    if (query.search) params.set("Search", query.search);
+    if (query.status && query.status !== "All") params.set("Status", query.status);
+    if (query.category && query.category !== "All") params.set("Category", query.category);
+    if (query.warehouseId) params.set("WarehouseId", query.warehouseId);
+    return api.get(`/api/admin/inventory?${params.toString()}`);
   },
 
   // #56 GET /api/admin/inventory/low-stock — low-stock alert banner/section
