@@ -77,6 +77,10 @@ export default function AdminHeader({
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
+  // Logged-in admin user state
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+
   // Live unread count for the admin inbox (Notifications table).
   // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -118,13 +122,9 @@ export default function AdminHeader({
     };
   }, []);
 
-  /* ========================================================
+/* ========================================================
      LOGGED-IN ADMIN USER (same shape as storefront Header)
-  ======================================================== */
-
-  const [adminUser, setAdminUser] =
-    useState<AdminUser | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+   ======================================================== */
 
   useEffect(() => {
     const loadUser = () => {
