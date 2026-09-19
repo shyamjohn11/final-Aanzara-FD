@@ -173,6 +173,7 @@ export default function AgentDealersPage() {
   const agentId = String(params?.agentId ?? "");
 
   const [agentName, setAgentName] = useState("");
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [rows, setRows] = useState<DealerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -214,6 +215,7 @@ export default function AgentDealersPage() {
           ((agentRes as { data?: unknown })?.data ??
             agentRes) as Record<string, unknown>;
         setAgentName(String(a.name ?? "Agent"));
+        setAgentStatus(String(a.status ?? ""));
       }
       const { rows: mapped, total } = unwrapList(
         (dealerRes as { data?: unknown })?.data ?? dealerRes
@@ -404,15 +406,19 @@ export default function AgentDealersPage() {
             Back to Agents
           </button>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="font-sora text-[20px] font-bold text-navy">
-                Dealers{agentName ? ` — ${agentName}` : ""}
-              </h1>
-              <p className="mt-1 text-[12.5px] text-ink-soft">
-                Shops served by this agent. Every dealer
-                created here is automatically assigned to
-                this agent.
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy text-white font-bold">
+                {(agentName || "A").charAt(0).toUpperCase()}
+              </span>
+              <div>
+                <h1 className="font-sora text-[18px] font-bold text-navy">
+                  Dealers{agentName ? ` — ${agentName}` : ""}
+                </h1>
+                <p className="mt-0.5 flex items-center gap-2 text-[12px] text-ink-soft">
+                  {agentStatus && <span className="rounded bg-[#EAF8F0] px-2 py-0.5 text-[10px] font-bold text-[#249357]">{agentStatus}</span>}
+                  Shops assigned to this agent
+                </p>
+              </div>
             </div>
             <button
               type="button"
@@ -423,6 +429,13 @@ export default function AgentDealersPage() {
               Add Dealer
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => router.push(`/admin/agents/${agentId}`)}
+            className="inline-flex w-fit items-center gap-1.5 text-[12px] font-semibold text-ink-soft hover:text-navy"
+          >
+            View Agent Details
+          </button>
         </div>
 
         {/* Stats */}
