@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Award,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 import Header from "@/app/components/Header";
+import Footer from "@/app/components/Footer";
 import MainNav from "@/app/MainNav";
 import TopBar from "../components/Dashboard/TopBar";
 import { brandsApi } from "@/app/api/services";
@@ -22,6 +24,14 @@ type Brand = {
   logo: string;
   logoClass?: string;
 };
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 const categories = [
   "All Brands",
@@ -654,8 +664,8 @@ export default function BrandsPage() {
           >
             {visibleBrands.map(
               (brand) => (
-                <button
-                  type="button"
+                <Link
+                  href={`/brands/${slugify(brand.name)}`}
                   key={`${brand.name}-${brand.category}`}
                   aria-label={`View ${brand.name} brand`}
                   className="group flex min-h-[114px] flex-col items-center justify-center rounded-xl border border-line bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition duration-200 hover:-translate-y-1 hover:border-[#b8c7dc] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-navy/20"
@@ -674,7 +684,7 @@ export default function BrandsPage() {
                   <p className="mt-3 text-center text-[11px] text-ink-soft">
                     {brand.category}
                   </p>
-                </button>
+                </Link>
               )
             )}
           </section>
@@ -734,6 +744,9 @@ export default function BrandsPage() {
           </div>
         )}
       </main>
+
+      {/* FOOTER */}
+      <Footer />
     </div>
   );
 }
