@@ -11,10 +11,15 @@ import {
   Eye,
   Phone,
   Mail,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatusBadge from "@/app/components/Admin/StatusBadge";
+import ConfirmModal from "@/app/components/Admin/ConfirmModal";
 import { agentsApi } from "@/app/api/services";
 import { extractErrorMessage } from "@/app/api/api";
 import { toast } from "react-toastify";
@@ -136,92 +141,6 @@ function unwrapList(payload: unknown): {
 }
 
 /* ============================================================
-   DUMMY DATA (temporary — remove once backend is connected)
-============================================================ */
-
-const USE_DUMMY_DATA = true;
-
-const DUMMY_AGENTS: AgentRow[] = [
-  {
-    id: "AGT-001",
-    agentId: "AGT-001",
-    name: "Ravi Kumar",
-    email: "ravi.kumar@aanzara.com",
-    phone: "+91 98765 43210",
-    employeeCode: "EMP-1042",
-    status: "Active",
-    dealerCount: 12,
-  },
-  {
-    id: "AGT-002",
-    agentId: "AGT-002",
-    name: "Priya Sharma",
-    email: "priya.sharma@aanzara.com",
-    phone: "+91 91234 56789",
-    employeeCode: "EMP-1078",
-    status: "Active",
-    dealerCount: 7,
-  },
-  {
-    id: "AGT-003",
-    agentId: "AGT-003",
-    name: "Mohammed Irfan",
-    email: "irfan.m@aanzara.com",
-    phone: "+91 90000 11223",
-    employeeCode: "EMP-1103",
-    status: "Inactive",
-    dealerCount: 3,
-  },
-  {
-    id: "AGT-004",
-    agentId: "AGT-004",
-    name: "Deepa Nair",
-    email: "deepa.nair@aanzara.com",
-    phone: "+91 99887 66554",
-    employeeCode: "EMP-1121",
-    status: "Suspended",
-    dealerCount: 0,
-  },
-  {
-    id: "AGT-005",
-    agentId: "AGT-005",
-    name: "Arjun Verma",
-    email: "arjun.verma@aanzara.com",
-    phone: null,
-    employeeCode: "EMP-1156",
-    status: "Active",
-    dealerCount: 19,
-  },
-];
-
-function getDummyPage(
-  page: number,
-  pageSize: number,
-  search: string,
-  status: string
-): { rows: AgentRow[]; total: number } {
-  let filtered = DUMMY_AGENTS;
-
-  if (status && status !== "All") {
-    filtered = filtered.filter((a) => a.status === status);
-  }
-  if (search) {
-    const q = search.toLowerCase();
-    filtered = filtered.filter(
-      (a) =>
-        a.name.toLowerCase().includes(q) ||
-        a.email?.toLowerCase().includes(q) ||
-        a.employeeCode?.toLowerCase().includes(q)
-    );
-  }
-
-  const total = filtered.length;
-  const start = (page - 1) * pageSize;
-  const rows = filtered.slice(start, start + pageSize);
-  return { rows, total };
-}
-
-/* ============================================================
    PAGE — Admin → Agents → (View Dealers)
 ============================================================ */
 
@@ -237,6 +156,21 @@ export default function AdminAgentsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<AgentRow | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    passphrase: "",
+    employeeCode: "",
+    status: "Active",
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -247,23 +181,6 @@ export default function AdminAgentsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-
-    // --- TEMPORARY: dummy data path (remove when backend is ready) ---
-    if (USE_DUMMY_DATA) {
-      const { rows: mapped, total } = getDummyPage(
-        page,
-        pageSize,
-        debouncedSearch,
-        statusFilter
-      );
-      // tiny artificial delay so the loading state is visible, like a real call
-      await new Promise((r) => setTimeout(r, 150));
-      setRows(mapped);
-      setTotalCount(total);
-      setLoading(false);
-      return;
-    }
-    // --- END TEMPORARY ---
 
     try {
       const res = await agentsApi.list({
@@ -311,12 +228,34 @@ export default function AdminAgentsPage() {
               Select an agent to view and manage their dealers/shops.
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5">
-            <Users size={16} className="text-navy" />
-            <span className="text-[13px] font-bold text-ink">
-              {totalCount}
-            </span>
-            <span className="text-[12px] text-ink-soft">total agents</span>
+          <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5">
+              <Users size={16} className="text-navy" />
+              <span className="text-[13px] font-bold text-ink">
+                {totalCount}
+              </span>
+              <span className="text-[12px] text-ink-soft">total agents</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setForm({
+                  name: "",
+                  email: "",
+                  phone: "",
+                  passphrase: "",
+                  employeeCode: "",
+                  status: "Active",
+                });
+                setFormErrors({});
+                setModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-navy px-4 py-2.5 text-[12.5px] font-bold text-white hover:opacity-90"
+            >
+              <Plus size={15} />
+              Add Agent
+            </button>
           </div>
         </div>
 
@@ -431,16 +370,54 @@ export default function AdminAgentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push(`/admin/agents/${row.id}/dealers`)
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-semibold text-navy hover:border-navy"
-                      >
-                        <Eye size={13} />
-                        View Dealers
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/admin/agents/${row.id}`)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-semibold text-navy hover:border-navy"
+                        >
+                          <Eye size={13} />
+                          Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/admin/agents/${row.id}/dealers`)
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#EDF3FF] px-3 py-2 text-[12px] font-bold text-[#1769F5] hover:bg-[#DCE8FF]"
+                        >
+                          <Store size={13} />
+                          Dealers
+                        </button>
+                        <button
+                          type="button"
+                          title="Edit"
+                          onClick={() => {
+                            setEditing(row);
+                            setForm({
+                              name: row.name,
+                              email: row.email ?? "",
+                              phone: row.phone ?? "",
+                              passphrase: "",
+                              employeeCode: row.employeeCode ?? "",
+                              status: row.status,
+                            });
+                            setFormErrors({});
+                            setModalOpen(true);
+                          }}
+                          className="rounded-lg border border-line p-2 text-ink-soft hover:border-navy hover:text-navy"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete"
+                          onClick={() => setDeleteId(row.id)}
+                          className="rounded-lg border border-line p-2 text-ink-soft hover:border-red-400 hover:text-red-500"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -479,6 +456,226 @@ export default function AdminAgentsPage() {
           </div>
         </div>
       </div>
+
+      {/* Add / Edit agent modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-xl bg-white">
+            <div className="sticky top-0 flex items-center justify-between border-b border-line bg-white px-5 py-4">
+              <h2 className="font-sora text-[15px] font-bold text-navy">
+                {editing ? "Edit Agent" : "Add Agent"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-line p-1.5 text-ink-soft hover:text-ink"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 px-5 py-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-[11.5px] font-semibold text-ink">
+                  Name <span className="text-red-500">*</span>
+                </span>
+                <input
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  placeholder="Agent full name"
+                  className={`h-10 rounded-lg border bg-white px-3 text-[13px] outline-none focus:border-navy ${formErrors.name ? "border-red-400" : "border-line"}`}
+                />
+                {formErrors.name && (
+                  <span className="text-[11px] text-red-500">
+                    {formErrors.name}
+                  </span>
+                )}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink">
+                  Email <span className="text-red-500">*</span>
+                </span>
+                <input
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                  placeholder="agent@example.com"
+                  className={`h-10 rounded-lg border bg-white px-3 text-[13px] outline-none focus:border-navy ${formErrors.email ? "border-red-400" : "border-line"}`}
+                />
+                {formErrors.email && (
+                  <span className="text-[11px] text-red-500">
+                    {formErrors.email}
+                  </span>
+                )}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink">
+                  Phone
+                </span>
+                <input
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                  placeholder="10-digit mobile"
+                  className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] outline-none focus:border-navy"
+                />
+              </label>
+              {!editing && (
+                <label className="flex flex-col gap-1 sm:col-span-2">
+                  <span className="text-[11.5px] font-semibold text-ink">
+                    Passphrase <span className="text-red-500">*</span>
+                  </span>
+                  <input
+                    type="password"
+                    value={form.passphrase}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        passphrase: e.target.value,
+                      }))
+                    }
+                    placeholder="Min 12 characters"
+                    className={`h-10 rounded-lg border bg-white px-3 text-[13px] outline-none focus:border-navy ${formErrors.passphrase ? "border-red-400" : "border-line"}`}
+                  />
+                  {formErrors.passphrase && (
+                    <span className="text-[11px] text-red-500">
+                      {formErrors.passphrase}
+                    </span>
+                  )}
+                </label>
+              )}
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink">
+                  Employee Code
+                </span>
+                <input
+                  value={form.employeeCode}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      employeeCode: e.target.value,
+                    }))
+                  }
+                  placeholder="EMP-0001"
+                  className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] outline-none focus:border-navy"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink">
+                  Status
+                </span>
+                <select
+                  value={form.status}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, status: e.target.value }))
+                  }
+                  className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] outline-none"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Suspended">Suspended</option>
+                </select>
+              </label>
+            </div>
+            <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-white px-5 py-3.5">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-line px-4 py-2.5 text-[12.5px] font-semibold text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={async () => {
+                  const next: Record<string, string> = {};
+                  if (!form.name.trim()) next.name = "Name is required.";
+                  if (!form.email.trim()) next.email = "Email is required.";
+                  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+                    next.email = "Enter a valid email.";
+                  if (!editing && form.passphrase.length < 12)
+                    next.passphrase = "Min 12 characters.";
+                  setFormErrors(next);
+                  if (Object.keys(next).length > 0) return;
+                  setSaving(true);
+                  try {
+                    if (editing) {
+                      await agentsApi.update(editing.id, {
+                        name: form.name.trim(),
+                        email: form.email.trim(),
+                        phone: form.phone.trim() || null,
+                        employeeCode: form.employeeCode.trim() || null,
+                        status: form.status,
+                      });
+                      toast.success("Agent updated successfully.");
+                    } else {
+                      await agentsApi.create({
+                        name: form.name.trim(),
+                        email: form.email.trim(),
+                        phone: form.phone.trim() || null,
+                        passphrase: form.passphrase,
+                        employeeCode: form.employeeCode.trim() || null,
+                        status: form.status,
+                      });
+                      toast.success("Agent created successfully.");
+                    }
+                    setModalOpen(false);
+                    void load();
+                  } catch (error) {
+                    toast.error(
+                      extractErrorMessage(error, "Unable to save agent.")
+                    );
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="rounded-lg bg-navy px-5 py-2.5 text-[12.5px] font-bold text-white disabled:opacity-50"
+              >
+                {saving
+                  ? "Saving…"
+                  : editing
+                    ? "Save Changes"
+                    : "Add Agent"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={deleteId !== null}
+        title="Delete agent?"
+        description="The agent and their user account link will be removed. Agents with dealers cannot be deleted."
+        confirmText="Delete"
+        onConfirm={async () => {
+          if (!deleteId) return;
+          setDeleting(true);
+          try {
+            await agentsApi.remove(deleteId);
+            toast.success("Agent deleted successfully.");
+            setDeleteId(null);
+            void load();
+          } catch (error) {
+            toast.error(
+              extractErrorMessage(error, "Unable to delete agent.")
+            );
+          } finally {
+            setDeleting(false);
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+        loading={deleting}
+        danger
+      />
     </AdminLayout>
   );
 }
