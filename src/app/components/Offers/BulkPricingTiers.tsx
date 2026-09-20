@@ -207,42 +207,42 @@ function mapWholesaleToTier(
 export default function BulkPricingTiers() {
   const [tiers, setTiers] = useState<BulkTier[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [fetchError, setFetchError] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
-      setFetchError("");
       try {
         // Public storefront sources (active only, no auth required).
-        const rulesResponse = await dealsApi.cartRules(25);
-        const rulesPayload: unknown =
-          (rulesResponse as { data?: unknown })?.data ?? rulesResponse;
-        const ruleItems = unwrapItems(rulesPayload);
-
-        let mapped: BulkTier[] = ruleItems.map(mapCartRuleToTier);
+        // Network/CORS failures are swallowed — shelf shows empty state
+        // instead of a red error so the offer page stays usable.
+        let mapped: BulkTier[] = [];
+        try {
+          const rulesResponse = await dealsApi.cartRules(25);
+          const rulesPayload: unknown =
+            (rulesResponse as { data?: unknown })?.data ?? rulesResponse;
+          const ruleItems = unwrapItems(rulesPayload);
+          mapped = ruleItems.map(mapCartRuleToTier);
+        } catch {
+          mapped = [];
+        }
 
         if (mapped.length === 0) {
-          const wholesaleResponse = await dealsApi.bulkTiers(25);
-          const wholesalePayload: unknown =
-            (wholesaleResponse as { data?: unknown })?.data ??
-            wholesaleResponse;
-          const wholesaleItems = unwrapItems(wholesalePayload);
-          mapped = wholesaleItems.map(mapWholesaleToTier);
+          try {
+            const wholesaleResponse = await dealsApi.bulkTiers(25);
+            const wholesalePayload: unknown =
+              (wholesaleResponse as { data?: unknown })?.data ??
+              wholesaleResponse;
+            const wholesaleItems = unwrapItems(wholesalePayload);
+            mapped = wholesaleItems.map(mapWholesaleToTier);
+          } catch {
+            // keep mapped as-is (empty) on wholesale failure
+          }
         }
 
         if (!cancelled) {
           setTiers(mapped);
-        }
-      } catch (error) {
-        console.error("Unable to load bulk pricing tiers:", error);
-        if (!cancelled) {
-          setFetchError(
-            "Unable to load bulk pricing. Please try again.",
-          );
-          setTiers([]);
         }
       } finally {
         if (!cancelled) {
@@ -302,20 +302,6 @@ export default function BulkPricingTiers() {
         business as your order volume
         grows.
       </p>
-
-      {fetchError && (
-        <p
-          className="
-            text-[12px]
-            text-red-600
-            text-center
-            mt-4
-          "
-          role="alert"
-        >
-          {fetchError}
-        </p>
-      )}
 
       {/* Pricing Tiers */}
       {loading ? (

@@ -386,29 +386,31 @@ export default function CartItemCard({
             PRODUCT IMAGE
         ====================================================== */}
 
-        <div
-          className="w-full sm:w-[130px] h-[110px] shrink-0 rounded-lg flex items-center justify-center"
-          style={{
-            background: `linear-gradient(
-              160deg,
-              ${swatch}22,
-              ${swatch}0D
-            )`,
-          }}
-          role="img"
-          aria-label={`${product.name} product preview`}
-        >
-          <div
-            className="w-11 h-16 rounded-md shadow-sm"
-            style={{
-              background: `linear-gradient(
-                160deg,
-                ${swatch},
-                ${accent}
-              )`,
-            }}
+        {product.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full sm:w-[130px] h-[110px] shrink-0 rounded-lg object-contain border border-line bg-white p-2"
+            loading="lazy"
           />
-        </div>
+        ) : (
+          <div
+            className="w-full sm:w-[130px] h-[110px] shrink-0 rounded-lg flex items-center justify-center"
+            style={{
+              background: `linear-gradient(160deg, ${swatch}22, ${swatch}0D)`,
+            }}
+            role="img"
+            aria-label={`${product.name} product preview`}
+          >
+            <div
+              className="w-11 h-16 rounded-md shadow-sm"
+              style={{
+                background: `linear-gradient(160deg, ${swatch}, ${accent})`,
+              }}
+            />
+          </div>
+        )}
 
         {/* =====================================================
             PRODUCT DETAILS

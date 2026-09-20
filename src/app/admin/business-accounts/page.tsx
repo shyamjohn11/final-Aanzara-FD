@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { businessAccountsApi, dealersApi } from "@/app/api/services";
+import { extractErrorMessage } from "@/app/api/api";
+import { toast } from "react-toastify";
 
 type AccountStatus = "Active" | "Pending" | "Inactive";
 
@@ -96,7 +98,7 @@ export default function BusinessAccountsPage() {
       } catch {}
       // Agent-added dealer shops — same list, so Business Account List shows all shops
       try {
-        const res: any = await dealersApi.list({ page: 1, pageSize: 100 });
+        const res: any = await dealersApi.list(1, 100);
         const payload = res?.data ?? res;
         const raw: any[] = Array.isArray(payload)
           ? payload
@@ -382,23 +384,43 @@ export default function BusinessAccountsPage() {
       editingId !== null
         ? accounts.find((account) => account.id === editingId)
         : undefined;
+    // Dealer rows use Dealers API (shopName/gstNumber), business rows use BusinessAccounts API
+    const isDealerEdit = editing?.source === "dealer";
     try {
-      const payload = {
-        businessName,
-        ownerName,
-        email,
-        phone,
-        gst,
-        address,
-        status: form.status,
-      };
-      if (editing?.serverId) {
-        await businessAccountsApi.update(editing.serverId, payload);
+      if (isDealerEdit && editing?.serverId) {
+        await dealersApi.update(editing.serverId, {
+          shopName: businessName,
+          ownerName,
+          email: email || null,
+          phone,
+          gstNumber: gst || null,
+          address: address || null,
+          status: form.status,
+        });
+      } else if (editing?.serverId) {
+        await businessAccountsApi.update(editing.serverId, {
+          businessName,
+          ownerName,
+          email,
+          phone,
+          gst,
+          address,
+          status: form.status,
+        });
       } else {
-        await businessAccountsApi.create(payload);
+        await businessAccountsApi.create({
+          businessName,
+          ownerName,
+          email,
+          phone,
+          gst,
+          address,
+          status: form.status,
+        });
       }
-    } catch {
-      /* best-effort: fall through to local logic */
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Unable to save. Please try again."));
+      return;
     }
 
     if (editingId !== null) {
@@ -418,26 +440,42 @@ export default function BusinessAccountsPage() {
             : account
         )
       );
+      toast.success("Updated successfully");
     } else {
-      setAccounts((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          businessName,
-          ownerName,
-          email,
-          phone,
-          gst,
-          address,
-          status: form.status,
-          createdAt: new Date().toISOString().split("T")[0],
-        },
-      ]);
+      // Re-fetch to get real serverId instead of local Date.now
+      try {
+        const res: any = await businessAccountsApi.list(1, 100);
+        const payload: any = res?.data ?? res;
+        const raw: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
+        if (raw.length > 0) {
+          const last = raw[raw.length - 1];
+          setAccounts((current) => [
+            ...current,
+            {
+              id: Date.now(),
+              serverId: String(last.businessAccountId ?? last.id ?? ""),
+              businessName,
+              ownerName,
+              email,
+              phone,
+              gst,
+              address,
+              status: form.status,
+              createdAt: new Date().toISOString().split("T")[0],
+              source: "business",
+            },
+          ]);
+        }
+      } catch {}
+      toast.success("Created successfully");
     }
 
     setShowForm(false);
     resetForm();
-    showSuccess();
   };
 
   /* =====================================================
@@ -450,20 +488,23 @@ export default function BusinessAccountsPage() {
     const target = accounts.find((account) => account.id === deleteId);
     if (target?.serverId) {
       try {
-        await businessAccountsApi.remove(target.serverId);
-      } catch {
-        /* best-effort */
+        if (target.source === "dealer") {
+          await dealersApi.remove(target.serverId);
+        } else {
+          await businessAccountsApi.remove(target.serverId);
+        }
+      } catch (error) {
+        toast.error(extractErrorMessage(error, "Unable to delete. Dealers with products cannot be deleted."));
+        return;
       }
     }
 
     setAccounts((current) =>
-      current.filter(
-        (account) => account.id !== deleteId
-      )
+      current.filter((account) => account.id !== deleteId)
     );
 
     setDeleteId(null);
-    showSuccess();
+    toast.success("Deleted successfully");
   };
 
   /* =====================================================
@@ -475,26 +516,23 @@ export default function BusinessAccountsPage() {
     const newStatus = target?.status === "Active" ? "Inactive" : "Active";
     if (target?.serverId) {
       try {
-        await businessAccountsApi.setStatus(target.serverId, newStatus);
-      } catch {
-        /* best-effort */
+        if (target.source === "dealer") {
+          await dealersApi.setStatus(target.serverId, newStatus);
+        } else {
+          await businessAccountsApi.setStatus(target.serverId, newStatus);
+        }
+      } catch (error) {
+        toast.error(extractErrorMessage(error, "Unable to update status."));
+        return;
       }
     }
     setAccounts((current) =>
       current.map((account) => {
         if (account.id !== id) return account;
-
-        return {
-          ...account,
-          status:
-            account.status === "Active"
-              ? "Inactive"
-              : "Active",
-        };
+        return { ...account, status: newStatus };
       })
     );
-
-    showSuccess();
+    toast.success("Status updated");
   };
 
   /* =====================================================

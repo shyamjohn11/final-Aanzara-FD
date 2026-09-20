@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { api, extractErrorMessage } from "@/app/api/api";
-import { inventoryApi, warehousesApi, productsApi } from "@/app/api/services";
+import { inventoryApi, warehousesApi, productsApi, categoriesApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Search,

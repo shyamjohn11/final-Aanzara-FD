@@ -353,6 +353,25 @@ export default function ProfilePage() {
     }
   };
 
+  const normalizeAvatarUrl = (url?: string | null): string => {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (!trimmed) return "";
+    // Stored URLs may be absolute LAN http://192.168.31.9:5000/uploads/... — convert to proxied /uploads/...
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      try {
+        const u = new URL(trimmed);
+        const idx = u.pathname.indexOf("/uploads/");
+        if (idx !== -1) return u.pathname.substring(idx);
+        return u.pathname;
+      } catch {
+        const idx = trimmed.indexOf("/uploads/");
+        if (idx !== -1) return trimmed.substring(idx);
+      }
+    }
+    return trimmed;
+  };
+
   // =====================================================
   // MAP API DATA TO FORM
   // =====================================================
@@ -387,7 +406,7 @@ export default function ProfilePage() {
       phone: phone || "",
       dateOfBirth: userData.dateOfBirth || "",
       gender: gender,
-      avatarUrl: userData.avatarUrl || userData.profileImage || "",
+      avatarUrl: normalizeAvatarUrl(userData.avatarUrl || userData.profileImage || ""),
     };
   };
 
@@ -490,13 +509,14 @@ export default function ProfilePage() {
 
       const payload = response.data as unknown as Record<string, unknown>;
       const nested = payload?.data as Record<string, unknown> | undefined;
-      const avatarUrl =
+      const rawAvatarUrl =
         (nested?.avatarUrl as string | undefined) ??
         (nested?.AvatarUrl as string | undefined) ??
         (payload?.avatarUrl as string | undefined) ??
         (payload?.AvatarUrl as string | undefined) ??
         (payload?.url as string | undefined) ??
         (payload?.Url as string | undefined);
+      const avatarUrl = normalizeAvatarUrl(rawAvatarUrl);
       
       if (avatarUrl) {
         setForm((current) => ({ ...current, avatarUrl }));
@@ -724,6 +744,10 @@ export default function ProfilePage() {
                     src={form.avatarUrl}
                     alt="Profile"
                     className="h-full w-full object-cover"
+                    onError={(e) => {
+                      // Broken LAN URL or missing file → fall back to initial
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
                   />
                 ) : (
                   avatarLetter

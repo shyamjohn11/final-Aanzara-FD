@@ -23,6 +23,7 @@ import {
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { api, extractErrorMessage } from "@/app/api/api";
 import { categoriesApi, categoryImagesApi } from "@/app/api/services";
+import { toast } from "react-toastify";
 
 /* ============================================================
    TYPES
@@ -106,6 +107,7 @@ export default function CategoriesAdminPage() {
 
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [viewCategory, setViewCategory] = useState<Category | null>(null);
 
   const [imagePopup, setImagePopup] = useState<{
     isOpen: boolean;
@@ -508,11 +510,12 @@ export default function CategoriesAdminPage() {
       };
 
       await categoriesApi.update(id, payload);
+      toast.success(`Category ${!currentStatus ? "activated" : "deactivated"} successfully`);
       fetchCategories(); // Refresh the list
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to update category status.");
       console.error("Error toggling status:", err);
-      // Optionally show a toast notification
+      toast.error(message);
     }
   };
 
@@ -528,11 +531,12 @@ export default function CategoriesAdminPage() {
     try {
       await categoriesApi.remove(deleteId);
       setDeleteId(null);
+      toast.success("Category deleted successfully");
       fetchCategories(); // Refresh the list
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to delete category.");
       console.error("Error deleting category:", err);
-      // Optionally show a toast notification
+      toast.error(message);
       setDeleteId(null);
     }
   };
@@ -869,6 +873,13 @@ export default function CategoriesAdminPage() {
                           {/* ACTIONS */}
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-1">
+                              <ActionButton
+                                label="View"
+                                onClick={() => setViewCategory(category)}
+                              >
+                                <Eye size={14} />
+                              </ActionButton>
+
                               <ActionButton
                                 label="Edit"
                                 onClick={() => openEditModal(category)}
@@ -1397,6 +1408,62 @@ export default function CategoriesAdminPage() {
                   className="h-9 rounded-lg bg-[#DC4B4B] px-4 text-[10px] font-semibold text-white hover:bg-[#C83E3E]"
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================
+            VIEW MODAL
+        ===================================================== */}
+
+        {viewCategory !== null && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
+            <div className="absolute inset-0" onClick={() => setViewCategory(null)} />
+            <div className="relative w-full max-w-[500px] rounded-2xl bg-white p-5 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[#E5E9EF] pb-4">
+                <h2 className="text-[14px] font-bold text-[#263650]">{viewCategory.categoryName}</h2>
+                <button
+                  type="button"
+                  onClick={() => setViewCategory(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7B8798] hover:bg-[#F2F5F8]"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-16 w-16 overflow-hidden rounded-lg bg-[#EDF3FF]">
+                    <CategoryThumb category={viewCategory} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-[#33415A]">{viewCategory.categoryName}</p>
+                    <p className="font-mono text-[9px] text-[#8995A5]">{viewCategory.categoryCode}</p>
+                    <span
+                      className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[8px] font-semibold ${
+                        viewCategory.isActive ? "bg-[#EAF8F0] text-[#249357]" : "bg-[#FFF0F0] text-[#D85A5A]"
+                      }`}
+                    >
+                      {viewCategory.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-semibold text-[#8995A5]">Description</p>
+                  <p className="mt-1 text-[11px] text-[#52627A]">{viewCategory.description || "No description"}</p>
+                </div>
+                <div className="flex items-center gap-2 text-[9px] text-[#8995A5]">
+                  <span>Has SubCategory: {viewCategory.hasSubCategory ? "Yes" : "No"}</span>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewCategory(null)}
+                  className="h-9 rounded-lg border border-[#DCE2EA] px-4 text-[10px] font-semibold text-[#647287]"
+                >
+                  Close
                 </button>
               </div>
             </div>

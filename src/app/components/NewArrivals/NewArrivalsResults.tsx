@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   NEW_ARRIVAL_SORT_OPTIONS,
@@ -279,8 +279,7 @@ export default function NewArrivalsResults() {
   const [priceMax, setPriceMax] =
     useState<number>(priceCeiling);
 
-  const [visibleCount, setVisibleCount] =
-    useState<number>(PAGE_SIZE);
+  const [page, setPage] = useState<number>(1);
 
   /* Keep the price slider in sync when the server data arrives. */
 
@@ -341,7 +340,7 @@ export default function NewArrivalsResults() {
         : next;
     });
 
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   };
 
   /* --------------------------------
@@ -365,7 +364,7 @@ export default function NewArrivalsResults() {
         : [...previous, brand],
     );
 
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   };
 
   /* --------------------------------
@@ -385,7 +384,7 @@ export default function NewArrivalsResults() {
 
     setActiveTab("All Products");
 
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   };
 
   /* --------------------------------
@@ -405,7 +404,7 @@ export default function NewArrivalsResults() {
     }
 
     setSort(value);
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   };
 
   /* --------------------------------
@@ -425,7 +424,7 @@ export default function NewArrivalsResults() {
     );
 
     setPriceMax(safeValue);
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   };
 
   /* --------------------------------
@@ -524,34 +523,14 @@ export default function NewArrivalsResults() {
   ]);
 
   /* --------------------------------
-   * Pagination
+   * Pagination — backend-style page numbers (client-side over fresh-arrivals)
    * -------------------------------- */
 
-  const safeVisibleCount =
-    isValidNumber(visibleCount)
-      ? Math.max(
-          PAGE_SIZE,
-          Math.floor(visibleCount),
-        )
-      : PAGE_SIZE;
-
-  const visibleProducts =
-    filtered.slice(
-      0,
-      safeVisibleCount,
-    );
-
-  const hasMore =
-    safeVisibleCount <
-    filtered.length;
-
-  const showingStart =
-    filtered.length > 0
-      ? 1
-      : 0;
-
-  const showingEnd =
-    visibleProducts.length;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const visibleProducts = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const showingStart = filtered.length > 0 ? (safePage - 1) * PAGE_SIZE + 1 : 0;
+  const showingEnd = Math.min(safePage * PAGE_SIZE, filtered.length);
 
   /* --------------------------------
    * Status message for empty results
@@ -587,7 +566,7 @@ export default function NewArrivalsResults() {
           }
 
           setActiveTab(tab.trim());
-          setVisibleCount(PAGE_SIZE);
+          setPage(1);
         }}
       />
 
@@ -784,57 +763,44 @@ export default function NewArrivalsResults() {
               </div>
 
               {/* --------------------------------
-               * Load More
+               * Pagination — numbered pages
                * -------------------------------- */}
-
-              {hasMore && (
-                <div
-                  className="
-                    flex
-                    justify-center
-                    mt-6
-                  "
-                >
+              {filtered.length > PAGE_SIZE && (
+                <div className="flex items-center justify-center gap-1.5 mt-6">
                   <button
                     type="button"
-                    onClick={() =>
-                      setVisibleCount(
-                        (current) =>
-                          Math.min(
-                            current +
-                              PAGE_SIZE,
-                            filtered.length,
-                          ),
-                      )
-                    }
-                    className="
-                      flex
-                      items-center
-                      gap-1.5
-                      border
-                      border-line
-                      text-ink
-                      text-[12.5px]
-                      font-bold
-                      px-6
-                      py-2.5
-                      rounded-lg
-                      hover:border-green
-                      hover:text-green-deep
-                      transition-colors
-                      cursor-pointer
-                      focus:outline-none
-                      focus-visible:ring-2
-                      focus-visible:ring-green
-                      focus-visible:ring-offset-2
-                    "
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-ink-soft hover:border-green hover:text-green-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Previous page"
                   >
-                    Load More Products
-
-                    <ChevronDown
-                      size={13}
-                      aria-hidden="true"
-                    />
+                    <ChevronLeft size={14} />
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                    const n = i + 1;
+                    const active = n === safePage;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setPage(n)}
+                        aria-current={active ? "page" : undefined}
+                        className={`h-8 min-w-8 rounded-lg border px-2 text-[12px] font-bold ${
+                          active ? "bg-navy border-navy text-white" : "border-line bg-white text-ink hover:border-green"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-ink-soft hover:border-green hover:text-green-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={14} />
                   </button>
                 </div>
               )}

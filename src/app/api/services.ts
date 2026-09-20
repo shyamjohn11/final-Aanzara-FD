@@ -88,18 +88,39 @@ export const authApi = {
   },
 
   // #4 POST /api/v1/auth/password/send-otp — ForgotPasswordForm (step 1 + resend)
+  // Backend expects `Email` (PascalCase); also send `email` alias so the mock/demo
+  // handler and case-insensitive JSON both resolve. Keeps the UI field free-form.
   sendPasswordOtp(email: string) {
-    return api.post("/api/v1/auth/password/send-otp", { email });
+    const addr = email.trim();
+    return api.post("/api/v1/auth/password/send-otp", {
+      Email: addr,
+      email: addr,
+    });
   },
 
   // #5 POST /api/v1/auth/password/change-with-otp — ForgotPasswordForm (step 3)
+  // Backend ChangePasswordWithOtpCommand uses Email/Otp/NewPassphrase/ConfirmNewPassphrase
+  // (MinLength 12). The UI still passes newPassword/confirmNewPassword for ergonomics;
+  // we map both casings here so validation succeeds regardless of serializer settings.
   resetPasswordWithOtp(payload: {
     email: string;
     otp: string;
     newPassword: string;
     confirmNewPassword: string;
   }) {
-    return api.post("/api/v1/auth/password/change-with-otp", payload);
+    const body: Record<string, string> = {
+      Email: payload.email.trim(),
+      email: payload.email.trim(),
+      Otp: payload.otp.trim(),
+      otp: payload.otp.trim(),
+      NewPassphrase: payload.newPassword,
+      ConfirmNewPassphrase: payload.confirmNewPassword,
+      newPassword: payload.newPassword,
+      confirmNewPassword: payload.confirmNewPassword,
+      newPassphrase: payload.newPassword,
+      confirmNewPassphrase: payload.confirmNewPassword,
+    };
+    return api.post("/api/v1/auth/password/change-with-otp", body);
   },
 
   // #6 POST /api/v1/auth/logout — AuthContext.logout, account pages
@@ -1519,6 +1540,11 @@ export const ordersApi = {
   // POST /api/v1/orders/{orderId}/cancel {reason}
   cancel(orderId: string, reason?: string) {
     return api.post(`/api/v1/orders/${orderId}/cancel`, { reason });
+  },
+
+  // GET /api/v1/orders/{orderId}/tracking — live tracking (poll 5-10s)
+  tracking(orderId: string) {
+    return api.get(`/api/v1/orders/${orderId}/tracking`);
   },
 };
 

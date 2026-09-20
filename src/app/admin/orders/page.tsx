@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import { ordersAdminApi } from "@/app/api/services";
 import { extractErrorMessage } from "@/app/api/api";
+import { toast } from "react-toastify";
 import {
   ArrowLeft,
   Search,
@@ -440,6 +441,7 @@ export default function AdminOrdersPage() {
     setShowForm(false);
     resetForm();
     showSuccess();
+    toast.success(editingId !== null ? "Order updated (local)" : "Order created (local) — customer orders come from checkout");
   };
 
   /* =====================================================

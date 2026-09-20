@@ -7,7 +7,7 @@ import { AlertCircle } from "lucide-react";
 import { extractErrorMessage } from "@/app/api/api";
 import { productsApi } from "@/app/api/services";
 
-// Define the Product type based on API response
+// Define the Product type based on API response (enriched ProductSummaryResponse)
 interface ApiProduct {
   productId: string;
   productName: string;
@@ -17,12 +17,16 @@ interface ApiProduct {
   price: number;
   mrp: number;
   brand: string;
+  brandName?: string;
   sku: string;
   moq: number;
   inStock?: boolean;
+  stockStatus?: string;
+  imageUrl?: string;
+  availableStock?: number;
 }
 
-// Define the Product type expected by ProductCard
+// Define the Product type expected by ProductCard (mirrors app/data/products Product)
 interface MappedProduct {
   id: string;
   name: string;
@@ -42,6 +46,7 @@ interface MappedProduct {
   bulkRate: number;
   bulkMoq: number;
   inStock: boolean;
+  image?: string;
 }
 
 interface ProductGridProps {
@@ -169,6 +174,22 @@ export default function ProductGrid({
     const moq = num(raw.moq ?? raw.minOrderQuantity, 1) || 1;
     const discount = calculateDiscount(mrp, price);
 
+    // Enriched summaries provide imageUrl as /api/v1/products/{id}/images/{imageId}/file
+    // (streaming endpoint, proxied via next.config.js). Never invent an image.
+    const imageRaw = str(raw.imageUrl ?? raw.image, "");
+    const image = imageRaw.trim() ? imageRaw.trim() : undefined;
+
+    // Enriched summaries provide stockStatus (in_stock/low_stock/out_of_stock) or null (no inventory rows)
+    const stockStatus = typeof raw.stockStatus === "string" ? raw.stockStatus : null;
+    const inStock =
+      stockStatus === null ? true : stockStatus !== "out_of_stock";
+    const dispatch =
+      stockStatus === "low_stock"
+        ? "Low stock"
+        : inStock
+          ? "2-3 days"
+          : "Out of stock";
+
     return {
       id: productId,
       name: productName,
@@ -179,7 +200,7 @@ export default function ProductGrid({
       mrp,
       moq,
       pack: str(raw.packSize ?? raw.pack, "1 Case"),
-      dispatch: "2-3 days",
+      dispatch,
       swatch: getColorFromBrand(brand),
       accent: getAccentColorFromBrand(brand),
       discount,
@@ -187,7 +208,8 @@ export default function ProductGrid({
       reviews: num(raw.reviewCount ?? raw.reviews, 100),
       bulkRate: price * 0.9,
       bulkMoq: moq * 5 || 5,
-      inStock: Boolean(raw.inStock ?? raw.isAvailable ?? true),
+      inStock,
+      image,
     };
   };
 

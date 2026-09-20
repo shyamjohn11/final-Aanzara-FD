@@ -128,26 +128,36 @@ function unwrapItems(payload: unknown): Record<string, unknown>[] {
   return [];
 }
 
+function normalizeBannerSrc(src: string): string {
+  const t = src.trim();
+  if (!t) return "";
+  const idx = t.toLowerCase().indexOf("/uploads/");
+  if (idx >= 0 && /^(https?:)/i.test(t)) return t.slice(idx);
+  return t;
+}
+
 function resolveBannerImage(
   raw: Record<string, unknown>,
   _fallbackId: string,
 ): string {
-  const direct = String(
-    raw.imageUrl ??
-      raw.image ??
-      raw.imagePath ??
-      raw.bannerImage ??
-      raw.fileUrl ??
-      raw.filePath ??
-      "",
-  ).trim();
+  const direct = normalizeBannerSrc(
+    String(
+      raw.imageUrl ??
+        raw.image ??
+        raw.imagePath ??
+        raw.bannerImage ??
+        raw.fileUrl ??
+        raw.filePath ??
+        "",
+    ).trim()
+  );
   if (direct) {
     return direct;
   }
   const gallery = raw.images ?? raw.gallery ?? raw.files;
   if (Array.isArray(gallery) && gallery.length > 0) {
     const first = gallery[0] as unknown;
-    const nested =
+    const nestedRaw =
       typeof first === "string"
         ? first.trim()
         : String(
@@ -156,6 +166,7 @@ function resolveBannerImage(
               (first as Record<string, unknown>)?.filePath ??
               "",
           ).trim();
+    const nested = normalizeBannerSrc(nestedRaw);
     if (nested) {
       return nested;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 import {
   CheckCircle2,
@@ -132,21 +132,27 @@ export default function CartPage() {
   } = useSaveForLater();
 
   /* =======================================================
-     SAFE CART ITEMS
+     SAFE CART ITEMS — deduped by product.id (heals corrupted
+     localStorage where the same product was added twice)
   ======================================================= */
 
-  const safeItems =
-    Array.isArray(items)
-      ? items.filter(
-          (item) =>
-            item &&
-            item.product &&
-            item.product.id !==
-              undefined &&
-            item.product.id !==
-              null
-        )
-      : [];
+  const safeItems = useMemo(() => {
+    if (!Array.isArray(items)) return [];
+    const map = new Map<string, (typeof items)[number]>();
+    for (const item of items) {
+      if (!item?.product?.id) continue;
+      const id = String(item.product.id);
+      const existing = map.get(id);
+      if (existing) {
+        existing.qty += item.qty;
+      } else {
+        map.set(id, { ...item, product: { ...item.product } });
+      }
+    }
+    return Array.from(map.values()).filter(
+      (item) => item.product?.id !== undefined && item.product.id !== null
+    );
+  }, [items]);
 
   /* =======================================================
      QUANTITY CHANGE

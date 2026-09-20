@@ -9,7 +9,9 @@ import {
   categoriesApi,
   dealersApi,
   productsApi,
+  productImagesApi,
   storefrontReviewsApi,
+  businessAccountsApi,
 } from "@/app/api/services";
 
 import {
@@ -117,6 +119,8 @@ export default function AdminDashboardPage() {
     useState<any[]>([]);
   const [riceProduct, setRiceProduct] =
     useState<any | null>(null);
+  const [riceImageBroken, setRiceImageBroken] =
+    useState(false);
   const [riceReviews, setRiceReviews] =
     useState<any[]>([]);
   const [statValues, setStatValues] = useState({
@@ -329,7 +333,6 @@ export default function AdminDashboardPage() {
         const rp: any = r?.data ?? r;
         const prod = rp && typeof rp === "object" && (rp.productId || rp.id) ? rp : null;
         if (!cancelled && prod) {
-          // Map ProductResponse to summary shape the card expects (imageUrl/brandName)
           const mapped: any = {
             productId: prod.productId ?? prod.id,
             productName: prod.productName ?? prod.name,
@@ -338,20 +341,35 @@ export default function AdminDashboardPage() {
             moq: prod.moq,
             status: prod.status,
             brandName: prod.brandName ?? prod.brand ?? "",
-            // details has no imageUrl; fetch via list enrichment fallback
             imageUrl: undefined,
           };
-          // Enriched image via list search for that exact sku
+          // 1) Enriched list image (search is case-insensitive, so "Rice" covers "RIce")
           try {
-            const lr: any = await productsApi.list({ search: "RRS", page: 1, pageSize: 1 });
+            const lr: any = await productsApi.list({ search: "Rice", page: 1, pageSize: 20 });
             const lp: any = lr?.data ?? lr;
-            const li: any[] = Array.isArray(lp) ? lp : Array.isArray(lp?.items) ? lp.items : [];
-            const found = li.find((x: any) => String(x.productId) === String(mapped.productId));
+            const li: any[] = Array.isArray(lp) ? lp : Array.isArray(lp?.items) ? lp.items : Array.isArray(lp?.data) ? lp.data : [];
+            const found = li.find((x: any) => String(x.productId) === String(mapped.productId)) ?? li[0];
             if (found?.imageUrl) mapped.imageUrl = found.imageUrl;
             if (found?.brandName) mapped.brandName = found.brandName;
             if (found?.stockStatus) mapped.stockStatus = found.stockStatus;
           } catch {}
-          setRiceProduct(mapped);
+          // 2) Direct product-images fallback — reliable even when list enrichment misses
+          if (!mapped.imageUrl) {
+            try {
+              const ir: any = await productImagesApi.list(mapped.productId);
+              const ip: any = ir?.data ?? ir;
+              const imgs: any[] = Array.isArray(ip) ? ip : Array.isArray(ip?.items) ? ip.items : Array.isArray(ip?.data) ? ip.data : [];
+              const primary = imgs.find((x: any) => x.isPrimary) ?? imgs[0];
+              const imageId = primary?.imageId ?? primary?.id;
+              if (imageId) {
+                mapped.imageUrl = `/api/v1/products/${mapped.productId}/images/${imageId}/file`;
+              }
+            } catch {}
+          }
+          if (!cancelled) {
+            setRiceImageBroken(false);
+            setRiceProduct(mapped);
+          }
         }
       } catch {}
       try {
@@ -362,19 +380,32 @@ export default function AdminDashboardPage() {
       } catch {}
 
       // Agent dealer shops (Dealers table) — show agent-added shops on Dashboard.
+      // Business Accounts quick overview now correctly reflects businessAccounts + dealers
       try {
-        const res: any = await dealersApi.list({ page: 1, pageSize: 6 });
-        const payload: any = res?.data ?? res;
-        const rawItems: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.data)
-              ? payload.data
+        const [dealersRes, baRes] = await Promise.all([
+          dealersApi.list(1, 6),
+          businessAccountsApi.list(1, 100).catch(() => null),
+        ]);
+        const dPayload: any = (dealersRes as any)?.data ?? dealersRes;
+        const dRaw: any[] = Array.isArray(dPayload)
+          ? dPayload
+          : Array.isArray(dPayload?.items)
+            ? dPayload.items
+            : Array.isArray(dPayload?.data)
+              ? dPayload.data
               : [];
-        if (!cancelled && rawItems.length > 0) {
+        const bPayload: any = (baRes as any)?.data ?? baRes;
+        const bRaw: any[] = bPayload
+          ? Array.isArray(bPayload)
+            ? bPayload
+            : Array.isArray(bPayload?.items)
+              ? bPayload.items
+              : []
+          : [];
+
+        if (!cancelled && dRaw.length > 0) {
           setDealerShops(
-            rawItems.map((raw: any) => ({
+            dRaw.map((raw: any) => ({
               id: String(raw.id ?? raw.dealerId ?? ""),
               shopName: String(raw.shopName ?? "Shop"),
               dealerCode: String(raw.dealerCode ?? ""),
@@ -386,11 +417,34 @@ export default function AdminDashboardPage() {
               agentName: String(raw.agentName ?? ""),
             }))
           );
-          // Keep Quick Overview Business Accounts in sync with dealer shops
+        }
+
+        // Correct balance: total accounts = businessAccounts + dealers, pct = active/total*100
+        const allDealers = dRaw;
+        const allBAs = bRaw;
+        const total = allDealers.length + allBAs.length;
+        if (!cancelled && total > 0) {
+          const activeDealers = allDealers.filter(
+            (r: any) => String(r.status ?? "").toLowerCase() === "active"
+          ).length;
+          const activeBAs = allBAs.filter(
+            (r: any) => String(r.status ?? "").toLowerCase() === "active"
+          ).length;
+          const active = activeDealers + activeBAs;
+          const pct = Math.round((active / total) * 100);
           setStatValues((current) => ({
             ...current,
-            businessAccounts: String(rawItems.length),
-            accountsPct: Math.min(100, rawItems.length * 10),
+            businessAccounts: String(total),
+            accountsPct: Math.min(100, Math.max(0, pct)),
+          }));
+        } else if (!cancelled && dRaw.length > 0) {
+          // Fallback when BA fetch fails — dealers only
+          const active = dRaw.filter((r: any) => String(r.status ?? "").toLowerCase() === "active").length;
+          const pct = dRaw.length > 0 ? Math.round((active / dRaw.length) * 100) : 0;
+          setStatValues((current) => ({
+            ...current,
+            businessAccounts: String(dRaw.length),
+            accountsPct: pct,
           }));
         }
       } catch {
@@ -891,63 +945,48 @@ export default function AdminDashboardPage() {
 
               </div>
 
-              <div className="mt-5 space-y-2">
-
-                {lowStockProducts.map(
-                  (product) => (
+              {lowStockProducts.length === 0 ? (
+                <div className="mt-5 rounded-xl border border-dashed border-[#EDF0F4] bg-[#FAFBFD] p-6 text-center">
+                  <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#FFF5E8] text-[#E89321]">
+                    <AlertTriangle size={16} />
+                  </div>
+                  <p className="mt-3 text-[11px] font-semibold text-[#33415A]">
+                    All products sufficiently stocked
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-[#9AA4B2]">
+                    No products below reorder level. Low stock alerts will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-2">
+                  {lowStockProducts.map((product, idx) => (
                     <div
-                      key={product.sku}
+                      key={`${product.sku || product.name}-${idx}`}
                       className="flex items-center gap-3 rounded-xl border border-[#EDF0F4] p-3 hover:bg-[#FAFBFD]"
                     >
-
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F2F5FA]">
-
-                        <Package
-                          size={17}
-                          className="text-[#607087]"
-                        />
-
+                        <Package size={17} className="text-[#607087]" />
                       </div>
 
                       <div className="min-w-0 flex-1">
-
                         <p className="truncate text-[10px] font-semibold text-[#33415A]">
                           {product.name}
                         </p>
-
-                        <p className="mt-1 text-[8px] text-[#9AA4B2]">
-                          SKU: {product.sku}
-                        </p>
-
+                        <p className="mt-1 text-[8px] text-[#9AA4B2]">SKU: {product.sku || "—"}</p>
                       </div>
 
                       <div className="text-right">
-
                         <p
-                          className={`
-                            text-sm
-                            font-bold
-                            ${
-                              product.stock <= 6
-                                ? "text-[#E34C4C]"
-                                : "text-[#E89B2B]"
-                            }
-                          `}
+                          className={`text-sm font-bold ${product.stock <= 6 ? "text-[#E34C4C]" : "text-[#E89B2B]"}`}
                         >
                           {product.stock}
                         </p>
-
-                        <p className="text-[8px] text-[#9AA4B2]">
-                          in stock
-                        </p>
-
+                        <p className="text-[8px] text-[#9AA4B2]">in stock</p>
                       </div>
-
                     </div>
-                  )
-                )}
-
-              </div>
+                  ))}
+                </div>
+              )}
 
               <button
                 type="button"
@@ -1062,8 +1101,19 @@ export default function AdminDashboardPage() {
                 <p className="rounded-xl border border-[#EDF0F4] p-6 text-center text-[10px] text-[#9AA4B2]">No RIce product found. Add one in Admin › Products.</p>
               ) : (
                 <div className="flex gap-3 rounded-xl border border-[#EDF0F4] p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {riceProduct.imageUrl && <img src={riceProduct.imageUrl} alt={riceProduct.productName} className="h-16 w-16 shrink-0 rounded-lg object-cover border border-[#EDF0F4]" />}
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-[#EDF0F4] bg-[#F2F5FA] flex items-center justify-center">
+                    {riceProduct.imageUrl && !riceImageBroken ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={riceProduct.imageUrl}
+                        alt={riceProduct.productName}
+                        className="h-full w-full object-cover"
+                        onError={() => setRiceImageBroken(true)}
+                      />
+                    ) : (
+                      <Package size={20} className="text-[#8FA6C9]" />
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] font-bold text-[#33415A]">{riceProduct.productName}</p>
                     <p className="truncate text-[9px] text-[#9AA4B2]">SKU: {riceProduct.sku} · {riceProduct.brandName ?? riceProduct.brand ?? ""}</p>

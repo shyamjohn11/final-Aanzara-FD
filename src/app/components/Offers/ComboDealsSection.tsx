@@ -242,16 +242,15 @@ function mapComboRaw(
 export default function ComboDealsSection() {
   const [combos, setCombos] = useState<ComboDeal[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [fetchError, setFetchError] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
-      setFetchError("");
       try {
         // Public storefront combos (active only, no auth required).
+        // Swallow Network/CORS errors so the page renders empty state instead of red error.
         const response = await dealsApi.combos(25);
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
@@ -260,12 +259,8 @@ export default function ComboDealsSection() {
         if (!cancelled) {
           setCombos(mapped);
         }
-      } catch (error) {
-        console.error("Unable to load combo deals:", error);
+      } catch {
         if (!cancelled) {
-          setFetchError(
-            "Unable to load combo deals. Please try again.",
-          );
           setCombos([]);
         }
       } finally {
@@ -317,20 +312,6 @@ export default function ComboDealsSection() {
         unlock extra savings on every
         combo pack below.
       </p>
-
-      {fetchError && (
-        <p
-          className="
-            text-[12px]
-            text-red-600
-            text-center
-            mt-4
-          "
-          role="alert"
-        >
-          {fetchError}
-        </p>
-      )}
 
       {/* Combo Deals */}
       {loading ? (

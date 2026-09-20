@@ -10,8 +10,29 @@ import {
   Lock,
   CheckCircle2,
 } from "lucide-react";
+import { authApi } from "@/app/api/services";
 
 type Step = "account" | "otp" | "password" | "success";
+
+function extractApiMessage(
+  err: unknown,
+  fallback: string
+): string {
+  const anyErr = err as any;
+  const data = anyErr?.response?.data;
+  if (data) {
+    if (typeof data.detail === "string" && data.detail.trim()) return data.detail;
+    if (typeof data.title === "string" && data.title.trim()) return data.title;
+    if (typeof data.message === "string" && data.message.trim()) return data.message;
+    if (data.errors && typeof data.errors === "object") {
+      const first = Object.values(data.errors as Record<string, string[]>).flat()[0];
+      if (first) return String(first);
+    }
+    if (typeof data === "string" && data.trim()) return data;
+  }
+  if (anyErr?.message) return String(anyErr.message);
+  return fallback;
+}
 
 export default function ForgotPasswordForm({
   onBack,
@@ -35,14 +56,6 @@ export default function ForgotPasswordForm({
   const [error, setError] = useState("");
 
   const [timer, setTimer] = useState(30);
-
-  /*
-   * Demo OTP
-   *
-   * Replace this with your real API-generated OTP
-   * when backend integration is available.
-   */
-  const DEMO_OTP = "123456";
 
   /*
    * ==========================================
@@ -77,7 +90,7 @@ export default function ForgotPasswordForm({
    * ==========================================
    */
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (loading) return;
 
     setError("");
@@ -85,7 +98,7 @@ export default function ForgotPasswordForm({
     const value = account.trim();
 
     if (!value) {
-      setError("Please enter your email or mobile number.");
+      setError("Please enter your email address.");
       return;
     }
 
@@ -97,21 +110,35 @@ export default function ForgotPasswordForm({
     const isPhone = phoneRegex.test(normalizedPhone);
 
     if (!isEmail && !isPhone) {
-      setError("Please enter a valid email address or mobile number.");
+      setError("Please enter a valid email address.");
       return;
     }
 
-    setDelivery(isEmail ? "email" : "phone");
+    if (isPhone && !isEmail) {
+      setError("OTP via SMS is not available. Please enter your registered email address — the code will be sent by email.");
+      return;
+    }
 
-    /*
-     * Demo only.
-     * Replace with API call.
-     */
-    console.log("Forgot password OTP:", DEMO_OTP);
-
-    setOtp("");
-    setTimer(30);
-    setStep("otp");
+    setLoading(true);
+    try {
+      await authApi.sendPasswordOtp(value);
+      setDelivery("email");
+      setOtp("");
+      setTimer(30);
+      setStep("otp");
+      setError("");
+    } catch (err: unknown) {
+      const msg = extractApiMessage(err, "Unable to send OTP. Please try again.");
+      // Map common backend codes to friendlier copy
+      const lower = msg.toLowerCase();
+      if (lower.includes("usernotfound") || lower.includes("not found") || lower.includes("no user")) {
+        setError("No account found for that email. Please check the address.");
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   /*
@@ -128,7 +155,7 @@ export default function ForgotPasswordForm({
     const cleanOtp = otp.replace(/\D/g, "");
 
     if (!cleanOtp) {
-      setError("Please enter the OTP.");
+      setError("Please enter the OTP sent to your email.");
       return;
     }
 
@@ -137,11 +164,9 @@ export default function ForgotPasswordForm({
       return;
     }
 
-    if (cleanOtp !== DEMO_OTP) {
-      setError("Invalid OTP. Please try again.");
-      return;
-    }
-
+    // OTP validity is checked server-side together with the new password;
+    // keep client check light so the real expiry/single-use error surfaces
+    // from the final reset call (clear per-attempt feedback).
     setStep("password");
     setError("");
   };
@@ -152,7 +177,7 @@ export default function ForgotPasswordForm({
    * ==========================================
    */
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (loading) return;
 
     setError("");
@@ -162,13 +187,14 @@ export default function ForgotPasswordForm({
       return;
     }
 
-    if (newPassword.length < 8) {
-      setError("Password must contain at least 8 characters.");
+    // Backend requires 12..256 chars (ChangePasswordWithOtpCommand.MinLength 12)
+    if (newPassword.length < 12) {
+      setError("Password must contain at least 12 characters.");
       return;
     }
 
-    if (newPassword.length > 128) {
-      setError("Password must not exceed 128 characters.");
+    if (newPassword.length > 256) {
+      setError("Password must not exceed 256 characters.");
       return;
     }
 
@@ -182,18 +208,35 @@ export default function ForgotPasswordForm({
       return;
     }
 
+    const cleanOtp = otp.replace(/\D/g, "");
+    if (cleanOtp.length !== 6) {
+      setError("OTP is missing or invalid. Please go back and verify the 6-digit code again.");
+      return;
+    }
+
     setLoading(true);
-
-    /*
-     * Demo only.
-     * Replace this timeout with your password reset API.
-     */
-
-    window.setTimeout(() => {
-      setLoading(false);
+    try {
+      await authApi.resetPasswordWithOtp({
+        email: account.trim(),
+        otp: cleanOtp,
+        newPassword,
+        confirmNewPassword: confirmPassword,
+      });
       setStep("success");
       setError("");
-    }, 700);
+    } catch (err: unknown) {
+      const msg = extractApiMessage(err, "Unable to reset password. Please try again.");
+      const lower = msg.toLowerCase();
+      if (lower.includes("invalidor-or-expired") || lower.includes("invalid") || lower.includes("expired") || lower.includes("otp")) {
+        setError("That OTP is invalid or has expired (10 minutes, single-use). Please request a new code.");
+      } else if (lower.includes("passphrase") || lower.includes("password")) {
+        setError(msg);
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   /*
@@ -202,18 +245,21 @@ export default function ForgotPasswordForm({
    * ==========================================
    */
 
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (timer > 0 || loading) return;
 
     setError("");
-    setOtp("");
-    setTimer(30);
-
-    /*
-     * Demo only.
-     * Replace with API call.
-     */
-    console.log("OTP resent:", DEMO_OTP);
+    setLoading(true);
+    try {
+      await authApi.sendPasswordOtp(account.trim());
+      setOtp("");
+      setTimer(30);
+      setError("");
+    } catch (err: unknown) {
+      setError(extractApiMessage(err, "Unable to resend OTP. Please try again."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   /*
@@ -745,7 +791,7 @@ export default function ForgotPasswordForm({
           </div>
 
           <p className="mt-2 text-[10px] text-[#7C899B]">
-            Password must contain at least 8 characters.
+            Password must contain at least 12 characters.
           </p>
 
           <button

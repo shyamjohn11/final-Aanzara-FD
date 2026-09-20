@@ -468,6 +468,7 @@ function ValidatedProductInfoPanel({
 
     try {
       // Build a minimal Product shape the cart context expects — price/moq come from live tier
+      const liveImage = (p as unknown as Record<string, unknown>).images as string[] | undefined;
       const cartProduct = {
         id: String(fallbackId),
         name: p.name,
@@ -484,6 +485,7 @@ function ValidatedProductInfoPanel({
         moq: minimumQty,
         inStock: p.inStock,
         dispatch: p.deliveryEstimate,
+        image: liveImage?.[0],
         swatch: "#2563EB",
         accent: "#1E40AF",
       } as unknown as import("@/app/data/products").Product;
@@ -506,6 +508,7 @@ function ValidatedProductInfoPanel({
     if (!fallbackId) return;
 
     try {
+      const liveImage = (p as unknown as Record<string, unknown>).images as string[] | undefined;
       const cartProduct = {
         id: String(fallbackId),
         name: p.name,
@@ -522,6 +525,7 @@ function ValidatedProductInfoPanel({
         moq: minimumQty,
         inStock: p.inStock,
         dispatch: p.deliveryEstimate,
+        image: liveImage?.[0],
         swatch: "#2563EB",
         accent: "#1E40AF",
       } as unknown as import("@/app/data/products").Product;

@@ -137,22 +137,31 @@ const isValidDate = (
 };
 
 /* =========================================================
-   URL VALIDATION
+   FILE + URL VALIDATION
+   Banners now use a real file upload (image/png|jpeg|webp ≤2 MB)
+   instead of a raw Image Link URL — mirrors backend BannerRules.
 ========================================================= */
 
-const isValidImageUrl = (
-  value: string
-): boolean => {
-  try {
-    const url = new URL(value);
+const ALLOWED_BANNER_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+const MAX_BANNER_BYTES = 2 * 1024 * 1024;
 
-    return (
-      url.protocol === "http:" ||
-      url.protocol === "https:"
-    );
-  } catch {
-    return false;
+const validateBannerFile = (
+  file: File
+): string | null => {
+  if (!ALLOWED_BANNER_TYPES.includes(file.type)) {
+    return "Only PNG, JPEG and WEBP images are allowed.";
   }
+  if (file.size > MAX_BANNER_BYTES) {
+    return "Image must be 2 MB or smaller.";
+  }
+  if (file.size === 0) {
+    return "Selected file is empty.";
+  }
+  return null;
 };
 
 const isValidLink = (
@@ -222,8 +231,22 @@ const resolveBannerImage = (raw: any): string => {
   const candidate = String(direct || nested).trim();
   if (!candidate) return "";
 
-  // Absolute, data:, and blob: URLs pass through untouched.
-  if (/^(https?:|data:|blob:)/i.test(candidate)) return candidate;
+  // Absolute URLs that contain /uploads/ (e.g. http://192.168.31.9:5000/uploads/Banners/x.jpg
+  // or http://localhost:5222/uploads/...) are stored with the old PublicBaseUrl.
+  // Normalize them to the same-origin relative path so they resolve via the
+  // Next.js /uploads/:path* rewrite and the API's static files (/uploads).
+  if (/^(https?:|data:|blob:)/i.test(candidate)) {
+    const uploadIdx = candidate.toLowerCase().indexOf("/uploads/");
+    if (uploadIdx >= 0) {
+      const path = candidate.slice(uploadIdx);
+      const base = (
+        process.env.NEXT_PUBLIC_IMAGE_BASE_URL ?? ""
+      ).replace(/\/+$/, "");
+      if (path.startsWith("/") && base) return `${base}${path}`;
+      return path;
+    }
+    return candidate;
+  }
 
   // Relative path (e.g. /uploads/banners/x.jpg): prefix the backend
   // origin when configured so dev (Next :3000 vs API :5222) resolves.
@@ -331,13 +354,19 @@ export default function AdminBannersPage() {
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
-    image: "",
     link: "",
     position: "Home Hero",
     status: "Active" as BannerStatus,
     startDate: "",
     endDate: "",
   });
+
+  const [imageFile, setImageFile] =
+    useState<File | null>(null);
+  const [imagePreview, setImagePreview] =
+    useState<string>("");
+  const [imageObjectUrl, setImageObjectUrl] =
+    useState<string | null>(null);
 
   /* =======================================================
      LOAD BANNERS (#75 GET /api/admin/banners; API-first)
@@ -502,7 +531,6 @@ export default function AdminBannersPage() {
     setForm({
       title: "",
       subtitle: "",
-      image: "",
       link: "",
       position: "Home Hero",
       status: "Active",
@@ -510,6 +538,10 @@ export default function AdminBannersPage() {
       endDate: "",
     });
 
+    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
+    setImageFile(null);
+    setImagePreview("");
+    setImageObjectUrl(null);
     setErrors({});
     setEditingId(null);
   };
@@ -533,7 +565,6 @@ export default function AdminBannersPage() {
     setForm({
       title: banner.title,
       subtitle: banner.subtitle,
-      image: banner.image,
       link: banner.link,
       position: banner.position,
       status: banner.status,
@@ -541,6 +572,10 @@ export default function AdminBannersPage() {
       endDate: banner.endDate,
     });
 
+    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
+    setImageFile(null);
+    setImagePreview(banner.image || "");
+    setImageObjectUrl(null);
     setErrors({});
     setShowForm(true);
   };
@@ -557,9 +592,6 @@ export default function AdminBannersPage() {
 
     const subtitle =
       form.subtitle.trim();
-
-    const image =
-      form.image.trim();
 
     const link =
       form.link.trim();
@@ -598,15 +630,21 @@ export default function AdminBannersPage() {
     }
 
     /* =====================================================
-       IMAGE (link type: direct image URL)
+       IMAGE — file upload (png/jpeg/webp ≤2 MB)
+       Create: file required. Edit: file required only if no
+       existing preview exists.
     ====================================================== */
 
-    if (!image) {
+    const requiresFile = editingId === null
+      ? !imageFile
+      : !imageFile && !imagePreview;
+
+    if (requiresFile) {
       newErrors.image =
-        "Image link is required.";
-    } else if (!isValidImageUrl(image)) {
-      newErrors.image =
-        "Please enter a valid image link (http:// or https://).";
+        "Banner image is required. Upload a PNG, JPEG or WEBP file (≤2 MB).";
+    } else if (imageFile) {
+      const fileError = validateBannerFile(imageFile);
+      if (fileError) newErrors.image = fileError;
     }
 
     /* =====================================================
@@ -729,8 +767,47 @@ export default function AdminBannersPage() {
     }));
   };
 
+  const handleBannerFileChange = (
+    file: File | null
+  ) => {
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl);
+      setImageObjectUrl(null);
+    }
+
+    if (!file) {
+      setImageFile(null);
+      // keep existing preview when editing; clear only on create
+      if (editingId === null) setImagePreview("");
+      setErrors((c) => ({ ...c, image: undefined }));
+      return;
+    }
+
+    const err = validateBannerFile(file);
+    if (err) {
+      setErrors((c) => ({ ...c, image: err }));
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setImageFile(file);
+    setImagePreview(url);
+    setImageObjectUrl(url);
+    setErrors((c) => ({ ...c, image: undefined }));
+  };
+
+  const clearSelectedFile = () => {
+    handleBannerFileChange(null);
+    if (editingId !== null) {
+      const row = banners.find((b) => b.id === editingId);
+      setImagePreview(row?.image || "");
+    }
+  };
+
   /* =======================================================
-     SAVE
+     SAVE — multipart FormData with Image file (backend
+     CreateBannerForm/UpdateBannerForm: Title/Subtitle/Link/
+     Position/Status/StartDate/EndDate/Image)
   ======================================================== */
 
   const saveBanner = async () => {
@@ -741,10 +818,9 @@ export default function AdminBannersPage() {
       return;
     }
 
-    const cleanedForm = {
+    const cleaned = {
       title: form.title.trim(),
       subtitle: form.subtitle.trim(),
-      image: form.image.trim(),
       link: form.link.trim(),
       position: form.position,
       status: form.status,
@@ -752,8 +828,18 @@ export default function AdminBannersPage() {
       endDate: form.endDate,
     };
 
-    // Link type: JSON with the image URL (backend keeps/serves the link).
-    const payload: Record<string, unknown> = { ...cleanedForm };
+    const buildFormData = () => {
+      const fd = new FormData();
+      fd.append("Title", cleaned.title);
+      fd.append("Subtitle", cleaned.subtitle);
+      fd.append("Link", cleaned.link);
+      fd.append("Position", cleaned.position);
+      fd.append("Status", cleaned.status);
+      fd.append("StartDate", cleaned.startDate);
+      fd.append("EndDate", cleaned.endDate);
+      if (imageFile) fd.append("Image", imageFile);
+      return fd;
+    };
 
     if (editingId !== null) {
       const editingRow = banners.find(
@@ -762,45 +848,40 @@ export default function AdminBannersPage() {
 
       if (editingRow?.serverId) {
         try {
-          await bannersApi.update(editingRow.serverId, payload);
+          // Omit Image when no new file — backend keeps the old stored file
+          await bannersApi.update(editingRow.serverId, buildFormData());
         } catch (error) {
           console.error("Banner update failed:", error);
         }
       }
     } else {
       try {
-        await bannersApi.create(payload);
+        await bannersApi.create(buildFormData());
       } catch (error) {
         console.error("Banner create failed:", error);
       }
     }
 
     /* ===================================================
-       UPDATE
+       UPDATE — optimistic local mirror; server value is canonical
+       (imagePreview holds the new object URL when a file was picked)
     ==================================================== */
 
     if (editingId !== null) {
+      const imageForRow = imagePreview || banners.find((b) => b.id === editingId)?.image || "";
       setBanners((current) =>
         current.map((banner) =>
           banner.id === editingId
             ? {
                 ...banner,
-                title:
-                  cleanedForm.title,
-                subtitle:
-                  cleanedForm.subtitle,
-                image:
-                  cleanedForm.image,
-                link:
-                  cleanedForm.link,
-                position:
-                  cleanedForm.position,
-                status:
-                  cleanedForm.status,
-                startDate:
-                  cleanedForm.startDate,
-                endDate:
-                  cleanedForm.endDate,
+                title: cleaned.title,
+                subtitle: cleaned.subtitle,
+                image: imageForRow,
+                link: cleaned.link,
+                position: cleaned.position,
+                status: cleaned.status,
+                startDate: cleaned.startDate,
+                endDate: cleaned.endDate,
               }
             : banner
         )
@@ -808,25 +889,20 @@ export default function AdminBannersPage() {
     }
 
     /* ===================================================
-       CREATE
+       CREATE — optimistic; list will be refreshed on next load
     ==================================================== */
 
     else {
       const newBanner: Banner = {
         id: Date.now(),
-        title: cleanedForm.title,
-        subtitle:
-          cleanedForm.subtitle,
-        image: cleanedForm.image,
-        link: cleanedForm.link,
-        position:
-          cleanedForm.position,
-        status:
-          cleanedForm.status,
-        startDate:
-          cleanedForm.startDate,
-        endDate:
-          cleanedForm.endDate,
+        title: cleaned.title,
+        subtitle: cleaned.subtitle,
+        image: imagePreview || "",
+        link: cleaned.link,
+        position: cleaned.position,
+        status: cleaned.status,
+        startDate: cleaned.startDate,
+        endDate: cleaned.endDate,
         clicks: 0,
       };
 
@@ -1729,44 +1805,98 @@ export default function AdminBannersPage() {
 
               </div>
 
-              {/* IMAGE (link type) */}
+              {/* IMAGE — file upload (png/jpeg/webp ≤2 MB) */}
 
-              <FormInput
-                label="Image Link"
-                value={form.image}
-                placeholder="https://example.com/banner.jpg"
-                required
-                error={errors.image}
-                onChange={(value) =>
-                  updateField(
-                    "image",
-                    value
-                  )
-                }
-              />
+              <div>
+                <label className="text-[9px] font-semibold text-[#52627A]">
+                  Banner Image
+                  <span className="ml-1 text-[#EF4444]">
+                    *
+                  </span>
+                </label>
+
+                <div
+                  className={`mt-1.5 flex items-center gap-3 rounded-lg border bg-white px-3 py-2.5 ${
+                    errors.image
+                      ? "border-[#EF4444] bg-[#FFF8F8]"
+                      : "border-[#DCE2EA]"
+                  }`}
+                >
+                  <label className="flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#1769F5] px-3 text-[10px] font-semibold text-white hover:bg-[#0F5BDE]">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(event) =>
+                        handleBannerFileChange(
+                          event.target.files?.[0] ?? null
+                        )
+                      }
+                    />
+                    Choose File
+                  </label>
+
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-[#33415A]">
+                    {imageFile
+                      ? `${imageFile.name} (${(imageFile.size / 1024).toFixed(0)} KB)`
+                      : imagePreview
+                        ? editingId !== null
+                          ? "Existing image kept — choose a new file to replace"
+                          : imagePreview
+                        : "No file chosen — PNG, JPEG or WEBP ≤2 MB"}
+                  </span>
+
+                  {(imageFile || imagePreview) && (
+                    <button
+                      type="button"
+                      onClick={clearSelectedFile}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#D85A5A] hover:bg-[#FFF0F0]"
+                      aria-label="Clear selected file"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {errors.image && (
+                  <p className="mt-1 text-[8px] font-medium text-[#EF4444]">
+                    {errors.image}
+                  </p>
+                )}
+
+                <p className="mt-1 text-[7px] text-[#A0AAB8]">
+                  Upload PNG, JPEG or WEBP, max 2 MB. Stored under /uploads/banners and served via
+                  GET /api/admin/banners/{`{id}`}/image/file (public shelf:{" "}
+                  <span className="font-mono">GET /api/v1/deals/banners</span>).
+                </p>
+              </div>
 
               {/* IMAGE PREVIEW */}
 
-              {form.image.trim() && (
+              {imagePreview && (
                 <div className="overflow-hidden rounded-xl border border-[#E5E9EF] bg-[#F7F9FC]">
-
                   <div className="aspect-[3/1] w-full">
-
-                    <BannerImg
-                      src={form.image}
-                      alt="Banner preview"
-                      iconSize={28}
-                      bannerId={
-                        editingId !== null
-                          ? (banners.find(
-                              (entry) => entry.id === editingId
-                            )?.serverId || String(editingId))
-                          : undefined
-                      }
-                    />
-
+                    {imageFile ? (
+                      <img
+                        src={imagePreview}
+                        alt="Banner preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <BannerImg
+                        src={imagePreview}
+                        alt="Banner preview"
+                        iconSize={28}
+                        bannerId={
+                          editingId !== null
+                            ? (banners.find(
+                                (entry) => entry.id === editingId
+                              )?.serverId || String(editingId))
+                            : undefined
+                        }
+                      />
+                    )}
                   </div>
-
                 </div>
               )}
 

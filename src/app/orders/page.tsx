@@ -732,11 +732,19 @@ function OrdersContent() {
           )}
 
           {/* =================================================
-              ORDER DETAILS
+              ORDER DETAILS — with live tracking link
           ================================================= */}
 
           {selectedOrder && (
             <div className="space-y-5">
+              <div className="flex justify-end">
+                <a
+                  href={`/orders/${selectedOrder.id}/tracking`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-navy px-3 py-2 text-[11px] font-bold text-white hover:bg-navy-deep"
+                >
+                  Live Tracking →
+                </a>
+              </div>
 
               {/* =================================================
                   ORDER HEADER

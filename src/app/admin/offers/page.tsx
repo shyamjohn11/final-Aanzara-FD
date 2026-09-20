@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { offersApi } from "@/app/api/services";
+import { offersApi, categoriesApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -37,9 +37,12 @@ type Offer = {
   status: OfferStatus;
 };
 
-/* API-first: offers load from backend; empty until fetch resolves. */
+/* API-first: offers load from backend; empty until fetch resolves.
+   Category filter is no longer hardcoded — live catalog categories from
+   GET /api/v1/categories populate the dropdown, and search/status filters
+   are pushed to GET /api/admin/offers?Search=&Status= as query params. */
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   "All Products",
   "Staples",
   "Biscuits",
@@ -62,6 +65,9 @@ export default function OffersPage() {
 
   const [categoryFilter, setCategoryFilter] =
     useState("All Products");
+
+  const [categories, setCategories] =
+    useState<string[]>(DEFAULT_CATEGORIES);
 
   const [showForm, setShowForm] =
     useState(false);
@@ -102,15 +108,16 @@ export default function OffersPage() {
   });
 
   /* =====================================================
-     LOAD OFFERS (#80 GET /api/admin/offers; API-first)
+     LOAD LIVE CATEGORIES — replaces hardcoded CATEGORIES dropdown
+     GET /api/v1/categories → ["All Products", ...live names]
   ====================================================== */
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadOffers = async () => {
+    const loadCategories = async () => {
       try {
-        const response = await offersApi.list(1, 100);
+        const response: any = await categoriesApi.list();
         const payload: any = (response as any)?.data ?? response;
         const rawItems: any[] = Array.isArray(payload)
           ? payload
@@ -121,6 +128,63 @@ export default function OffersPage() {
               : [];
 
         if (cancelled || rawItems.length === 0) return;
+
+        const names = rawItems
+          .map((raw: any) => String(raw.categoryName ?? raw.name ?? "").trim())
+          .filter((name: string) => name.length > 0);
+
+        const unique = Array.from(new Set(names));
+        if (!cancelled && unique.length > 0) {
+          setCategories(["All Products", ...unique]);
+        }
+      } catch {
+        // Keep DEFAULT_CATEGORIES as fallback so filter stays usable.
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* =====================================================
+     LOAD OFFERS — server-filtered via API (#80)
+     Search + Status push as ?Search=&Status= to the backend
+     (GetOffersQuery). Category remains a live-dropdown but
+     offers have no persisted category column, so it stays
+     as a client-side filter until the domain adds it.
+     Debounced so typing does not spam the API.
+  ====================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const extra: Record<string, string> = {};
+        const trimmedSearch = search.trim();
+        if (trimmedSearch) extra.Search = trimmedSearch;
+        if (statusFilter !== "All") extra.Status = statusFilter;
+
+        const response = await offersApi.list(1, 100, extra);
+        const payload: any = (response as any)?.data ?? response;
+        const rawItems: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+
+        if (cancelled) return;
+
+        // Even an empty result is a valid server response — clear the list
+        // so stale hard-coded offers don't linger after a filter clears.
+        if (rawItems.length === 0) {
+          setOffers([]);
+          return;
+        }
 
         const mapped: Offer[] = rawItems.map((raw: any, index: number) => ({
           id: index + 1,
@@ -138,58 +202,35 @@ export default function OffersPage() {
             : "Active",
         }));
 
-        if (mapped.length > 0) setOffers(mapped);
+        setOffers(mapped);
       } catch (error) {
         console.error("Unable to load offers:", error);
+        if (!cancelled) setOffers([]);
       }
-    };
-
-    loadOffers();
+    }, 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [search, statusFilter]);
 
   /* =====================================================
      FILTER
   ====================================================== */
 
+  // After API-connected filters, offers is already server-filtered by
+  // Search+Status. Only category remains client-side until Offer domain
+  // persists it — still uses live categories so the dropdown is not hardcoded.
   const filteredOffers = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
-
     return offers.filter((offer) => {
-      const matchesSearch =
-        !query ||
-        offer.name
-          .toLowerCase()
-          .includes(query) ||
-        offer.code
-          .toLowerCase()
-          .includes(query);
-
-      const matchesStatus =
-        statusFilter === "All" ||
-        offer.status === statusFilter;
-
       const matchesCategory =
         categoryFilter === "All Products" ||
         offer.category === categoryFilter ||
         offer.category === "All Products";
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesCategory
-      );
+      return matchesCategory;
     });
-  }, [
-    offers,
-    search,
-    statusFilter,
-    categoryFilter,
-  ]);
+  }, [offers, categoryFilter]);
 
   /* =====================================================
      STATS
@@ -344,8 +385,8 @@ export default function OffersPage() {
       }
     }
 
-    // Category
-    if (!CATEGORIES.includes(form.category)) {
+    // Category — live catalog categories, fallback to defaults while loading
+    if (!categories.includes(form.category)) {
       nextErrors.category = "Please select a valid category.";
     }
 
@@ -711,7 +752,7 @@ export default function OffersPage() {
               className="h-10 rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] px-3 text-[10px] text-[#5D6C80] outline-none focus:border-[#1769F5]"
             >
 
-              {CATEGORIES.map(
+              {categories.map(
                 (category) => (
                   <option
                     key={category}
@@ -1370,7 +1411,7 @@ export default function OffersPage() {
                   aria-invalid={Boolean(errors.category)}
                 >
 
-                  {CATEGORIES.map(
+                  {categories.map(
                     (item) => (
                       <option
                         key={item}

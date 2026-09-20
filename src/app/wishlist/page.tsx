@@ -851,17 +851,10 @@ export default function WishlistPage() {
                     PRODUCT IMAGE
                 ========================================= */}
 
-                <div
-                  className="relative h-[160px] flex items-center justify-center"
-                  style={{
-                    background:
-                      `linear-gradient(160deg, ${product.swatch}22, ${product.swatch}0D)`,
-                  }}
-                >
-
+                <div className="relative h-[160px] flex items-center justify-center overflow-hidden bg-white border-b border-line">
                   {/* DISCOUNT */}
 
-                  <span className="absolute top-3 left-3 bg-green text-white text-[10px] font-bold px-2 py-1 rounded-md">
+                  <span className="absolute top-3 left-3 z-10 bg-green text-white text-[10px] font-bold px-2 py-1 rounded-md">
                     {product.discount}% OFF
                   </span>
 
@@ -875,7 +868,7 @@ export default function WishlistPage() {
                       )
                     }
                     aria-label={`Select ${product.name}`}
-                    className={`absolute top-3 right-14 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center transition-colors ${
+                    className={`absolute top-3 right-14 z-10 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center transition-colors ${
                       selectedProducts.has(
                         product.id
                       )
@@ -902,7 +895,7 @@ export default function WishlistPage() {
                       )
                     }
                     aria-label={`Remove ${product.name} from wishlist`}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center hover:bg-red-50 transition-colors"
+                    className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center hover:bg-red-50 transition-colors"
                   >
                     <Heart
                       size={15}
@@ -912,13 +905,23 @@ export default function WishlistPage() {
 
                   {/* PRODUCT VISUAL */}
 
-                  <div
-                    className="w-14 h-20 rounded-md shadow-sm"
-                    style={{
-                      background:
-                        `linear-gradient(160deg, ${product.swatch}, ${product.accent})`,
-                    }}
-                  />
+                  {product.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-full w-full object-contain p-2"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div
+                      className="w-14 h-20 rounded-md shadow-sm"
+                      style={{
+                        background:
+                          `linear-gradient(160deg, ${product.swatch}, ${product.accent})`,
+                      }}
+                    />
+                  )}
 
                 </div>
 
@@ -1320,14 +1323,7 @@ export default function WishlistPage() {
 
                                   {/* PRODUCT VISUAL */}
 
-                                  <div
-                                    className="relative w-[90px] h-[100px] shrink-0 flex items-center justify-center rounded-md"
-                                    style={{
-                                      background:
-                                        `linear-gradient(160deg, ${product.swatch}22, ${product.swatch}0D)`,
-                                    }}
-                                  >
-
+                                  <div className="relative w-[90px] h-[100px] shrink-0 flex items-center justify-center rounded-md overflow-hidden bg-white border border-line">
                                     {/* SELECT */}
 
                                     <button
@@ -1339,7 +1335,7 @@ export default function WishlistPage() {
                                         )
                                       }
                                       aria-label={`Select ${product.name}`}
-                                      className="absolute top-2 left-2 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center text-navy"
+                                      className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center text-navy"
                                     >
                                       {isSelected ? (
                                         <CheckSquare
@@ -1352,13 +1348,23 @@ export default function WishlistPage() {
                                       )}
                                     </button>
 
-                                    <div
-                                      className="w-10 h-14 rounded-md shadow-sm"
-                                      style={{
-                                        background:
-                                          `linear-gradient(160deg, ${product.swatch}, ${product.accent})`,
-                                      }}
-                                    />
+                                    {product.image ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={product.image}
+                                        alt={product.name}
+                                        className="h-full w-full object-contain p-1"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div
+                                        className="w-10 h-14 rounded-md shadow-sm"
+                                        style={{
+                                          background:
+                                            `linear-gradient(160deg, ${product.swatch}, ${product.accent})`,
+                                        }}
+                                      />
+                                    )}
 
                                   </div>
 

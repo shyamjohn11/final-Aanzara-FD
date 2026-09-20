@@ -6,21 +6,44 @@ import Link from "next/link";
 import { PhoneCall, Grid2x2 } from "lucide-react";
 
 /* ============================================================
-   SLIDES
+   SLIDES — fallback static, live banners override when available
 ============================================================ */
 
-const SLIDE_IMAGES = [
-  "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1600&q=80",
-  "https://images.unsplash.com/photo-1749244768351-2726dc23d26c?auto=format&fit=crop&w=1600&q=80",
-  "/Images/Hero.jpeg",
-  "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1600&q=80",
-] as const;
+const FALLBACK_SLIDES: { image: string; link: string; title?: string }[] = [
+  {
+    image: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1600&q=80",
+    link: "/offers",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1749244768351-2726dc23d26c?auto=format&fit=crop&w=1600&q=80",
+    link: "/categories",
+  },
+  { image: "/Images/Hero.jpeg", link: "/categories" },
+  {
+    image: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1600&q=80",
+    link: "/offers",
+  },
+];
 
 const SLIDE_INTERVAL = 5000;
+
+type LiveSlide = { image: string; link: string; title: string; subtitle: string };
 
 /* ============================================================
    VALIDATION
 ============================================================ */
+
+function normalizeBannerSrc(src: string): string {
+  const t = src.trim();
+  if (!t) return "";
+  // Old banner rows store http://192.168.31.9:5000/uploads/Banners/... — extract the
+  // /uploads/... pathname so it goes through the Next.js /uploads proxy and the
+  // API static files. Absolute external images (unsplash, etc.) keep their host.
+  const low = t.toLowerCase();
+  const idx = low.indexOf("/uploads/");
+  if (idx >= 0 && /^(https?:)/i.test(t)) return t.slice(idx);
+  return t;
+}
 
 function isValidImageSource(
   value: unknown
@@ -32,7 +55,7 @@ function isValidImageSource(
     return false;
   }
 
-  const source = value.trim();
+  const source = normalizeBannerSrc(value.trim());
 
   return (
     source.startsWith("/") ||
@@ -46,13 +69,46 @@ function isValidImageSource(
 ============================================================ */
 
 export default function Hero() {
+  const [liveSlides, setLiveSlides] = useState<LiveSlide[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { dealsApi } = await import("@/app/api/services");
+        const res: any = await dealsApi.banners(5);
+        const payload: any = res?.data ?? res;
+        const items: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
+        const mapped: LiveSlide[] = items
+          .map((r: any) => ({
+            image: normalizeBannerSrc(String(r.imageUrl ?? r.image ?? "")),
+            link: String(r.link ?? r.url ?? "").trim() || (r.productId ? `/product/${r.productId}` : "/offers"),
+            title: String(r.title ?? "").trim(),
+            subtitle: String(r.subtitle ?? r.description ?? "").trim(),
+          }))
+          .filter((s: LiveSlide) => s.image && isValidImageSource(s.image) && s.link);
+        if (!cancelled && mapped.length > 0) setLiveSlides(mapped);
+      } catch {}
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ==========================================================
-     SAFE SLIDES
+     SAFE SLIDES — live banners override fallback
   ========================================================== */
 
-  const validSlides = SLIDE_IMAGES.filter(
-    isValidImageSource
-  );
+  const baseSlides = liveSlides ?? FALLBACK_SLIDES;
+  const validSlides = baseSlides
+    .map((s) => (typeof s === "string" ? { image: s, link: "/offers", title: "", subtitle: "" } : s) as LiveSlide)
+    .map((s) => ({ ...s, image: normalizeBannerSrc(s.image) }))
+    .filter((s) => isValidImageSource(s.image));
 
   /* ==========================================================
      SLIDE STATE
@@ -264,17 +320,20 @@ export default function Hero() {
       "
     >
       {/* ======================================================
-          SLIDES
+           SLIDES — each live banner is a clickable Link to its offer/product
       ====================================================== */}
 
-      {validSlides.map((src, index) => {
+      {validSlides.map((slide, index) => {
         const isActive =
           safeSlide === index;
 
         return (
-          <div
-            key={`${src}-${index}`}
+          <Link
+            key={`${slide.image}-${index}`}
+            href={slide.link}
             aria-hidden={!isActive}
+            tabIndex={isActive ? 0 : -1}
+            aria-label={slide.title ? `View ${slide.title}` : `View offer ${index + 1}`}
             className={`
               absolute
               inset-0
@@ -282,11 +341,7 @@ export default function Hero() {
               transition-opacity
               duration-[1200ms]
               ease-out
-              ${
-                isActive
-                  ? "opacity-100"
-                  : "opacity-0"
-              }
+              ${isActive ? "opacity-100" : "opacity-0 pointer-events-none"}
             `}
           >
             <div
@@ -295,27 +350,23 @@ export default function Hero() {
                 inset-0
                 bg-cover
                 bg-center
-                ${
-                  isActive
-                    ? "animate-[azHeroZoom_7s_ease-out_forwards]"
-                    : ""
-                }
+                ${isActive ? "animate-[azHeroZoom_7s_ease-out_forwards]" : ""}
               `}
               style={{
-                backgroundImage: `url("${src}")`,
+                backgroundImage: `url("${slide.image}")`,
               }}
             />
-          </div>
+          </Link>
         );
       })}
 
       {/* ======================================================
-          OVERLAY
+           OVERLAY — pointer-events-none so banner Link stays clickable
       ====================================================== */}
 
       <div
         aria-hidden="true"
-        className="absolute inset-0"
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
             "linear-gradient(105deg, #0A1F44E6 0%, #0A1F44B3 38%, #0A1F4433 75%, transparent 100%)",
@@ -323,160 +374,159 @@ export default function Hero() {
       />
 
       {/* ======================================================
-          HERO CONTENT
+           HERO CONTENT — title/subtitle from live banner when available
       ====================================================== */}
 
-      <div
-        className="
-          relative
-          flex
-          h-full
-          max-w-[600px]
-          flex-col
-          justify-center
-          px-6
-          py-8
-          sm:px-10
-          az-fade-up
-        "
-      >
-        {/* BADGE */}
-
-        <span
-          className="
-            mb-4
-            inline-flex
-            w-fit
-            items-center
-            gap-1.5
-            rounded-pill
-            bg-white/10
-            px-3
-            py-1.5
-            text-[10.5px]
-            font-bold
-            tracking-wide
-            text-white
-            backdrop-blur-sm
-          "
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-green" />
-          B2B & D2C Wholesale Marketplace
-        </span>
-
-        {/* TITLE */}
-
-        <h1
-          className="
-            font-sora
-            text-[28px]
-            font-extrabold
-            leading-[1.12]
-            text-white
-            sm:text-[38px]
-          "
-        >
-          Your Complete FMCG Supply Partner
-        </h1>
-
-        {/* DESCRIPTION */}
-
-        <p
-          className="
-            mt-3
-            max-w-[460px]
-            text-[13.5px]
-            leading-relaxed
-            text-white/75
-            sm:text-[14.5px]
-          "
-        >
-          Direct manufacturer sourcing, unified B2B
-          bulk ordering, and reliable door-step
-          logistics. Empowering retail stores,
-          restaurants, and corporate environments.
-        </p>
-
-        {/* ====================================================
-            ACTIONS
-        ==================================================== */}
-
-        <div
-          className="
-            mt-6
-            flex
-            flex-wrap
-            items-center
-            gap-3
-          "
-        >
-          {/* BULK ENQUIRY */}
-
-          <Link
-            href="/contact"
-            aria-label="Go to contact page for bulk enquiry"
+      {(() => {
+        const active = validSlides[safeSlide] as LiveSlide | undefined;
+        const hasLiveTitle = Boolean(active?.title?.trim());
+        const hasLiveSubtitle = Boolean(active?.subtitle?.trim());
+        const ctaHref = active?.link ?? "/categories";
+        const ctaLabel = liveSlides ? "Shop Now" : "Explore Categories";
+        return (
+          <div
             className="
+              relative
               flex
-              items-center
-              gap-2
-              rounded-pill
-              bg-blue
+              h-full
+              max-w-[600px]
+              flex-col
+              justify-center
               px-6
-              py-3.5
-              text-[13px]
-              font-bold
-              text-white
-              shadow-pop
-              transition-all
-              hover:bg-blue-deep
-              hover:-translate-y-0.5
-              focus:outline-none
-              focus:ring-2
-              focus:ring-blue/40
-              focus:ring-offset-2
-              focus:ring-offset-navy
+              py-8
+              sm:px-10
+              az-fade-up
             "
           >
-            <PhoneCall
-              size={14}
-              aria-hidden="true"
-            />
-            Bulk Enquiry
-          </Link>
+            {/* BADGE */}
 
-          {/* EXPLORE CATEGORIES */}
+            <span
+              className="
+                mb-4
+                inline-flex
+                w-fit
+                items-center
+                gap-1.5
+                rounded-pill
+                bg-white/10
+                px-3
+                py-1.5
+                text-[10.5px]
+                font-bold
+                tracking-wide
+                text-white
+                backdrop-blur-sm
+              "
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-green" />
+              {hasLiveTitle ? "Special Offer" : "B2B & D2C Wholesale Marketplace"}
+            </span>
 
-          <Link
-            href="/categories"
-            aria-label="Explore product categories"
-            className="
-              glass-navy
-              flex
-              items-center
-              gap-2
-              rounded-pill
-              px-6
-              py-3.5
-              text-[13px]
-              font-bold
-              text-white
-              transition-all
-              hover:bg-white/10
-              focus:outline-none
-              focus:ring-2
-              focus:ring-white/50
-              focus:ring-offset-2
-              focus:ring-offset-navy
-            "
-          >
-            <Grid2x2
-              size={14}
-              aria-hidden="true"
-            />
-            Explore Categories
-          </Link>
-        </div>
-      </div>
+            {/* TITLE */}
+
+            <h1
+              className="
+                font-sora
+                text-[28px]
+                font-extrabold
+                leading-[1.12]
+                text-white
+                sm:text-[38px]
+              "
+            >
+              {hasLiveTitle ? active!.title : "Your Complete FMCG Supply Partner"}
+            </h1>
+
+            {/* DESCRIPTION */}
+
+            <p
+              className="
+                mt-3
+                max-w-[460px]
+                text-[13.5px]
+                leading-relaxed
+                text-white/75
+                sm:text-[14.5px]
+              "
+            >
+              {hasLiveSubtitle
+                ? active!.subtitle
+                : "Direct manufacturer sourcing, unified B2B bulk ordering, and reliable door-step logistics. Empowering retail stores, restaurants, and corporate environments."}
+            </p>
+
+            {/* ====================================================
+                ACTIONS — first CTA follows banner link (offer/product buy)
+            ==================================================== */}
+
+            <div
+              className="
+                mt-6
+                flex
+                flex-wrap
+                items-center
+                gap-3
+              "
+            >
+              {/* BANNER CTA — dynamic: offer page or product buy */}
+              <Link
+                href={ctaHref}
+                aria-label={hasLiveTitle ? `Shop ${active!.title}` : "Explore product categories"}
+                className="
+                  flex
+                  items-center
+                  gap-2
+                  rounded-pill
+                  bg-blue
+                  px-6
+                  py-3.5
+                  text-[13px]
+                  font-bold
+                  text-white
+                  shadow-pop
+                  transition-all
+                  hover:bg-blue-deep
+                  hover:-translate-y-0.5
+                  focus:outline-none
+                  focus:ring-2
+                  focus:ring-blue/40
+                  focus:ring-offset-2
+                  focus:ring-offset-navy
+                "
+              >
+                <Grid2x2 size={14} aria-hidden="true" />
+                {ctaLabel}
+              </Link>
+
+              <Link
+                href="/contact"
+                aria-label="Go to contact page for bulk enquiry"
+                className="
+                  glass-navy
+                  flex
+                  items-center
+                  gap-2
+                  rounded-pill
+                  px-6
+                  py-3.5
+                  text-[13px]
+                  font-bold
+                  text-white
+                  transition-all
+                  hover:bg-white/10
+                  focus:outline-none
+                  focus:ring-2
+                  focus:ring-white/50
+                  focus:ring-offset-2
+                  focus:ring-offset-navy
+                "
+              >
+                <PhoneCall size={14} aria-hidden="true" />
+                Bulk Enquiry
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ======================================================
           SLIDE CONTROLS

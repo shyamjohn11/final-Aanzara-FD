@@ -287,7 +287,14 @@ export default function OrdersPage() {
           return;
         }
 
-        const summaries = Array.isArray(data) ? data : [];
+        const raw: any = data as any;
+        const summaries: any[] = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.items)
+            ? raw.items
+            : Array.isArray(raw?.data)
+              ? raw.data
+              : [];
 
         setBackendMode(true);
         setOrders(summaries.map(summaryToOrder));
