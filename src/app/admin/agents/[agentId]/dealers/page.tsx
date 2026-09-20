@@ -406,6 +406,7 @@ export default function AgentDealersPage() {
             Back to Agents
           </button>
           <div className="flex flex-wrap items-center justify-between gap-3">
+<<<<<<< HEAD
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy text-white font-bold">
                 {(agentName || "A").charAt(0).toUpperCase()}
@@ -419,6 +420,17 @@ export default function AgentDealersPage() {
                   Shops assigned to this agent
                 </p>
               </div>
+=======
+            <div>
+              <h1 className="font-sora text-[20px] font-bold text-navy">
+                Dealers{agentName ? ` — ${agentName}` : ""}
+              </h1>
+              <p className="mt-1 text-[12.5px] text-ink-soft">
+                Shops served by this agent. Every dealer
+                created here is automatically assigned to
+                this agent.
+              </p>
+>>>>>>> J-Devops
             </div>
             <button
               type="button"
