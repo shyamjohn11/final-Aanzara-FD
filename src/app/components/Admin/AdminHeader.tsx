@@ -24,14 +24,6 @@ type AdminHeaderProps = {
   onMenuClick?: () => void;
 };
 
-/* ============================================================
-   LOGGED-IN ADMIN USER
-   Same localStorage key/shape the storefront Header.tsx reads
-   ("aanzara_user"), plus optional role fields — different auth
-   responses have used different keys for this in the past, so
-   we check a few and fall back gracefully if none are present.
-============================================================ */
-
 type AdminUser = {
   id?: string | number;
   name?: string;
@@ -62,10 +54,7 @@ function normalizeSearch(value: string): string {
 function isValidSearch(value: string): boolean {
   const query = normalizeSearch(value);
 
-  return (
-    query.length > 0 &&
-    query.length <= MAX_SEARCH_LENGTH
-  );
+  return query.length > 0 && query.length <= MAX_SEARCH_LENGTH;
 }
 
 export default function AdminHeader({
@@ -77,54 +66,25 @@ export default function AdminHeader({
   const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Live unread count for the admin inbox (Notifications table).
-  // UnreadOnly + pageSize 1 keeps the payload tiny; only TotalCount matters.
+  // ============================================================
+  // LOGGED-IN ADMIN USER
+  // ============================================================
+
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(
+    null
+  );
+
+  const [userLoaded, setUserLoaded] = useState(false);
+
+  // ============================================================
+  // UNREAD NOTIFICATIONS
+  // ============================================================
+
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadUnread = async () => {
-      try {
-        const response = await notificationsApi.list({
-          unreadOnly: true,
-          page: 1,
-          pageSize: 1,
-        });
-        if (cancelled) return;
-        const payload = response?.data as
-          | { totalCount?: number; totalcount?: number }
-          | undefined;
-        const total =
-          typeof payload?.totalCount === "number"
-            ? payload.totalCount
-            : typeof payload?.totalcount === "number"
-              ? payload.totalcount
-              : 0;
-        setUnreadNotifications(total);
-      } catch {
-        if (!cancelled) setUnreadNotifications(0);
-      }
-    };
-    void loadUnread();
-    const timer = setInterval(loadUnread, 30000);
-    const sync = () => {
-      void loadUnread();
-    };
-    window.addEventListener("focus", sync);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
-    };
-  }, []);
-
-  /* ========================================================
-     LOGGED-IN ADMIN USER (same shape as storefront Header)
-  ======================================================== */
-
-  const [adminUser, setAdminUser] =
-    useState<AdminUser | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+  // ============================================================
+  // LOAD LOGGED-IN USER
+  // ============================================================
 
   useEffect(() => {
     const loadUser = () => {
@@ -139,7 +99,10 @@ export default function AdminHeader({
 
         const parsed: unknown = JSON.parse(saved);
 
-        if (typeof parsed !== "object" || parsed === null) {
+        if (
+          typeof parsed !== "object" ||
+          parsed === null
+        ) {
           setAdminUser(null);
           return;
         }
@@ -155,12 +118,18 @@ export default function AdminHeader({
             typeof record.id === "number"
               ? record.id
               : undefined,
+
           name: text(record.name),
           email: text(record.email),
           role: text(record.role),
           accountType: text(record.accountType),
         });
-      } catch {
+      } catch (error) {
+        console.error(
+          "Failed to load admin user:",
+          error
+        );
+
         setAdminUser(null);
       } finally {
         setUserLoaded(true);
@@ -170,7 +139,10 @@ export default function AdminHeader({
     loadUser();
 
     window.addEventListener("storage", loadUser);
-    window.addEventListener("aanzara-user-updated", loadUser);
+    window.addEventListener(
+      "aanzara-user-updated",
+      loadUser
+    );
 
     return () => {
       window.removeEventListener("storage", loadUser);
@@ -181,16 +153,63 @@ export default function AdminHeader({
     };
   }, []);
 
+  // ============================================================
+  // DISPLAY USER DATA
+  // ============================================================
+
   const displayName =
     adminUser?.name?.trim() ||
     adminUser?.email?.split("@")[0] ||
     "Admin";
+
   const displayEmail =
     adminUser?.email?.trim() || "";
+
   const displayRole =
     adminUser?.role?.trim() ||
     adminUser?.accountType?.trim() ||
     "Super Admin";
+
+  // ============================================================
+  // LOAD UNREAD NOTIFICATION COUNT
+  // ============================================================
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await notificationsApi.list({
+          unreadOnly: true,
+          pageSize: 1,
+        });
+
+        const payload: any =
+          (response as any)?.data ?? response;
+
+        if (isMounted) {
+          setUnreadNotifications(
+            Number(payload?.totalCount ?? 0)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch unread notifications:",
+          error
+        );
+      }
+    };
+
+    fetchUnreadCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // ============================================================
+  // SEARCH
+  // ============================================================
 
   const handleSearch = () => {
     const query = normalizeSearch(search);
@@ -222,25 +241,31 @@ export default function AdminHeader({
     }
   };
 
+  // ============================================================
+  // PROFILE
+  // ============================================================
+
   const closeProfile = () => {
     setProfileOpen(false);
   };
 
-  /**
-   * Sign out: revoke the server session, clear the client session and the
-   * middleware guard cookies, then replace history with /login so Back
-   * cannot return into /admin. Without the clear, the guard cookie
-   * survives and the middleware bounces /login straight back to /admin,
-   * so logout never visibly completes.
-   */
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   const handleAdminLogout = async () => {
     closeProfile();
 
     const { logoutAndRedirect } = await import(
       "@/app/api/api"
     );
+
     await logoutAndRedirect(ROUTES.login);
   };
+
+  // ============================================================
+  // MOBILE MENU
+  // ============================================================
 
   const handleMobileMenu = () => {
     onMenuClick?.();
@@ -255,6 +280,10 @@ export default function AdminHeader({
     }
   };
 
+  // ============================================================
+  // UI
+  // ============================================================
+
   return (
     <header
       className="
@@ -268,8 +297,9 @@ export default function AdminHeader({
         lg:px-8
       "
     >
-
-      {/* MOBILE MENU */}
+      {/* ======================================================
+          MOBILE MENU
+      ====================================================== */}
 
       <button
         type="button"
@@ -287,7 +317,9 @@ export default function AdminHeader({
         <Menu size={21} />
       </button>
 
-      {/* MOBILE LOGO */}
+      {/* ======================================================
+          MOBILE LOGO
+      ====================================================== */}
 
       <button
         type="button"
@@ -319,7 +351,9 @@ export default function AdminHeader({
         </span>
       </button>
 
-      {/* DESKTOP SEARCH */}
+      {/* ======================================================
+          DESKTOP SEARCH
+      ====================================================== */}
 
       <div className="hidden max-w-[500px] flex-1 md:flex">
         <div
@@ -380,7 +414,9 @@ export default function AdminHeader({
         </div>
       </div>
 
-      {/* MOBILE SEARCH */}
+      {/* ======================================================
+          MOBILE SEARCH BUTTON
+      ====================================================== */}
 
       <button
         type="button"
@@ -398,14 +434,15 @@ export default function AdminHeader({
         <Search size={19} />
       </button>
 
-      {/* RIGHT SIDE */}
+      {/* ======================================================
+          RIGHT SIDE
+      ====================================================== */}
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
 
-        {/* =================================================
+        {/* ==================================================
             VIEW SITE
-            GOES DIRECTLY TO /dashboard
-        ================================================= */}
+        ================================================== */}
 
         <Link
           href={ROUTES.dashboard}
@@ -436,7 +473,9 @@ export default function AdminHeader({
           </span>
         </Link>
 
-        {/* NOTIFICATIONS */}
+        {/* ==================================================
+            NOTIFICATIONS
+        ================================================== */}
 
         <button
           type="button"
@@ -446,9 +485,7 @@ export default function AdminHeader({
               : "Notifications"
           }
           onClick={() =>
-            router.push(
-              ROUTES.notifications
-            )
+            router.push(ROUTES.notifications)
           }
           className="
             relative flex h-9 w-9
@@ -474,12 +511,16 @@ export default function AdminHeader({
                 text-white
               "
             >
-              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              {unreadNotifications > 99
+                ? "99+"
+                : unreadNotifications}
             </span>
           )}
         </button>
 
-        {/* DIVIDER */}
+        {/* ==================================================
+            DIVIDER
+        ================================================== */}
 
         <div
           className="
@@ -489,7 +530,9 @@ export default function AdminHeader({
           "
         />
 
-        {/* PROFILE */}
+        {/* ==================================================
+            PROFILE
+        ================================================== */}
 
         <div className="relative">
 
@@ -527,6 +570,7 @@ export default function AdminHeader({
             {/* USER */}
 
             <div className="hidden text-left lg:block">
+
               <p
                 className="
                   max-w-[120px]
@@ -536,7 +580,9 @@ export default function AdminHeader({
                   text-[#33415A]
                 "
               >
-                {userLoaded ? displayName : "Admin"}
+                {userLoaded
+                  ? displayName
+                  : "Admin"}
               </p>
 
               <p
@@ -546,8 +592,11 @@ export default function AdminHeader({
                   text-[#8B97A7]
                 "
               >
-                {userLoaded ? displayRole : "Super Admin"}
+                {userLoaded
+                  ? displayRole
+                  : "Super Admin"}
               </p>
+
             </div>
 
             <ChevronDown
@@ -567,7 +616,9 @@ export default function AdminHeader({
 
           </button>
 
-          {/* PROFILE DROPDOWN */}
+          {/* ==================================================
+              PROFILE DROPDOWN
+          ================================================== */}
 
           {profileOpen && (
             <>
@@ -612,6 +663,7 @@ export default function AdminHeader({
                       flex items-center gap-3
                     "
                   >
+
                     <div
                       className="
                         flex h-11 w-11
@@ -625,6 +677,7 @@ export default function AdminHeader({
                     </div>
 
                     <div className="min-w-0">
+
                       <p
                         className="
                           truncate
@@ -633,7 +686,9 @@ export default function AdminHeader({
                           text-[#33415A]
                         "
                       >
-                        {userLoaded ? displayName : "Admin"}
+                        {userLoaded
+                          ? displayName
+                          : "Admin"}
                       </p>
 
                       {displayEmail && (
@@ -659,9 +714,13 @@ export default function AdminHeader({
                           text-[#219653]
                         "
                       >
-                        {userLoaded ? displayRole : "Super Admin"}
+                        {userLoaded
+                          ? displayRole
+                          : "Super Admin"}
                       </span>
+
                     </div>
+
                   </div>
                 </div>
 
@@ -792,7 +851,9 @@ export default function AdminHeader({
         </div>
       </div>
 
-      {/* MOBILE SEARCH INPUT */}
+      {/* ======================================================
+          MOBILE SEARCH INPUT
+      ====================================================== */}
 
       <div
         className="
@@ -860,7 +921,6 @@ export default function AdminHeader({
           )}
         </div>
       </div>
-
     </header>
   );
 }

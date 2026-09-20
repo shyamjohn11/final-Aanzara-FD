@@ -98,6 +98,7 @@ export default function AdminLayout({
       className="
         min-h-screen
         w-full
+        overflow-x-hidden
         bg-[#F5F7FA]
         text-[#1F2F49]
       "
@@ -121,15 +122,27 @@ export default function AdminLayout({
 
           Mobile:
           Main area = full width
+
+          NOTE: `calc()` requires a space on both sides of the
+          `-` operator to be valid CSS. `calc(100%-270px)` (no
+          spaces) is invalid, and browsers silently drop the
+          whole `width` declaration when they can't parse it —
+          that was the bug causing admin pages to overflow
+          270px past the right edge of the viewport. Tailwind's
+          arbitrary-value syntax needs underscores in place of
+          spaces: `calc(100%_-_270px)` compiles to the valid
+          CSS `calc(100% - 270px)`.
       =================================================== */}
 
       <div
         className="
           min-h-screen
           w-full
+          min-w-0
+          overflow-x-hidden
 
           lg:ml-[270px]
-          lg:w-[calc(100%-270px)]
+          lg:w-[calc(100%_-_270px)]
         "
       >
         {/* =================================================
@@ -149,6 +162,7 @@ export default function AdminLayout({
           className="
             min-h-[calc(100vh-70px)]
             w-full
+            min-w-0
             overflow-x-hidden
             bg-[#F5F7FA]
           "

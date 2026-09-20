@@ -279,7 +279,8 @@ export default function NewArrivalsResults() {
   const [priceMax, setPriceMax] =
     useState<number>(priceCeiling);
 
-  const [page, setPage] = useState<number>(1);
+  const [currentPage, setCurrentPage] =
+    useState<number>(1);
 
   /* Keep the price slider in sync when the server data arrives. */
 
@@ -340,7 +341,7 @@ export default function NewArrivalsResults() {
         : next;
     });
 
-    setPage(1);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -364,7 +365,7 @@ export default function NewArrivalsResults() {
         : [...previous, brand],
     );
 
-    setPage(1);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -384,7 +385,7 @@ export default function NewArrivalsResults() {
 
     setActiveTab("All Products");
 
-    setPage(1);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -404,7 +405,7 @@ export default function NewArrivalsResults() {
     }
 
     setSort(value);
-    setPage(1);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -424,7 +425,7 @@ export default function NewArrivalsResults() {
     );
 
     setPriceMax(safeValue);
-    setPage(1);
+    setCurrentPage(1);
   };
 
   /* --------------------------------
@@ -526,11 +527,68 @@ export default function NewArrivalsResults() {
    * Pagination — backend-style page numbers (client-side over fresh-arrivals)
    * -------------------------------- */
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(page, 1), totalPages);
-  const visibleProducts = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const showingStart = filtered.length > 0 ? (safePage - 1) * PAGE_SIZE + 1 : 0;
-  const showingEnd = Math.min(safePage * PAGE_SIZE, filtered.length);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filtered.length / PAGE_SIZE),
+  );
+
+  const safeCurrentPage = Math.min(
+    Math.max(currentPage, 1),
+    totalPages,
+  );
+
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+    // Only re-sync when the clamped value itself changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeCurrentPage]);
+
+  const visibleProducts = filtered.slice(
+    (safeCurrentPage - 1) * PAGE_SIZE,
+    safeCurrentPage * PAGE_SIZE,
+  );
+
+  const showingStart =
+    filtered.length > 0
+      ? (safeCurrentPage - 1) * PAGE_SIZE + 1
+      : 0;
+
+  const showingEnd =
+    (safeCurrentPage - 1) * PAGE_SIZE +
+    visibleProducts.length;
+
+  const goToPage = (page: number): void => {
+    if (page < 1 || page > totalPages || page === safeCurrentPage) {
+      return;
+    }
+
+    setCurrentPage(page);
+
+    document
+      .getElementById("new-arrivals-grid")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const getPageNumbers = (): (number | "ellipsis")[] => {
+    const pages: (number | "ellipsis")[] = [];
+    const windowSize = 1;
+
+    for (let i = 1; i <= totalPages; i++) {
+      const isEdge = i === 1 || i === totalPages;
+      const isNearCurrent =
+        Math.abs(i - safeCurrentPage) <= windowSize;
+
+      if (isEdge || isNearCurrent) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "ellipsis") {
+        pages.push("ellipsis");
+      }
+    }
+
+    return pages;
+  };
 
   /* --------------------------------
    * Status message for empty results
@@ -566,7 +624,7 @@ export default function NewArrivalsResults() {
           }
 
           setActiveTab(tab.trim());
-          setPage(1);
+          setCurrentPage(1);
         }}
       />
 
@@ -763,46 +821,124 @@ export default function NewArrivalsResults() {
               </div>
 
               {/* --------------------------------
-               * Pagination — numbered pages
+               * Pagination
                * -------------------------------- */}
-              {filtered.length > PAGE_SIZE && (
-                <div className="flex items-center justify-center gap-1.5 mt-6">
+
+              {totalPages > 1 && (
+                <nav
+                  aria-label="New arrivals pagination"
+                  className="
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    mt-6
+                  "
+                >
+                  {/* PREVIOUS */}
                   <button
                     type="button"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage <= 1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-ink-soft hover:border-green hover:text-green-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() =>
+                      goToPage(safeCurrentPage - 1)
+                    }
+                    disabled={safeCurrentPage === 1}
                     aria-label="Previous page"
+                    className="
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      rounded-lg
+                      border
+                      border-line
+                      bg-white
+                      text-ink-soft
+                      transition-colors
+                      hover:border-green
+                      hover:text-green-deep
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      disabled:hover:border-line
+                      disabled:hover:text-ink-soft
+                    "
                   >
-                    <ChevronLeft size={14} />
+                    <ChevronLeft size={16} />
                   </button>
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const n = i + 1;
-                    const active = n === safePage;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setPage(n)}
-                        aria-current={active ? "page" : undefined}
-                        className={`h-8 min-w-8 rounded-lg border px-2 text-[12px] font-bold ${
-                          active ? "bg-navy border-navy text-white" : "border-line bg-white text-ink hover:border-green"
-                        }`}
+
+                  {/* PAGE NUMBERS */}
+                  {getPageNumbers().map((page, idx) =>
+                    page === "ellipsis" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1 text-[12px] text-ink-faint"
                       >
-                        {n}
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        aria-current={
+                          page === safeCurrentPage
+                            ? "page"
+                            : undefined
+                        }
+                        className={`
+                          flex
+                          h-9
+                          w-9
+                          items-center
+                          justify-center
+                          rounded-lg
+                          border
+                          text-[12px]
+                          font-semibold
+                          transition-colors
+                          ${
+                            page === safeCurrentPage
+                              ? "border-green bg-green text-white"
+                              : "border-line bg-white text-ink-soft hover:border-green hover:text-green-deep"
+                          }
+                        `}
+                      >
+                        {page}
                       </button>
-                    );
-                  })}
+                    )
+                  )}
+
+                  {/* NEXT */}
                   <button
                     type="button"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage >= totalPages}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-ink-soft hover:border-green hover:text-green-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() =>
+                      goToPage(safeCurrentPage + 1)
+                    }
+                    disabled={safeCurrentPage === totalPages}
                     aria-label="Next page"
+                    className="
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      rounded-lg
+                      border
+                      border-line
+                      bg-white
+                      text-ink-soft
+                      transition-colors
+                      hover:border-green
+                      hover:text-green-deep
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      disabled:hover:border-line
+                      disabled:hover:text-ink-soft
+                    "
                   >
-                    <ChevronRight size={14} />
+                    <ChevronRight size={16} />
                   </button>
-                </div>
+                </nav>
               )}
             </>
           )}

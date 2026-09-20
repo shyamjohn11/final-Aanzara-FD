@@ -137,6 +137,95 @@ function unwrapList(payload: unknown): {
   ]);
   const total = typeof totalRaw === "number" ? totalRaw : rows.length;
 
+<<<<<<< HEAD
+=======
+  return { rows, total };
+}
+
+/* ============================================================
+   DUMMY DATA (temporary — remove once backend is connected)
+============================================================ */
+
+const USE_DUMMY_DATA = true;
+
+const DUMMY_AGENTS: AgentRow[] = [
+  {
+    id: "AGT-001",
+    agentId: "AGT-001",
+    name: "Ravi Kumar",
+    email: "ravi.kumar@aanzara.com",
+    phone: "+91 98765 43210",
+    employeeCode: "EMP-1042",
+    status: "Active",
+    dealerCount: 12,
+  },
+  {
+    id: "AGT-002",
+    agentId: "AGT-002",
+    name: "Priya Sharma",
+    email: "priya.sharma@aanzara.com",
+    phone: "+91 91234 56789",
+    employeeCode: "EMP-1078",
+    status: "Active",
+    dealerCount: 7,
+  },
+  {
+    id: "AGT-003",
+    agentId: "AGT-003",
+    name: "Mohammed Irfan",
+    email: "irfan.m@aanzara.com",
+    phone: "+91 90000 11223",
+    employeeCode: "EMP-1103",
+    status: "Inactive",
+    dealerCount: 3,
+  },
+  {
+    id: "AGT-004",
+    agentId: "AGT-004",
+    name: "Deepa Nair",
+    email: "deepa.nair@aanzara.com",
+    phone: "+91 99887 66554",
+    employeeCode: "EMP-1121",
+    status: "Suspended",
+    dealerCount: 0,
+  },
+  {
+    id: "AGT-005",
+    agentId: "AGT-005",
+    name: "Arjun Verma",
+    email: "arjun.verma@aanzara.com",
+    phone: null,
+    employeeCode: "EMP-1156",
+    status: "Active",
+    dealerCount: 19,
+  },
+];
+
+function getDummyPage(
+  page: number,
+  pageSize: number,
+  search: string,
+  status: string
+): { rows: AgentRow[]; total: number } {
+  let filtered = DUMMY_AGENTS;
+
+  if (status && status !== "All") {
+    filtered = filtered.filter((a) => a.status === status);
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.email?.toLowerCase().includes(q) ||
+        a.employeeCode?.toLowerCase().includes(q)
+    );
+  }
+
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const rows = filtered.slice(start, start + pageSize);
+>>>>>>> J-Devops
   return { rows, total };
 }
 
@@ -182,6 +271,26 @@ export default function AdminAgentsPage() {
   const load = useCallback(async () => {
     setLoading(true);
 
+<<<<<<< HEAD
+=======
+    // --- TEMPORARY: dummy data path (remove when backend is ready) ---
+    if (USE_DUMMY_DATA) {
+      const { rows: mapped, total } = getDummyPage(
+        page,
+        pageSize,
+        debouncedSearch,
+        statusFilter
+      );
+      // tiny artificial delay so the loading state is visible, like a real call
+      await new Promise((r) => setTimeout(r, 150));
+      setRows(mapped);
+      setTotalCount(total);
+      setLoading(false);
+      return;
+    }
+    // --- END TEMPORARY ---
+
+>>>>>>> J-Devops
     try {
       const res = await agentsApi.list({
         page,
@@ -228,6 +337,7 @@ export default function AdminAgentsPage() {
               Select an agent to view and manage their dealers/shops.
             </p>
           </div>
+<<<<<<< HEAD
           <div className="flex items-center gap-2">
             <div className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5">
               <Users size={16} className="text-navy" />
@@ -256,6 +366,14 @@ export default function AdminAgentsPage() {
               <Plus size={15} />
               Add Agent
             </button>
+=======
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5">
+            <Users size={16} className="text-navy" />
+            <span className="text-[13px] font-bold text-ink">
+              {totalCount}
+            </span>
+            <span className="text-[12px] text-ink-soft">total agents</span>
+>>>>>>> J-Devops
           </div>
         </div>
 

@@ -11,7 +11,6 @@ import {
   Package,
   Truck,
   Headset,
-  Check,
   ShieldCheck,
   Receipt,
   Percent,
@@ -255,17 +254,43 @@ export default function WholesaleHero() {
       <div
         className="
           relative
+          isolate
           flex
           min-h-[420px]
           flex-col
+          overflow-hidden
+          bg-[#F6F4EE]
           lg:h-[300px]
           lg:flex-row
         "
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(180deg, #F6F4EE 0px, #F6F4EE 7px, #EFEBE0 7px, #EFEBE0 8px)",
-        }}
       >
+        {/* Dot-grid texture — reads as a warehouse pegboard, not graph paper */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.55]"
+          style={{
+            backgroundImage:
+              "radial-gradient(rgba(15,23,42,0.09) 1px, transparent 1px)",
+            backgroundSize: "14px 14px",
+          }}
+          aria-hidden="true"
+        />
+
+        {/* Soft ambient glows for depth — anchored to the two focal points */}
+        <div
+          className="pointer-events-none absolute -left-16 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-green/15 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -right-10 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full bg-[#0B4DA2]/15 blur-3xl"
+          aria-hidden="true"
+        />
+
+        {/* Vignette so the dot-grid fades rather than cutting off hard */}
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,#F6F4EE_92%)]"
+          aria-hidden="true"
+        />
+
         {/* ===================================================
             LEFT — COPY
         =================================================== */}
@@ -298,6 +323,7 @@ export default function WholesaleHero() {
               bg-white
               px-3
               py-1.5
+              shadow-[0_2px_8px_rgba(180,113,28,0.12)]
             "
           >
             <span
@@ -484,8 +510,7 @@ export default function WholesaleHero() {
                 flex
                 flex-wrap
                 items-center
-                gap-x-4
-                gap-y-2
+                gap-2
               "
             >
               {perks
@@ -498,6 +523,8 @@ export default function WholesaleHero() {
                     return null;
                   }
 
+                  const isAlt = index % 2 === 1;
+
                   return (
                     <div
                       key={`${perk.title}-${index}`}
@@ -505,24 +532,32 @@ export default function WholesaleHero() {
                         flex
                         items-center
                         gap-1.5
+                        rounded-full
+                        border
+                        border-slate-200/80
+                        bg-white/80
+                        py-1
+                        pl-1
+                        pr-3
+                        shadow-[0_2px_8px_rgba(15,23,42,0.06)]
+                        backdrop-blur-sm
                       "
                     >
                       <span
-                        className="
+                        className={`
                           flex
-                          h-[17px]
-                          w-[17px]
+                          h-[19px]
+                          w-[19px]
                           shrink-0
                           items-center
                           justify-center
                           rounded-full
-                          bg-green/10
-                          text-green
-                        "
+                          ${isAlt ? "bg-[#0B4DA2]/10 text-[#0B4DA2]" : "bg-green/10 text-green"}
+                        `}
                       >
-                        <Check
-                          size={10}
-                          strokeWidth={3}
+                        <Icon
+                          size={11}
+                          strokeWidth={2.5}
                           aria-hidden="true"
                         />
                       </span>
@@ -550,6 +585,7 @@ export default function WholesaleHero() {
         <div
           className="
             relative
+            z-10
             flex
             w-full
             items-center
@@ -562,6 +598,24 @@ export default function WholesaleHero() {
             lg:py-5
           "
         >
+          {/* Glow behind the frame — light spilling off the crate art */}
+          <div
+            className="
+              pointer-events-none
+              absolute
+              inset-x-8
+              inset-y-4
+              rounded-[28px]
+              bg-gradient-to-br
+              from-green/25
+              via-[#0B4DA2]/20
+              to-transparent
+              blur-2xl
+              lg:inset-x-10
+            "
+            aria-hidden="true"
+          />
+
           <div
             className="
               relative
@@ -572,7 +626,9 @@ export default function WholesaleHero() {
               border-[5px]
               border-navy
               bg-[#0B4DA2]
-              shadow-[0_14px_32px_rgba(15,23,42,0.18)]
+              shadow-[0_20px_45px_rgba(11,25,45,0.28)]
+              ring-1
+              ring-white/10
             "
           >
             {/* Corner rivets */}
@@ -758,7 +814,9 @@ export default function WholesaleHero() {
             grid-cols-2
             border-t
             border-slate-200
-            bg-white
+            bg-gradient-to-b
+            from-white
+            to-slate-50/60
             lg:grid-cols-4
           "
         >
@@ -776,6 +834,7 @@ export default function WholesaleHero() {
                 <div
                   key={`${item.title}-${index}`}
                   className="
+                    group
                     flex
                     items-center
                     gap-2.5
@@ -783,6 +842,9 @@ export default function WholesaleHero() {
                     border-slate-100
                     px-4
                     py-3
+                    transition-colors
+                    duration-200
+                    hover:bg-green/[0.04]
                     lg:border-b-0
                     lg:border-r
                     lg:px-5
@@ -800,6 +862,10 @@ export default function WholesaleHero() {
                       rounded-lg
                       bg-green/10
                       text-green
+                      shadow-[0_2px_6px_rgba(22,163,74,0.12)]
+                      transition-transform
+                      duration-200
+                      group-hover:scale-105
                     "
                   >
                     <Icon
