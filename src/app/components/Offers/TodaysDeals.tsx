@@ -250,6 +250,8 @@ function mapPopularToTodayDeal(
 
   const swatchRaw = String(raw.swatch ?? raw.color ?? "").trim();
   const accentRaw = String(raw.accent ?? raw.secondaryColor ?? "").trim();
+  // Enriched product images arrive as /api/v1/products/{id}/images/{imageId}/file (proxied via /api)
+  const imageRaw = String(raw.imageUrl ?? raw.image ?? raw.thumbnail ?? "").trim();
 
   return {
     id,
@@ -261,6 +263,7 @@ function mapPopularToTodayDeal(
     discount,
     price,
     mrp,
+    image: imageRaw || undefined,
   };
 }
 
@@ -624,23 +627,39 @@ export default function TodaysDeals() {
                       {deal.discount}% OFF
                     </span>
 
-                    {/* Product Placeholder */}
-                    <div
-                      className="
-                        w-12
-                        h-[72px]
-                        rounded-sm
-                        shadow-sm
-                      "
-                      aria-hidden="true"
-                      style={{
-                        background: `linear-gradient(
-                          160deg,
-                          ${deal.swatch},
-                          ${deal.accent}
-                        )`,
-                      }}
-                    />
+                    {/* Product Visual — real image when available (otherwise gradient placeholder) */}
+                    {deal.image ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={deal.image}
+                          alt={deal.name}
+                          className="w-20 h-20 object-contain drop-shadow-sm"
+                          loading="lazy"
+                          onError={(e) => {
+                            const img = e.currentTarget as HTMLImageElement;
+                            img.style.display = "none";
+                            const fallback = img.nextElementSibling as HTMLElement | null;
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                        <div
+                          className="hidden w-12 h-[72px] rounded-sm shadow-sm"
+                          aria-hidden="true"
+                          style={{
+                            background: `linear-gradient(160deg, ${deal.swatch}, ${deal.accent})`,
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div
+                        className="w-12 h-[72px] rounded-sm shadow-sm"
+                        aria-hidden="true"
+                        style={{
+                          background: `linear-gradient(160deg, ${deal.swatch}, ${deal.accent})`,
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Details */}

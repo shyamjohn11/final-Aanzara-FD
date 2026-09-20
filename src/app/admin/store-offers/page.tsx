@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { storeOffersApi } from "@/app/api/services";
-import { storesApi } from "@/app/api/services";
+import { storeOffersApi, storesApi, dealersApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -95,25 +94,40 @@ export default function StoreOffersPage() {
     };
   }, []);
 
-  /* Backend: fetch store list once. */
+  /* Backend: fetch store list once — now merges legacy Stores + agent Dealer shops
+     so the Store Offers picker shows every agent-added store ("agent added stores
+     are displayed in this place and that stores offers are displayed in stores
+     offers place"). */
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const res: any = await storesApi.list(1, 100);
-        const payload = res?.data ?? res;
-        const raw: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : [];
-        if (cancelled || raw.length === 0) return;
-        const mapped = raw.map((r: any) => ({
+        const [storesRes, dealersRes] = await Promise.all([
+          storesApi.list(1, 100).catch(() => null),
+          dealersApi.list(1, 100).catch(() => null),
+        ]);
+        const toItems = (payload: any): any[] => {
+          const p = payload?.data ?? payload;
+          if (!p) return [];
+          if (Array.isArray(p)) return p;
+          if (Array.isArray(p?.items)) return p.items;
+          if (Array.isArray(p?.data)) return p.data;
+          return [];
+        };
+        const storeItems = toItems(storesRes).map((r: any) => ({
           id: String(r.storeId ?? r.id ?? ""),
           name: String(r.storeName ?? r.name ?? ""),
           code: String(r.storeCode ?? r.code ?? ""),
         }));
-        if (mapped.length > 0) setStores(mapped);
+        const dealerItems = toItems(dealersRes).map((r: any) => ({
+          id: String(r.id ?? r.dealerId ?? ""),
+          name: String(r.shopName ?? r.storeName ?? "Dealer Shop"),
+          code: String(r.dealerCode ?? r.storeCode ?? ""),
+        }));
+        const merged = [...storeItems, ...dealerItems].filter((s) => s.id && s.name);
+        // Deduplicate by id
+        const dedup = Array.from(new Map(merged.map((m) => [m.id, m])).values());
+        if (!cancelled && dedup.length > 0) setStores(dedup);
       } catch {}
     };
     load();

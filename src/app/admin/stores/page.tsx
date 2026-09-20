@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { storesApi } from "@/app/api/services";
+import { storesApi, dealersApi } from "@/app/api/services";
 import {
   ArrowLeft,
   Plus,
@@ -45,20 +45,31 @@ export default function StoresPage() {
   const [stores, setStores] =
     useState<StoreItem[]>([]);
 
-  /* Backend: fetch on mount. */
+  /* Backend: fetch on mount — now merges legacy Stores + agent-added Dealer shops
+     so Admin > Stores > Stores shows both, as requested ("agent added stores are
+     displayed in this place"). Dealer shops are mapped to the same StoreItem shape. */
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const res: any = await storesApi.list(1, 100);
-        const payload = res?.data ?? res;
-        const raw: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : [];
-        if (cancelled || raw.length === 0) return;
-        const mapped: StoreItem[] = raw.map((r: any, index: number) => ({
+        const [storesRes, dealersRes] = await Promise.all([
+          storesApi.list(1, 100).catch(() => null),
+          dealersApi.list(1, 100).catch(() => null),
+        ]);
+
+        const toItems = (payload: any): any[] => {
+          const p = payload?.data ?? payload;
+          if (!p) return [];
+          if (Array.isArray(p)) return p;
+          if (Array.isArray(p?.items)) return p.items;
+          if (Array.isArray(p?.data)) return p.data;
+          return [];
+        };
+
+        const storeRaw = toItems(storesRes);
+        const dealerRaw = toItems(dealersRes);
+
+        const mappedStores: StoreItem[] = storeRaw.map((r: any, index: number) => ({
           id: index + 1,
           serverId: String(r.storeId ?? r.id ?? r.storeID ?? ""),
           name: String(r.storeName ?? r.name ?? ""),
@@ -72,7 +83,30 @@ export default function StoresPage() {
           customers: Number(r.customers ?? r.customerCount ?? r.totalCustomers ?? 0) || 0,
           status: String(r.status ?? "Active").toLowerCase() === "inactive" ? "Inactive" : "Active",
         }));
-        if (mapped.length > 0) setStores(mapped);
+
+        const mappedDealers: StoreItem[] = dealerRaw.map((r: any, idx: number) => ({
+          id: 10000 + idx + 1,
+          serverId: String(r.id ?? r.dealerId ?? ""),
+          // Dealer → StoreItem mapping (dealerCode/shopName/ownerName/city/state)
+          name: String(r.shopName ?? r.storeName ?? "Dealer Shop"),
+          code: String(r.dealerCode ?? r.storeCode ?? r.code ?? ""),
+          manager: String(r.ownerName ?? r.manager ?? ""),
+          phone: String(r.phone ?? ""),
+          email: String(r.email ?? ""),
+          address: String(r.address ?? ""),
+          city: String(r.city ?? ""),
+          state: String(r.state ?? ""),
+          customers: Number(r.customerCount ?? r.customers ?? 0) || 0,
+          status: String(r.status ?? "Active").toLowerCase() === "inactive" ? "Inactive" : "Active",
+        }));
+
+        const merged = [...mappedStores, ...mappedDealers];
+        if (!cancelled && merged.length > 0) {
+          // Reindex ids sequentially after merge so table keys stay stable
+          setStores(merged.map((s, i) => ({ ...s, id: i + 1 })));
+        } else if (!cancelled && merged.length === 0) {
+          setStores([]);
+        }
       } catch {}
     };
     load();

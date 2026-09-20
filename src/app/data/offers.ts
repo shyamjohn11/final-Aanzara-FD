@@ -17,6 +17,7 @@ export type TodayDeal = {
   discount: number;
   swatch: string;
   accent: string;
+  image?: string;
 };
 
 export const TODAY_DEALS: TodayDeal[] = [];
@@ -29,6 +30,7 @@ function toProductBase(
   mrp: number,
   swatch: string,
   accent: string,
+  image?: string,
 ): Product {
   const safeId = String(id).trim();
   const safePrice = Number.isFinite(Number(price)) ? Number(price) : 0;
@@ -52,6 +54,7 @@ function toProductBase(
     dispatch: "Ready to ship",
     swatch: typeof swatch === "string" && swatch ? swatch : "#E5E7EB",
     accent: typeof accent === "string" && accent ? accent : "#CBD5E1",
+    image: typeof image === "string" && image.trim() ? image.trim() : undefined,
   };
 }
 
@@ -64,6 +67,7 @@ export function todayDealToCartProduct(deal: TodayDeal): Product {
     deal.mrp,
     deal.swatch,
     deal.accent,
+    deal.image,
   );
 }
 
