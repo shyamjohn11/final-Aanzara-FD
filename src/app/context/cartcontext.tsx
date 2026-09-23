@@ -220,14 +220,27 @@ export function CartProvider({
 
   // Re-fetch the backend cart (source of truth after mutations).
   const reloadRemote = useCallback(async () => {
+    if (!hasSession()) {
+      setMode("local");
+      cartItemIdsRef.current = {};
+      setItems(readLocalItems());
+      return;
+    }
     try {
       const { data } = await cartApi.get();
       applyBackendCart(data?.items ?? []);
     } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      const isUnauthorized = status === 401;
+      // 401 for guest or expired session is expected — silently fall back to local
+      // so the public storefront (/dashboard) doesn't spam console errors.
+      if (isUnauthorized) {
+        setMode("local");
+        cartItemIdsRef.current = {};
+        if (!hasSession()) setItems(readLocalItems());
+        return;
+      }
       console.error("Unable to load cart:", error);
-      // Session may have been cleared by the 401 interceptor
-      // (silent refresh failure). Fall back to the guest cart
-      // so cart keeps working instead of showing empty.
       if (!hasSession()) {
         setMode("local");
         cartItemIdsRef.current = {};

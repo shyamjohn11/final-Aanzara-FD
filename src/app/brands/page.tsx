@@ -556,31 +556,45 @@ export default function BrandsPage() {
             aria-label="Brand list"
             className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7"
           >
-            {visibleBrands.map(
-              (brand) => (
+            {visibleBrands.map((brand) => {
+              const brandId = brand.brandId ?? "";
+              const rawSrc = (brand.imageUrl ?? "").trim();
+              // Normalize old absolute https://192.168.../uploads/... → /uploads/... so it hits the /uploads proxy + static files
+              const normalizedRaw = rawSrc && /^https?:/i.test(rawSrc) && rawSrc.toLowerCase().includes("/uploads/") ? rawSrc.slice(rawSrc.toLowerCase().indexOf("/uploads/")) : rawSrc;
+              const primarySrc = normalizedRaw || (brandId ? `/api/v1/brands/${brandId}/image/file` : "");
+              const isBroken = brandId ? Boolean(brokenImages[brandId]) : false;
+              const showImage = Boolean(primarySrc) && !isBroken;
+
+              return (
                 <Link
                   href={`/brands/${slugify(brand.name)}`}
                   key={`${brand.name}-${brand.category}`}
                   aria-label={`View ${brand.name} brand`}
                   className="group flex min-h-[114px] flex-col items-center justify-center rounded-xl border border-line bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition duration-200 hover:-translate-y-1 hover:border-[#b8c7dc] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-navy/20"
                 >
-                  <div className="flex h-[52px] items-center justify-center text-center">
-                    <span
-                      className={
-                        brand.logoClass ||
-                        "font-semibold text-ink"
-                      }
-                    >
-                      {brand.logo}
-                    </span>
+                  <div className="flex h-[52px] w-full items-center justify-center text-center overflow-hidden">
+                    {showImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={primarySrc}
+                        alt={brand.name}
+                        className="h-[52px] w-full object-contain"
+                        loading="lazy"
+                        onError={() => {
+                          if (brandId) setBrokenImages((prev) => ({ ...prev, [brandId]: true }));
+                        }}
+                      />
+                    ) : (
+                      <span className={brand.logoClass || "font-semibold text-ink"}>{brand.logo}</span>
+                    )}
                   </div>
 
                   <p className="mt-2 text-center text-[13px] font-bold text-ink truncate w-full px-2" title={brand.name}>
                     {brand.name}
                   </p>
                 </Link>
-              )
-            )}
+              );
+            })}
           </section>
         ) : (
           /* =================================================

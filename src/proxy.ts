@@ -95,7 +95,7 @@ function noStore(response: NextResponse): NextResponse {
   return response;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? "";

@@ -210,21 +210,33 @@ export function WishlistProvider({
   // ========================================
 
   const loadRemote = async () => {
-    const { data } = await wishlistApi.get();
-    // Mock/demo products (non-GUID ids) can never live on the backend,
-    // but they must survive reloads: they are persisted locally and
-    // merged back on every remote load.
-    const localOnly = readLocalItems().filter(
-      (product) => !isGuid(product.id)
-    );
-    const seen = new Set(
-      (data ?? []).map((item) => item.productId)
-    );
-    const merged = [
-      ...(data ?? []).map(productFromBackend),
-      ...localOnly.filter((product) => !seen.has(product.id)),
-    ];
-    setItems(merged);
+    if (!hasSession()) {
+      setItems(readLocalItems());
+      setMode("local");
+      return;
+    }
+    try {
+      const { data } = await wishlistApi.get();
+      const localOnly = readLocalItems().filter(
+        (product) => !isGuid(product.id)
+      );
+      const seen = new Set(
+        (data ?? []).map((item) => item.productId)
+      );
+      const merged = [
+        ...(data ?? []).map(productFromBackend),
+        ...localOnly.filter((product) => !seen.has(product.id)),
+      ];
+      setItems(merged);
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        setMode("local");
+        setItems(readLocalItems());
+        return;
+      }
+      throw error;
+    }
   };
 
   // ========================================
@@ -274,13 +286,18 @@ export function WishlistProvider({
           try {
             await loadRemote();
           } catch (error) {
+            const status = (error as { response?: { status?: number } })?.response?.status;
+            if (status === 401) {
+              if (active) {
+                setMode("local");
+                setItems(readLocalItems());
+              }
+              return;
+            }
             console.error(
               "Unable to load wishlist:",
               error
             );
-            // Session may have been cleared by the 401 interceptor
-            // (silent refresh failure). Fall back to the guest list
-            // so wishlist keeps working instead of showing empty.
             if (active && !hasSession()) {
               setMode("local");
               setItems(readLocalItems());

@@ -45,36 +45,6 @@ const HERO_POSTER_SRC = "/Images/Hero.jpeg"; // shown while the video loads
 ============================================================ */
 
 export default function Hero() {
-  const [liveSlides, setLiveSlides] = useState<LiveSlide[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const { dealsApi } = await import("@/app/api/services");
-        const res: any = await dealsApi.banners(5);
-        const payload: any = res?.data ?? res;
-        const items: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : [];
-        const mapped: LiveSlide[] = items
-          .map((r: any) => ({
-            image: normalizeBannerSrc(String(r.imageUrl ?? r.image ?? "")),
-            link: String(r.link ?? r.url ?? "").trim() || (r.productId ? `/product/${r.productId}` : "/offers"),
-            title: String(r.title ?? "").trim(),
-            subtitle: String(r.subtitle ?? r.description ?? "").trim(),
-          }))
-          .filter((s: LiveSlide) => s.image && isValidImageSource(s.image) && s.link);
-        if (!cancelled && mapped.length > 0) setLiveSlides(mapped);
-      } catch {}
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   /* ==========================================================
      DELIVERY LOCATION
