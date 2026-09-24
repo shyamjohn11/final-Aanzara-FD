@@ -230,6 +230,8 @@ export default function ProductsAdminPage() {
   const [moq, setMoq] = useState("");
   const [isOrganic, setIsOrganic] = useState(false);
   const [isGstFree, setIsGstFree] = useState(false);
+  const [description, setDescription] = useState("");
+  const [specification, setSpecification] = useState("");
   const [image, setImage] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImages, setExistingImages] = useState<ServerProductImage[]>(
@@ -429,6 +431,8 @@ export default function ProductsAdminPage() {
     setMoq("");
     setIsOrganic(false);
     setIsGstFree(false);
+    setDescription("");
+    setSpecification("");
     if (image) URL.revokeObjectURL(image);
     setImage("");
     setImageFile(null);
@@ -464,6 +468,9 @@ export default function ProductsAdminPage() {
     setMoq(String(product.moq || ""));
     setIsOrganic(product.isOrganic || false);
     setIsGstFree(product.isGstFree || false);
+    // List summaries omit description/specification — fetch full details so save doesn't wipe them.
+    setDescription("");
+    setSpecification("");
     if (image) URL.revokeObjectURL(image);
     setImage("");
     setImageFile(null);
@@ -471,6 +478,14 @@ export default function ProductsAdminPage() {
     setErrors({});
     setFormError("");
     setShowModal(true);
+    (async () => {
+      try {
+        const res: any = await productsApi.details(product.productId);
+        const data: any = res?.data ?? res;
+        setDescription(data?.description || "");
+        setSpecification(data?.specification || data?.Specification || "");
+      } catch {}
+    })();
     // B1 existing images for the manager strip (best-effort).
     loadExistingImages(product.productId);
     // Load current warehouse stock for this product (best-effort)
@@ -717,13 +732,14 @@ export default function ProductsAdminPage() {
     let createdProductId: string | null = null;
 
     try {
-      const payload = {
+      const payload: any = {
         categoryId,
         subCategoryId: subCategoryId || null,
         brandId,
         productName: productName.trim(),
         sku: sku.trim().toUpperCase(),
-        description: "",
+        description: description.trim(),
+        specification: specification.trim(),
         price: Number(price),
         mrp: Number(mrp),
         discount: discount ? Number(discount) : 0,
@@ -833,13 +849,23 @@ export default function ProductsAdminPage() {
       const product = products.find((p) => p.productId === id);
       if (!product) return;
 
+      let description = "";
+      let specification = "";
+      try {
+        const detailRes: any = await productsApi.details(id);
+        const detail: any = detailRes?.data ?? detailRes;
+        description = detail?.description || "";
+        specification = detail?.specification || detail?.Specification || "";
+      } catch {}
+
       const payload = {
         categoryId: product.categoryId,
         subCategoryId: product.subCategoryId || null,
         brandId: product.brandId,
         productName: product.productName,
         sku: product.sku,
-        description: "",
+        description,
+        specification,
         price: product.price,
         mrp: product.mrp,
         discount: product.discount || 0,
@@ -1733,6 +1759,18 @@ export default function ProductsAdminPage() {
                     }`}
                   />
                   {errors.moq && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.moq}</p>}
+                </div>
+
+                {/* SPECIFICATION */}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">Specification</label>
+                  <textarea
+                    value={specification}
+                    onChange={(e) => setSpecification(e.target.value)}
+                    placeholder="Enter product specifications (e.g. Weight: 5kg, Dimensions: 10x10x10, Shelf Life: 12 months...)"
+                    rows={3}
+                    className="w-full resize-none rounded-lg border border-[#DCE2EA] px-3 py-2.5 text-[11px] outline-none placeholder:text-[#9AA5B4] focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10"
+                  />
                 </div>
 
                 {/* ORGANIC & GST FREE */}

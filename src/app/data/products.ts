@@ -25,6 +25,8 @@ export type Product = {
   image?: string;
   swatch: string;
   accent: string;
+  specification?: string;
+  description?: string;
 };
 
 export const BRANDS: Brand[] = [];

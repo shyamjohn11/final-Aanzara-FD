@@ -249,6 +249,7 @@ export default function WholesaleProductCard({
         <ShoppingListSavePopup
           productId={product.id}
           productName={product.name}
+          product={product}
           onClose={() =>
             setShowShoppingListPopup(false)
           }

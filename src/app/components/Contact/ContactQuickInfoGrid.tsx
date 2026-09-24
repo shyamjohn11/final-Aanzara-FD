@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from "react";
 import { Phone, Mail, MapPin, Headset } from "lucide-react";
-import { contentApi, type ContentItem } from "@/app/api/services";
+import { contentApi } from "@/app/api/services";
+import { CONTACT_QUICK_INFO } from "@/app/data/contact";
 
 // =====================================================
 // TYPES
@@ -50,11 +51,69 @@ function isValidContactInfo(value: unknown): value is ContactInfo {
 // SAFE DATA
 // =====================================================
 
-function toContactInfo(row: ContentItem): unknown {
+function textField(
+  row: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function extractRows(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  const container = data as {
+    items?: unknown;
+    data?: unknown;
+  } | null;
+  if (container && Array.isArray(container.items)) {
+    return container.items;
+  }
+  if (container && Array.isArray(container.data)) {
+    return container.data;
+  }
+  return [];
+}
+
+function toContactInfo(row: unknown): unknown {
+  if (typeof row === "string") {
+    return {
+      title: row,
+      value: row,
+      sub: "",
+    };
+  }
+
+  const rec = row as Record<string, unknown>;
+  const extra = rec.extra as Record<string, unknown> | null | undefined;
   return {
-    title: row.title,
-    value: row.description ?? "",
-    sub: (row.extra as any)?.sub ?? "",
+    title:
+      textField(rec, "title", "Title") ||
+      textField(rec, "name", "Name"),
+    value:
+      textField(
+        rec,
+        "description",
+        "Description",
+        "value",
+        "Value",
+        "phone",
+        "Phone",
+        "email",
+        "Email",
+        "address",
+        "Address",
+      ) ||
+      textField(extra ?? {}, "value", "Value"),
+    // JsonExtensionData flattens extra onto the object; also accept nested extra.
+    sub:
+      textField(rec, "sub", "Sub") ||
+      textField(extra ?? {}, "sub", "Sub") ||
+      textField(rec, "detail", "Detail"),
   };
 }
 
@@ -95,7 +154,6 @@ function getHref(value: string): {
 export default function ContactQuickInfoGrid() {
   const [raw, setRaw] = useState<unknown[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
 
   useEffect(() => {
     let mounted = true;
@@ -103,34 +161,18 @@ export default function ContactQuickInfoGrid() {
     async function load() {
       try {
         setLoading(true);
-        setError("");
 
         const res = await contentApi.list(
           "contact_quick_info",
         );
 
-        const data = res.data as
-          | ContentItem[]
-          | { items: ContentItem[] };
-
-        const rows: ContentItem[] = Array.isArray(data)
-          ? data
-          : Array.isArray((data as any)?.items)
-            ? (data as any).items
-            : [];
-
         if (!mounted) {
           return;
         }
 
-        setRaw(rows.map(toContactInfo));
+        setRaw(extractRows(res.data).map(toContactInfo));
       } catch {
-        if (!mounted) {
-          return;
-        }
-        setError(
-          "Contact details are currently unavailable. Please try again later.",
-        );
+        // Static CONTACT_QUICK_INFO is used below when live data is empty.
       } finally {
         if (mounted) {
           setLoading(false);
@@ -145,13 +187,16 @@ export default function ContactQuickInfoGrid() {
     };
   }, []);
 
-  const validContactInfo: ContactInfo[] = Array.isArray(raw)
+  const liveItems: ContactInfo[] = Array.isArray(raw)
     ? raw.filter(isValidContactInfo).map((item) => ({
         title: item.title.trim(),
         value: item.value.trim(),
         sub: item.sub.trim(),
       }))
     : [];
+
+  const validContactInfo: ContactInfo[] =
+    liveItems.length > 0 ? liveItems : CONTACT_QUICK_INFO;
 
   // ===================================================
   // LOADING STATE
@@ -168,50 +213,6 @@ export default function ContactQuickInfoGrid() {
         <div className="text-[13px] font-bold text-ink">
           Loading contact information...
         </div>
-      </section>
-    );
-  }
-
-  // ===================================================
-  // ERROR STATE
-  // ===================================================
-
-  if (error) {
-    return (
-      <section
-        aria-label="Contact information"
-        role="alert"
-        className="rounded-card border border-line bg-white p-6 text-center"
-      >
-        <div className="text-[13px] font-bold text-ink">
-          Contact information unavailable
-        </div>
-
-        <p className="text-[11.5px] text-ink-soft mt-1">
-          {error}
-        </p>
-      </section>
-    );
-  }
-
-  // ===================================================
-  // EMPTY STATE
-  // ===================================================
-
-  if (validContactInfo.length === 0) {
-    return (
-      <section
-        aria-label="Contact information"
-        role="status"
-        className="rounded-card border border-line bg-white p-6 text-center"
-      >
-        <div className="text-[13px] font-bold text-ink">
-          Contact information unavailable
-        </div>
-
-        <p className="text-[11.5px] text-ink-soft mt-1">
-          Contact details are currently unavailable. Please try again later.
-        </p>
       </section>
     );
   }

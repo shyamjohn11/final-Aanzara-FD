@@ -80,6 +80,16 @@ export function mapProductSummary(raw: unknown): Product | null {
       ? r.imageUrl.trim()
       : undefined;
 
+  const specification =
+    (typeof r.specification === "string" && r.specification.trim()) ||
+    (typeof r.Specification === "string" && r.Specification.trim()) ||
+    undefined;
+
+  const description =
+    (typeof r.description === "string" && r.description.trim()) ||
+    (typeof r.Description === "string" && r.Description.trim()) ||
+    undefined;
+
   // Products without an assigned brand stay unbranded — never invent one.
   const backendBrand =
     typeof r.brandName === "string" && r.brandName.trim().length > 0
@@ -87,6 +97,8 @@ export function mapProductSummary(raw: unknown): Product | null {
       : "Unbranded";
 
   return {
+    specification,
+    description,
     id,
     brand: backendBrand,
     sku:

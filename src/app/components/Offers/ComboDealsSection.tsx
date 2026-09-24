@@ -150,7 +150,7 @@ function unwrapItems(payload: unknown): Record<string, unknown>[] {
 function mapComboRaw(
   raw: Record<string, unknown>,
   index: number,
-): ComboDeal {
+): ComboDeal & { productIds?: string[] } {
   const id =
     String(
       raw.comboId ??
@@ -165,6 +165,11 @@ function mapComboRaw(
         raw.title ??
         "Combo",
     ).trim() || "Combo";
+
+  // ProductIds from merged products (new format) — used to render actual product names/prices on dashboard/storefront
+  const productIds = Array.isArray(raw.productIds)
+    ? (raw.productIds as unknown[]).map((v) => String(v)).filter((s) => s.length > 0)
+    : [];
 
   let swatches: string[] = [];
   const rawSwatches = raw.swatches ?? raw.colors ?? raw.images;
@@ -232,7 +237,8 @@ function mapComboRaw(
     comboPrice,
     retailPrice,
     savings,
-  };
+    productIds,
+  } as ComboDeal & { productIds: string[] };
 }
 
 /* --------------------------------
@@ -240,8 +246,9 @@ function mapComboRaw(
  * -------------------------------- */
 
 export default function ComboDealsSection() {
-  const [combos, setCombos] = useState<ComboDeal[]>([]);
+  const [combos, setCombos] = useState<(ComboDeal & { productIds?: string[] })[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [productMap, setProductMap] = useState<Record<string, { name: string; price: number; imageUrl?: string }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -255,9 +262,30 @@ export default function ComboDealsSection() {
         const payload: unknown =
           (response as { data?: unknown })?.data ?? response;
         const rawItems = unwrapItems(payload);
-        const mapped = rawItems.map(mapComboRaw);
+        const mapped = rawItems.map(mapComboRaw) as (ComboDeal & { productIds?: string[] })[];
         if (!cancelled) {
           setCombos(mapped);
+          // Fetch product details for all productIds in combos to show real images/prices
+          const allIds = Array.from(new Set(mapped.flatMap((c: any) => c.productIds ?? []))).filter(Boolean) as string[];
+          if (allIds.length > 0) {
+            try {
+              const { productsApi } = await import("@/app/api/services");
+              const results = await Promise.all(
+                allIds.map(async (pid) => {
+                  try {
+                    const r: any = await productsApi.details(pid);
+                    const p: any = r?.data ?? r;
+                    return [pid, { name: String(p.productName ?? p.name ?? ""), price: Number(p.price ?? 0), imageUrl: String(p.imageUrl ?? (p as any).image ?? "") }] as const;
+                  } catch {
+                    return [pid, null] as const;
+                  }
+                })
+              );
+              const map: Record<string, { name: string; price: number; imageUrl?: string }> = {};
+              for (const [id, info] of results) if (info) map[id] = info;
+              if (!cancelled) setProductMap(map);
+            } catch {}
+          }
         }
       } catch {
         if (!cancelled) {
@@ -360,67 +388,38 @@ export default function ComboDealsSection() {
                   flex-col
                 "
               >
-                {/* Product Swatches */}
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    mb-4
-                  "
-                >
-                  {combo.swatches.map(
-                    (
-                      swatch,
-                      index,
-                    ) => (
-                      <div
-                        key={`${swatch}-${index}`}
-                        className="
-                          flex
-                          items-center
-                          gap-2
-                        "
-                      >
-                        <div
-                          className="
-                            w-11
-                            h-11
-                            rounded-lg
-                            flex
-                            items-center
-                            justify-center
-                            shrink-0
-                          "
-                          style={{
-                            background:
-                              `linear-gradient(160deg, ${swatch}, ${swatch}CC)`,
-                          }}
-                          aria-hidden="true"
-                        >
-                          <ShoppingBag
-                            size={16}
-                            className="text-white/80"
-                          />
-                        </div>
-
-                        {index <
-                          combo
-                            .swatches
-                            .length -
-                            1 && (
-                          <Plus
-                            size={13}
-                            className="
-                              text-ink-faint
-                              shrink-0
-                            "
+                {/* Products in combo — show real product images when available, fallback to swatches */}
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {((combo as any).productIds?.length ?? 0) > 0
+                    ? (combo as any).productIds.map((pid: string, idx: number) => {
+                        const info = productMap[pid];
+                        const img = info?.imageUrl;
+                        return (
+                          <div key={`${pid}-${idx}`} className="flex items-center gap-2">
+                            <div className="w-11 h-11 rounded-lg overflow-hidden bg-[#F8FAFC] border border-[#E5E9EF] flex items-center justify-center shrink-0">
+                              {img ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={img} alt={info?.name ?? "Product"} className="h-full w-full object-cover" />
+                              ) : (
+                                <ShoppingBag size={14} className="text-ink-faint" />
+                              )}
+                            </div>
+                            {idx < ((combo as any).productIds.length - 1) && <Plus size={13} className="text-ink-faint shrink-0" aria-hidden="true" />}
+                          </div>
+                        );
+                      })
+                    : combo.swatches.map((swatch, index) => (
+                        <div key={`${swatch}-${index}`} className="flex items-center gap-2">
+                          <div
+                            className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: `linear-gradient(160deg, ${swatch}, ${swatch}CC)` }}
                             aria-hidden="true"
-                          />
-                        )}
-                      </div>
-                    ),
-                  )}
+                          >
+                            <ShoppingBag size={16} className="text-white/80" />
+                          </div>
+                          {index < combo.swatches.length - 1 && <Plus size={13} className="text-ink-faint shrink-0" aria-hidden="true" />}
+                        </div>
+                      ))}
                 </div>
 
                 {/* Combo Name */}
@@ -435,6 +434,14 @@ export default function ComboDealsSection() {
                 >
                   {combo.name}
                 </h3>
+
+                {/* Merged products — show actual product count from ProductIds */}
+                {(combo as any).productIds?.length > 0 && (
+                  <div className="mb-3 rounded-lg bg-[#F8FAFC] px-2.5 py-2 border border-[#E5E9EF]">
+                    <p className="text-[9px] font-semibold text-ink-faint">Bundle • {(combo as any).productIds.length} products merged</p>
+                    <p className="text-[10px] text-ink-soft truncate">{(combo as any).productIds.slice(0, 3).join(" • ")}{(combo as any).productIds.length > 3 ? " • +" + ((combo as any).productIds.length - 3) + " more" : ""}</p>
+                  </div>
+                )}
 
                 {/* Combo Price */}
                 <div

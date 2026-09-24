@@ -471,9 +471,12 @@ export default function WishlistPage() {
     */
 
     if (selectedProduct) {
+      const wishlistProduct =
+        items.find((item) => item.id === selectedProduct);
       addProductToList(
         selectedProduct,
-        newListId
+        newListId,
+        wishlistProduct
       );
     }
 
@@ -1767,9 +1770,15 @@ export default function WishlistPage() {
                           );
                           toast.success("Removed from list");
                         } else {
+                          const wishlistProduct =
+                            items.find(
+                              (item) =>
+                                item.id === selectedProduct
+                            );
                           addProductToList(
                             selectedProduct,
-                            list.id
+                            list.id,
+                            wishlistProduct
                           );
                           toast.success("Added to list");
                         }

@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { contentApi, type ContentItem } from "@/app/api/services";
+import { contentApi } from "@/app/api/services";
+import { NEW_ARRIVAL_FEATURES } from "@/app/data/newArrivals";
 
 interface FeatureItem {
   title: string;
@@ -24,112 +25,82 @@ const ICONS: LucideIcon[] = [
   Truck,
 ];
 
-/* --------------------------------
- * Safe text validation
- * -------------------------------- */
-function getSafeText(
-  value: unknown,
-  fallback: string,
+function textField(
+  row: Record<string, unknown>,
+  camel: string,
+  pascal: string,
 ): string {
-  if (
-    typeof value !== "string" ||
-    value.trim().length === 0
-  ) {
-    return fallback;
-  }
-
-  return value.trim();
+  const value = row[camel] ?? row[pascal];
+  return typeof value === "string" ? value.trim() : "";
 }
 
-/* --------------------------------
- * Feature validation
- * -------------------------------- */
-function isValidFeature(
-  value: unknown,
-): value is {
-  title: string;
-  desc: string;
-} {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
-    return false;
+function extractRows(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  const container = data as {
+    items?: unknown;
+    data?: unknown;
+  } | null;
+  if (container && Array.isArray(container.items)) {
+    return container.items;
   }
-
-  const feature =
-    value as Record<string, unknown>;
-
-  return (
-    typeof feature.title === "string" &&
-    feature.title.trim().length > 0 &&
-    typeof feature.desc === "string" &&
-    feature.desc.trim().length > 0
-  );
+  if (container && Array.isArray(container.data)) {
+    return container.data;
+  }
+  return [];
 }
 
-/* --------------------------------
- * Get safe features
- * -------------------------------- */
-function getSafeFeatures(
-  value: unknown,
+function toFeaturePair(
+  row: Record<string, unknown>,
+): { title: string; desc: string } | null {
+  const title =
+    textField(row, "title", "Title") ||
+    textField(row, "name", "Name");
+  const desc =
+    textField(row, "desc", "Desc") ||
+    textField(row, "description", "Description");
+  if (!title || !desc) return null;
+  return { title, desc };
+}
+
+function withIcons(
+  items: { title: string; desc: string }[],
 ): FeatureItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter(isValidFeature)
-    .map((feature, index) => ({
-      title: feature.title.trim(),
-      desc: feature.desc.trim(),
-      icon:
-        ICONS[index % ICONS.length],
-    }))
-    .filter(
-      (
-        feature,
-      ): feature is FeatureItem =>
-        typeof feature.icon === "function",
-    );
+  return items.map((feature, index) => ({
+    ...feature,
+    icon: ICONS[index % ICONS.length],
+  }));
 }
 
-/* --------------------------------
- * Main Component
- * -------------------------------- */
 export default function NewArrivalsFeatureStrip() {
   const [rawItems, setRawItems] = useState<
     { title: string; desc: string }[]
   >([]);
   const [isLoading, setIsLoading] =
     useState<boolean>(true);
-  const [loadError, setLoadError] =
-    useState<string>("");
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       setIsLoading(true);
-      setLoadError("");
       try {
         const { data } =
           await contentApi.list("na_features");
-        const rows: ContentItem[] = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
-        const mapped = rows.map((row) => ({
-          title: row.title ?? "",
-          desc: row.description ?? "",
-        }));
+        const mapped = extractRows(data)
+          .map((row) =>
+            toFeaturePair(row as Record<string, unknown>),
+          )
+          .filter(
+            (
+              row,
+            ): row is { title: string; desc: string } =>
+              row !== null,
+          );
         if (mounted) {
           setRawItems(mapped);
         }
       } catch {
-        if (mounted) {
-          setLoadError(
-            "Failed to load feature information.",
-          );
-        }
+        // Static NEW_ARRIVAL_FEATURES is used below when rawItems is empty.
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -144,11 +115,14 @@ export default function NewArrivalsFeatureStrip() {
     };
   }, []);
 
-  // Keep helper referenced so existing validation stays intact.
-  void getSafeText;
-
-  const safeFeatures =
-    getSafeFeatures(rawItems);
+  const liveFeatures = withIcons(rawItems).filter(
+    (feature) => feature.title && feature.desc,
+  );
+  const safeFeatures = (
+    liveFeatures.length > 0
+      ? liveFeatures
+      : withIcons(NEW_ARRIVAL_FEATURES)
+  ).slice(0, 4);
 
   if (isLoading) {
     return (
@@ -177,37 +151,6 @@ export default function NewArrivalsFeatureStrip() {
           aria-live="polite"
         >
           Loading features…
-        </div>
-      </section>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <section
-        className="
-          bg-white
-          border
-          border-line
-          rounded-card
-          overflow-hidden
-        "
-        aria-label="New arrivals benefits"
-      >
-        <div
-          className="
-            min-h-[80px]
-            flex
-            items-center
-            justify-center
-            px-4
-            text-center
-            text-[12px]
-            text-red-500
-          "
-          role="alert"
-        >
-          {loadError}
         </div>
       </section>
     );
