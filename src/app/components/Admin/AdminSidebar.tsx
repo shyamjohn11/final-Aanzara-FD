@@ -9,7 +9,6 @@ import {
   BadgePercent,
   Store,
   Warehouse,
-  UserRoundCheck,
   ShoppingBag,
   Users,
   MessageSquareText,
@@ -159,16 +158,6 @@ const MENU_ITEMS: MenuItem[] = [
     href: "/admin/warehouse",
     icon: Warehouse,
   },
-
-  /* ==========================================================
-     AGENT / SHOP ONBOARDING
-  ========================================================== */
-
-  {
-  label: "Agent / Shop Onboarding",
-  href: "/admin/agent-shop-onboarding",
-  icon: UserRoundCheck,
-},
 
   /* ==========================================================
      AGENTS & DEALERS

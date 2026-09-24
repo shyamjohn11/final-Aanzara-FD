@@ -6,7 +6,6 @@ import type { NextRequest } from "next/server";
 // remains the real enforcer for every data call.
 //
 // - /admin/*      → session + role=admin (else login / dashboard)
-// - /agent-shop-onboarding → session + role=agent (else login / home)
 // - /wholesale/*   → session + role=admin|agent (else login / dashboard)
 // - account/checkout/orders/... → session (else login?redirect=)
 // - /login, /register → public routes (never redirect away unless logged in)
@@ -32,7 +31,6 @@ const AUTH_ROUTES = [
   "/order-confirmation",
   "/payment",
   "/invoice",
-  "/agent-shop-onboarding",
 ];
 
 function isAdminRole(role: string): boolean {
@@ -56,9 +54,6 @@ function isAgentRole(role: string): boolean {
 
 function homeFor(role: string): string {
   if (isAdminRole(role)) return "/admin";
-  if (isAgentRole(role)) {
-    return "/agent-shop-onboarding";
-  }
   return "/dashboard";
 }
 
@@ -137,28 +132,16 @@ export function proxy(request: NextRequest) {
     return noStore(NextResponse.next());
   }
 
-  // ---- Agent onboarding: session + agent role ----
-  // Must be checked before the generic AUTH_ROUTES branch, which would
-  // otherwise admit any signed-in user (customers included).
+  // ---- Removed: /agent-shop-onboarding (deleted) ----
+  // Old bookmarks/links redirect to the storefront instead of 404.
   if (
     pathname === "/agent-shop-onboarding" ||
     pathname.startsWith("/agent-shop-onboarding/")
   ) {
-    if (!isLoggedIn) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      url.search = `?redirect=${encodeURIComponent(pathname + search)}`;
-      return noStore(NextResponse.redirect(url));
-    }
-
-    if (!isAgentRole(role)) {
-      const url = request.nextUrl.clone();
-      url.pathname = homeFor(role);
-      url.search = "";
-      return noStore(NextResponse.redirect(url));
-    }
-
-    return noStore(NextResponse.next());
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return noStore(NextResponse.redirect(url));
   }
 
   // ---- Wholesale: session + admin/agent role (customers never see it) ----

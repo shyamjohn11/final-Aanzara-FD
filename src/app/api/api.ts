@@ -357,7 +357,6 @@ export const PROTECTED_PREFIXES = [
   "/payment",
   "/invoice",
   "/admin",
-  "/agent-shop-onboarding",
 ];
 
 function isProtectedPath(pathname: string): boolean {
