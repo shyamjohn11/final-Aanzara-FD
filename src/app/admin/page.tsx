@@ -294,7 +294,7 @@ export default function AdminDashboardPage() {
         // Leave state empty on failure.
       }
 
-      // Low-stock widget (#56).
+      // Low-stock widget (#56) — primary via /api/admin/inventory/low-stock, fallback via product summaries
       try {
         const res: any = await inventoryApi.lowStock();
         const payload: any = res?.data ?? res;
@@ -308,23 +308,38 @@ export default function AdminDashboardPage() {
         if (!cancelled && rawItems.length > 0) {
           setLowStockProducts(
             rawItems.map((raw: any, index: number) => ({
-              name: String(
-                raw?.productName ?? raw?.name ?? `Product ${index + 1}`
-              ),
-              sku: String(
-                raw?.sku ?? raw?.skuCode ?? ""
-              ),
-              stock: Number(
-                raw?.quantity ??
-                  raw?.stock ??
-                  raw?.availableQuantity ??
-                  0
-              ),
+              name: String(raw?.productName ?? raw?.name ?? `Product ${index + 1}`),
+              sku: String(raw?.sku ?? raw?.skuCode ?? ""),
+              stock: Number(raw?.quantity ?? raw?.stock ?? raw?.availableQuantity ?? 0),
             }))
           );
+        } else if (!cancelled) {
+          // No low-stock rows from inventory — derive from enriched product summaries (availableStock)
+          try {
+            const pr: any = await productsApi.list({ page: 1, pageSize: 50 });
+            const pp: any = pr?.data ?? pr;
+            const pItems: any[] = Array.isArray(pp) ? pp : Array.isArray(pp?.items) ? pp.items : Array.isArray(pp?.data) ? pp.data : [];
+            const lowFromProducts = pItems
+              .filter((p: any) => {
+                const avail = Number(p.availableStock ?? p.stock ?? p.quantity ?? 0);
+                // Consider low if explicitly low_stock/out_of_stock or avail <= reorder (10 as demo threshold)
+                const status = String(p.stockStatus ?? "").toLowerCase();
+                return status === "low_stock" || status === "out_of_stock" || (Number.isFinite(avail) && avail <= 10);
+              })
+              .slice(0, 5)
+              .map((p: any, idx: number) => ({
+                name: String(p.productName ?? p.name ?? `Product ${idx + 1}`),
+                sku: String(p.sku ?? ""),
+                stock: Number(p.availableStock ?? p.stock ?? 0),
+              }));
+            if (lowFromProducts.length > 0) setLowStockProducts(lowFromProducts);
+            else setLowStockProducts([]);
+          } catch {
+            if (!cancelled) setLowStockProducts([]);
+          }
         }
       } catch {
-        // Leave state empty on failure.
+        // Leave state empty on failure — empty placeholder will show.
       }
 
       // Home>Products>RIce — exact product 0de6ec0c-8018-4989-a79e-850de18f8a24 (RRS)
@@ -648,20 +663,15 @@ export default function AdminDashboardPage() {
                 <select
                   defaultValue="7"
                   className="rounded-lg border border-[#E0E5EC] bg-white px-3 py-2 text-[10px] font-medium text-[#59687D] outline-none"
+                  aria-label="Select time range"
                 >
-
-                  <option value="7">
-                    Last 7 Months
+                  <option value="7">Last 7 Days</option>
+                  <option value="30" disabled>
+                    Last 30 Days (coming soon)
                   </option>
-
-                  <option value="30">
-                    Last 30 Days
+                  <option value="year" disabled>
+                    This Year (coming soon)
                   </option>
-
-                  <option value="year">
-                    This Year
-                  </option>
-
                 </select>
 
               </div>
@@ -680,43 +690,28 @@ export default function AdminDashboardPage() {
 
                 </div>
 
-                {/* BARS */}
-
-                {salesData.map(
-                  (item, index) => (
-                    <div
-                      key={item.month}
-                      className="group relative flex h-full flex-1 flex-col justify-end"
-                    >
-
-                      <div className="pointer-events-none absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-md bg-[#172D57] px-2 py-1 text-[9px] text-white shadow-md group-hover:block">
-                        ₹{item.value}K
-                      </div>
-
+                {/* BARS — heights normalized to max so 5K vs 9K visibly differ, not 5000% */}
+                {(() => {
+                  const max = Math.max(...salesData.map((d) => d.value), 1);
+                  return salesData.map((item, index) => {
+                    const pct = Math.min(100, Math.max(6, (item.value / max) * 100));
+                    return (
                       <div
-                        className={`
-                          w-full
-                          rounded-t-lg
-                          transition-all
-                          duration-500
-                          ${
-                            index === 5
-                              ? "bg-[#2457B5]"
-                              : "bg-[#CAD7F0] hover:bg-[#91AAD7]"
-                          }
-                        `}
-                        style={{
-                          height: `${item.value}%`,
-                        }}
-                      />
-
-                      <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-[#8995A5]">
-                        {item.month}
-                      </span>
-
-                    </div>
-                  )
-                )}
+                        key={`${item.month}-${index}`}
+                        className="group relative flex h-full flex-1 flex-col justify-end"
+                      >
+                        <div className="pointer-events-none absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-md bg-[#172D57] px-2 py-1 text-[9px] text-white shadow-md group-hover:block">
+                          ₹{Number(item.value).toLocaleString("en-IN")}
+                        </div>
+                        <div
+                          className={`w-full rounded-t-lg transition-all duration-500 ${index === 5 ? "bg-[#2457B5]" : "bg-[#CAD7F0] hover:bg-[#91AAD7]"}`}
+                          style={{ height: `${pct}%` }}
+                        />
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-[#8995A5]">{item.month}</span>
+                      </div>
+                    );
+                  });
+                })()}
 
               </div>
 
