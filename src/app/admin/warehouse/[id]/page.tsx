@@ -30,12 +30,20 @@ type WarehouseStatus = 0 | 1; // 0 = Active, 1 = Inactive
 interface WarehouseFormState {
   warehouseName: string;
   address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  latitude: string;
+  longitude: string;
   status: WarehouseStatus;
 }
 
 interface FormErrors {
   warehouseName?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 }
 
 /* ============================================================
@@ -54,6 +62,11 @@ export default function EditWarehousePage() {
   const [form, setForm] = useState<WarehouseFormState>({
     warehouseName: "",
     address: "",
+    city: "",
+    state: "",
+    pincode: "",
+    latitude: "",
+    longitude: "",
     status: 0,
   });
 
@@ -88,10 +101,13 @@ export default function EditWarehousePage() {
         if (cancelled) return;
 
         setForm({
-          warehouseName: String(
-            raw.warehouseName ?? raw.name ?? ""
-          ),
+          warehouseName: String(raw.warehouseName ?? raw.name ?? ""),
           address: String(raw.address ?? ""),
+          city: String(raw.city ?? ""),
+          state: String(raw.state ?? ""),
+          pincode: String(raw.pincode ?? ""),
+          latitude: raw.latitude != null ? String(raw.latitude) : "",
+          longitude: raw.longitude != null ? String(raw.longitude) : "",
           status: Number(raw.status) === 0 ? 0 : 1,
         });
       } catch (err) {
@@ -153,8 +169,13 @@ export default function EditWarehousePage() {
       await warehousesApi.update(warehouseId, {
         warehouseName: form.warehouseName.trim(),
         address: form.address.trim(),
+        city: form.city.trim() || undefined,
+        state: form.state.trim() || undefined,
+        pincode: form.pincode.trim() || undefined,
+        latitude: form.latitude.trim() ? Number(form.latitude) : undefined,
+        longitude: form.longitude.trim() ? Number(form.longitude) : undefined,
         status: form.status,
-      });
+      } as any);
       navigate("/admin/warehouse");
     } catch (err) {
       setSubmitError(
@@ -382,6 +403,69 @@ export default function EditWarehousePage() {
                     </p>
                   )}
 
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="city" className="mb-1.5 block text-[11px] font-semibold text-[#33415A]">City</label>
+                    <input
+                      id="city"
+                      type="text"
+                      value={form.city}
+                      onChange={(event) => updateField("city", event.target.value)}
+                      placeholder="e.g. Chennai"
+                      className="h-11 w-full rounded-xl border border-[#E0E5EC] px-3.5 text-[11px] outline-none placeholder:text-[#98A3B2] focus:border-[#1769F5]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="state" className="mb-1.5 block text-[11px] font-semibold text-[#33415A]">State</label>
+                    <input
+                      id="state"
+                      type="text"
+                      value={form.state}
+                      onChange={(event) => updateField("state", event.target.value)}
+                      placeholder="e.g. Tamil Nadu"
+                      className="h-11 w-full rounded-xl border border-[#E0E5EC] px-3.5 text-[11px] outline-none placeholder:text-[#98A3B2] focus:border-[#1769F5]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="pincode" className="mb-1.5 block text-[11px] font-semibold text-[#33415A]">Pincode</label>
+                    <input
+                      id="pincode"
+                      type="text"
+                      value={form.pincode}
+                      onChange={(event) => updateField("pincode", event.target.value)}
+                      placeholder="e.g. 600002"
+                      className="h-11 w-full rounded-xl border border-[#E0E5EC] px-3.5 text-[11px] outline-none placeholder:text-[#98A3B2] focus:border-[#1769F5]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="latitude" className="mb-1.5 block text-[11px] font-semibold text-[#33415A]">Latitude (optional)</label>
+                    <input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={form.latitude}
+                      onChange={(event) => updateField("latitude", event.target.value)}
+                      placeholder="e.g. 13.0827"
+                      className="h-11 w-full rounded-xl border border-[#E0E5EC] px-3.5 text-[11px] outline-none placeholder:text-[#98A3B2] focus:border-[#1769F5]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="longitude" className="mb-1.5 block text-[11px] font-semibold text-[#33415A]">Longitude (optional)</label>
+                    <input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={form.longitude}
+                      onChange={(event) => updateField("longitude", event.target.value)}
+                      placeholder="e.g. 80.2707"
+                      className="h-11 w-full rounded-xl border border-[#E0E5EC] px-3.5 text-[11px] outline-none placeholder:text-[#98A3B2] focus:border-[#1769F5]"
+                    />
+                  </div>
                 </div>
 
                 <div>

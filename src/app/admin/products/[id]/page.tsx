@@ -10,6 +10,8 @@ import {
   categoriesApi,
   productsApi,
   subcategoriesApi,
+  warehousesApi,
+  inventoryApi,
 } from "@/app/api/services";
 import {
   ArrowLeft,
@@ -68,7 +70,7 @@ type Brand = {
 };
 
 type ProductErrors = Partial<Record<
-  "productName" | "sku" | "categoryId" | "subCategoryId" | "brandId" | "price" | "mrp" | "discount" | "moq" | "description" | "image",
+  "productName" | "sku" | "categoryId" | "subCategoryId" | "brandId" | "warehouseId" | "stockQuantity" | "price" | "mrp" | "discount" | "moq" | "description" | "image",
   string
 >>;
 
@@ -114,6 +116,9 @@ export default function ProductDetailsPage() {
   const [isGstFree, setIsGstFree] = useState(false);
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [description, setDescription] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouses, setWarehouses] = useState<{ warehouseId: string; warehouseName: string; city?: string }[]>([]);
+  const [stockQuantity, setStockQuantity] = useState("");
   const [image, setImage] = useState("");
 
   const [errors, setErrors] = useState<ProductErrors>({});
@@ -183,12 +188,65 @@ export default function ProductDetailsPage() {
     }
   };
 
+  const fetchWarehouses = async () => {
+    try {
+      const response: any = await warehousesApi.list(1, 100);
+      const payload: any = response?.data ?? response;
+      const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
+      setWarehouses(
+        items.map((w: any) => ({
+          warehouseId: String(w.warehouseId ?? w.id ?? ""),
+          warehouseName: String(w.warehouseName ?? w.name ?? "Warehouse"),
+          city: String(w.city ?? w.address ?? ""),
+        }))
+      );
+    } catch (err) {
+      console.error("Error fetching warehouses:", err);
+    }
+  };
+
+  const fetchWarehouseStock = async (pid: string) => {
+    try {
+      const res: any = await inventoryApi.byProduct(pid);
+      const payload: any = res?.data ?? res;
+      const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.data) ? payload.data : [];
+      if (items.length === 0) return;
+      // Prefer the warehouse that matches the current selection (if user just picked one),
+      // otherwise pick the entry with the highest available stock, fallback to first
+      const currentWhId = warehouseId;
+      let target: any = null;
+      if (currentWhId) {
+        target = items.find((it: any) => String(it.warehouseId ?? it.warehouse?.warehouseId ?? "") === currentWhId) ?? null;
+      }
+      if (!target) {
+        // Pick the one with highest stockQuantity/availableQuantity
+        target = items.reduce((best: any, cur: any) => {
+          const bestStock = Number(best?.stockQuantity ?? best?.availableQuantity ?? 0);
+          const curStock = Number(cur?.stockQuantity ?? cur?.availableQuantity ?? 0);
+          return curStock > bestStock ? cur : best;
+        }, items[0]);
+      }
+      const whId = String(target.warehouseId ?? target.warehouse?.warehouseId ?? "");
+      const stock = target.stockQuantity ?? target.availableQuantity ?? target.quantity ?? "";
+      // Only set if not already set (preserve user's pending selection during edit)
+      if (whId && !warehouseId) setWarehouseId(whId);
+      if (stock !== undefined && stock !== "" && !stockQuantity) setStockQuantity(String(stock));
+      // If we are in view mode and have no warehouse yet, set it for display
+      if (whId && !isEditing) {
+        setWarehouseId((prev) => prev || whId);
+        setStockQuantity((prev) => prev || String(stock ?? ""));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (productId) {
       fetchProduct();
       fetchCategories();
       fetchSubCategories();
       fetchBrands();
+      fetchWarehouses();
+      fetchWarehouseStock(productId);
     }
   }, [productId]);
 
@@ -236,6 +294,16 @@ export default function ProductDetailsPage() {
 
     if (!brandId) {
       next.brandId = "Brand is required.";
+    }
+
+    if (!warehouseId) {
+      next.warehouseId = "Warehouse is required.";
+    }
+
+    if (!stockQuantity.trim()) {
+      next.stockQuantity = "Stock quantity is required.";
+    } else if (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0) {
+      next.stockQuantity = "Stock quantity must be 0 or more.";
     }
 
     if (!price.trim()) {
@@ -347,10 +415,31 @@ export default function ProductDetailsPage() {
       };
 
       await productsApi.update(productId, payload);
+
+      // Warehouse stock — best-effort, does not block product save
+      if (warehouseId && stockQuantity) {
+        try {
+          const qty = Number(stockQuantity);
+          if (Number.isFinite(qty) && qty >= 0) {
+            await inventoryApi.receiveStock(productId, {
+              warehouseId,
+              quantity: qty,
+              reason: "Stock update via product details",
+            });
+          }
+        } catch (invErr) {
+          console.error("Warehouse stock update failed:", invErr);
+        }
+      }
+
       setSaved(true);
       setIsEditing(false);
       setTimeout(() => setSaved(false), 3000);
+      // Keep the selected warehouse/stock visible immediately — don't overwrite with stale fetch
+      // The inventory was just updated, so the local state is the source of truth for display
       fetchProduct();
+      // Delay the warehouse stock refetch so the backend has time to persist
+      setTimeout(() => fetchWarehouseStock(productId), 500);
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to save product.");
       setErrors({ ...errors, ...{ description: message } });
@@ -553,6 +642,14 @@ export default function ProductDetailsPage() {
                   <SummaryItem icon={IndianRupee} label="Price" value={`₹${Number(price || 0).toLocaleString("en-IN")}`} />
                   <SummaryItem icon={IndianRupee} label="MRP" value={`₹${Number(mrp || 0).toLocaleString("en-IN")}`} />
                   <SummaryItem icon={Boxes} label="MOQ" value={moq || "1"} />
+                  <SummaryItem
+                    icon={Package}
+                    label="Warehouse"
+                    value={
+                      warehouses.find((w) => w.warehouseId === warehouseId)?.warehouseName ||
+                      (warehouseId ? warehouseId.slice(0, 8) : "Not assigned") + (stockQuantity ? ` • ${stockQuantity} in stock` : "")
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -628,6 +725,38 @@ export default function ProductDetailsPage() {
                     <ReadOnlyField label="Category" value={getCategoryName(categoryId)} />
                     <ReadOnlyField label="Sub Category" value={getSubCategoryName(subCategoryId)} />
                     <ReadOnlyField label="Brand" value={getBrandName(brandId)} />
+                  </div>
+                )}
+
+                {/* WAREHOUSE */}
+                {isEditing ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <SelectField
+                      label="Warehouse"
+                      value={warehouseId}
+                      onChange={(v) => setWarehouseId(v)}
+                      error={undefined}
+                      options={warehouses.map((w) => ({
+                        value: w.warehouseId,
+                        label: `${w.warehouseName}${w.city ? ` • ${w.city}` : ""}`,
+                      }))}
+                    />
+                    <Field
+                      label="Stock Quantity"
+                      value={stockQuantity}
+                      editing
+                      onChange={(v) => setStockQuantity(v.replace(/\D/g, ""))}
+                      type="number"
+                      error={undefined}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <ReadOnlyField
+                      label="Warehouse"
+                      value={warehouses.find((w) => w.warehouseId === warehouseId)?.warehouseName || "Not assigned"}
+                    />
+                    <ReadOnlyField label="Stock Quantity" value={stockQuantity || "0"} />
                   </div>
                 )}
 
@@ -848,7 +977,7 @@ export default function ProductDetailsPage() {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !price || !mrp}
+                disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !warehouseId || stockQuantity.trim() === "" || !price || !mrp}
                 className="flex h-10 items-center justify-center rounded-lg bg-[#1769F5] px-6 text-[10px] font-semibold text-white hover:bg-[#0F5BDE] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save size={15} className="mr-2" />

@@ -11,6 +11,8 @@ import {
   productImagesApi,
   productsApi,
   subcategoriesApi,
+  warehousesApi,
+  inventoryApi,
 } from "@/app/api/services";
 import { toast } from "react-toastify";
 import {
@@ -87,7 +89,7 @@ type ServerProductImage = {
 };
 
 type ProductErrors = Partial<Record<
-  "productName" | "sku" | "categoryId" | "subCategoryId" | "brandId" | "price" | "mrp" | "discount" | "moq" | "image",
+  "productName" | "sku" | "categoryId" | "subCategoryId" | "brandId" | "warehouseId" | "stockQuantity" | "price" | "mrp" | "discount" | "moq" | "image",
   string
 >>;
 
@@ -177,6 +179,7 @@ export default function ProductsAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [warehouses, setWarehouses] = useState<{ warehouseId: string; warehouseName: string }[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "active" | "inactive">("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -219,6 +222,8 @@ export default function ProductsAdminPage() {
   const [categoryId, setCategoryId] = useState("");
   const [subCategoryId, setSubCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+  const [stockQuantity, setStockQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [mrp, setMrp] = useState("");
   const [discount, setDiscount] = useState("");
@@ -341,12 +346,33 @@ export default function ProductsAdminPage() {
     }
   }, []);
 
+  const fetchWarehouses = useCallback(async () => {
+    try {
+      const response = await warehousesApi.list(1, 100);
+      const payload: any = response.data as any;
+      const items: any[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.items)
+          ? payload.items
+          : [];
+      setWarehouses(
+        items.map((w: any) => ({
+          warehouseId: String(w.warehouseId ?? w.id ?? ""),
+          warehouseName: String(w.warehouseName ?? w.name ?? "Warehouse"),
+        }))
+      );
+    } catch (err) {
+      console.error("Error fetching warehouses:", err);
+    }
+  }, []);
+
   // Reference data loads once on mount.
   useEffect(() => {
     fetchCategories();
     fetchSubCategories();
     fetchBrands();
-  }, [fetchCategories, fetchSubCategories, fetchBrands]);
+    fetchWarehouses();
+  }, [fetchCategories, fetchSubCategories, fetchBrands, fetchWarehouses]);
 
   // Product list reloads only when a real input changes.
   useEffect(() => {
@@ -395,6 +421,8 @@ export default function ProductsAdminPage() {
     setCategoryId("");
     setSubCategoryId("");
     setBrandId("");
+    setWarehouseId("");
+    setStockQuantity("");
     setPrice("");
     setMrp("");
     setDiscount("");
@@ -445,6 +473,28 @@ export default function ProductsAdminPage() {
     setShowModal(true);
     // B1 existing images for the manager strip (best-effort).
     loadExistingImages(product.productId);
+    // Load current warehouse stock for this product (best-effort)
+    (async () => {
+      try {
+        const res: any = await inventoryApi.byProduct(product.productId);
+        const payload: any = res?.data ?? res;
+        const items: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+        // Pick the first warehouse with stock, or first entry
+        const first = items[0] as any;
+        if (first) {
+          const whId = String(first.warehouseId ?? first.warehouse?.warehouseId ?? "");
+          const stock = first.stockQuantity ?? first.availableQuantity ?? first.quantity ?? "";
+          if (whId) setWarehouseId(whId);
+          if (stock !== undefined) setStockQuantity(String(stock));
+        }
+      } catch {}
+    })();
   };
 
   /* ==========================================================
@@ -545,6 +595,16 @@ export default function ProductsAdminPage() {
       next.brandId = "Brand is required.";
     }
 
+    if (!warehouseId) {
+      next.warehouseId = "Warehouse is required.";
+    }
+
+    if (!stockQuantity.trim()) {
+      next.stockQuantity = "Stock quantity is required.";
+    } else if (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0) {
+      next.stockQuantity = "Enter a valid stock quantity (0 or more).";
+    }
+
     if (!price.trim()) {
       next.price = "Price is required.";
     } else if (isNaN(Number(price)) || Number(price) <= 0) {
@@ -609,6 +669,17 @@ export default function ProductsAdminPage() {
     clearError("brandId");
   };
 
+  const updateWarehouse = (value: string) => {
+    setWarehouseId(value);
+    clearError("warehouseId");
+  };
+
+  const updateStockQuantity = (value: string) => {
+    if (value !== "" && !/^\d+$/.test(value)) return;
+    setStockQuantity(value);
+    clearError("stockQuantity");
+  };
+
   const updatePrice = (value: string) => {
     if (value !== "" && !/^\d*(?:\.\d*)?$/.test(value)) return;
     setPrice(value);
@@ -643,6 +714,7 @@ export default function ProductsAdminPage() {
     }
 
     setSubmitting(true);
+    let createdProductId: string | null = null;
 
     try {
       const payload = {
@@ -663,8 +735,6 @@ export default function ProductsAdminPage() {
 
       if (editingProduct) {
         await productsApi.update(editingProduct.productId, payload);
-
-        // B1 upload pending image (first image auto-primary server-side).
         if (imageFile) {
           try {
             await productImagesApi.upload(
@@ -676,33 +746,24 @@ export default function ProductsAdminPage() {
             console.error("Product image upload failed:", uploadError);
             setFormError(
               "Product saved, but image upload failed. " +
-                extractErrorMessage(
-                  uploadError,
-                  "Please try uploading the image again."
-                )
+                extractErrorMessage(uploadError, "Please try uploading the image again.")
             );
             setSubmitting(false);
             return;
           }
         }
+        createdProductId = editingProduct.productId;
       } else {
         const createResponse = await productsApi.create(payload);
-        const created = (createResponse.data ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const newProductId = String(
-          created.productId ?? created.id ?? ""
-        );
+        const created = (createResponse.data ?? {}) as Record<string, unknown>;
+        const newProductId = String(created.productId ?? created.id ?? "");
+        createdProductId = newProductId || null;
 
-        // B1 upload pending image as primary for the new product.
         if (imageFile && newProductId) {
           try {
             await productImagesApi.upload(newProductId, imageFile, true);
           } catch (uploadError) {
             console.error("Product image upload failed:", uploadError);
-            // Keep the modal open on the now-existing product so the
-            // user can retry the upload with Save.
             setEditingProduct({
               productId: newProductId,
               sku: sku.trim().toUpperCase(),
@@ -718,17 +779,33 @@ export default function ProductsAdminPage() {
               isGstFree,
               status: "active",
             });
+            // Keep warehouse selection for retry
             setFormError(
               "Product created, but image upload failed. " +
-                extractErrorMessage(
-                  uploadError,
-                  "Press Save to retry the upload."
-                )
+                extractErrorMessage(uploadError, "Press Save to retry the upload.")
             );
             setSubmitting(false);
             fetchProducts();
             return;
           }
+        }
+      }
+
+      // Warehouse stock handling — create/update inventory for selected warehouse
+      const stockTargetId = createdProductId || (editingProduct ? editingProduct.productId : null);
+      if (warehouseId && stockQuantity && stockTargetId) {
+        try {
+          const qty = Number(stockQuantity);
+          if (Number.isFinite(qty) && qty >= 0) {
+            await inventoryApi.receiveStock(stockTargetId, {
+              warehouseId,
+              quantity: qty,
+              reason: editingProduct ? "Stock update via product edit" : "Initial stock via product create",
+            });
+          }
+        } catch (invErr) {
+          console.error("Warehouse stock update failed:", invErr);
+          toast.error("Product saved, but warehouse stock update failed: " + extractErrorMessage(invErr, "Please check warehouse stock."));
         }
       }
 
@@ -1570,6 +1647,36 @@ export default function ProductsAdminPage() {
                   </div>
                 </div>
 
+                {/* WAREHOUSE + STOCK */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormSelect
+                    label="Warehouse"
+                    required
+                    value={warehouseId}
+                    onChange={updateWarehouse}
+                    error={errors.warehouseId}
+                    options={warehouses.map((w) => ({ value: w.warehouseId, label: w.warehouseName }))}
+                  />
+
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">
+                      Stock Quantity <span className="ml-1 text-[#EF4444]">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={stockQuantity}
+                      onChange={(event) => updateStockQuantity(event.target.value)}
+                      placeholder="0"
+                      className={`h-10 w-full rounded-lg border px-3 text-[11px] outline-none focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10 ${
+                        errors.stockQuantity ? "border-[#EF4444]" : "border-[#DCE2EA]"
+                      }`}
+                    />
+                    {errors.stockQuantity && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{errors.stockQuantity}</p>}
+                  </div>
+                </div>
+
                 {/* MRP + DISCOUNT */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -1693,7 +1800,7 @@ export default function ProductsAdminPage() {
                 <button
                   type="button"
                   onClick={saveProduct}
-                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !price || !mrp}
+                  disabled={submitting || !productName.trim() || !sku.trim() || !categoryId || !brandId || !warehouseId || !stockQuantity || !price || !mrp}
                   className="h-9 rounded-lg bg-[#1769F5] px-5 text-[10px] font-semibold text-white transition hover:bg-[#0F5BDE] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting
