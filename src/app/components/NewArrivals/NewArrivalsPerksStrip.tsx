@@ -9,11 +9,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { contentApi, type ContentItem } from "@/app/api/services";
-
-/* --------------------------------
- * Types
- * -------------------------------- */
+import { contentApi } from "@/app/api/services";
+import { NEW_ARRIVAL_PERKS } from "@/app/data/newArrivals";
 
 interface NewArrivalPerk {
   title: string;
@@ -24,20 +21,12 @@ interface SafePerk extends NewArrivalPerk {
   icon: LucideIcon;
 }
 
-/* --------------------------------
- * Icons
- * -------------------------------- */
-
 const ICONS: LucideIcon[] = [
   Rocket,
   BadgeCheck,
   Gem,
   Boxes,
 ];
-
-/* --------------------------------
- * Validation Helpers
- * -------------------------------- */
 
 function isValidText(
   value: unknown,
@@ -67,10 +56,6 @@ function isValidPerk(
     isValidText(perk.desc)
   );
 }
-
-/* --------------------------------
- * Safe Perks
- * -------------------------------- */
 
 function getSafePerks(
   value: unknown,
@@ -107,44 +92,58 @@ function getSafePerks(
     });
 }
 
-/* --------------------------------
- * Main Component
- * -------------------------------- */
-
 export default function NewArrivalsPerksStrip() {
   const [rawItems, setRawItems] = useState<
     NewArrivalPerk[]
   >([]);
   const [isLoading, setIsLoading] =
     useState<boolean>(true);
-  const [loadError, setLoadError] =
-    useState<string>("");
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       setIsLoading(true);
-      setLoadError("");
       try {
         const { data } =
           await contentApi.list("na_perks");
-        const rows: ContentItem[] = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
-        const mapped: NewArrivalPerk[] = rows.map(
-          (row) => ({
-            title: row.title ?? "",
-            desc: row.description ?? "",
-          }),
-        );
+        const container = data as {
+          items?: unknown;
+          data?: unknown;
+        } | null;
+        const candidate: unknown[] = Array.isArray(data)
+          ? data
+          : container && Array.isArray(container.items)
+            ? container.items
+            : container && Array.isArray(container.data)
+              ? container.data
+              : [];
+        const mapped: NewArrivalPerk[] = candidate
+          .map((row) => {
+            const rec = row as Record<string, unknown>;
+            const title =
+              typeof (rec.title ?? rec.Title) === "string"
+                ? String(rec.title ?? rec.Title).trim()
+                : "";
+            const desc =
+              typeof (rec.desc ?? rec.Desc) === "string"
+                ? String(rec.desc ?? rec.Desc).trim()
+                : typeof (rec.description ?? rec.Description) ===
+                    "string"
+                  ? String(rec.description ?? rec.Description).trim()
+                  : "";
+            return title && desc ? { title, desc } : null;
+          })
+          .filter(
+            (
+              row,
+            ): row is NewArrivalPerk => row !== null,
+          );
         if (mounted) {
           setRawItems(mapped);
         }
       } catch {
-        if (mounted) {
-          setLoadError(
-            "Failed to load benefits.",
-          );
-        }
+        // Static NEW_ARRIVAL_PERKS is used below when rawItems is empty.
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -159,7 +158,34 @@ export default function NewArrivalsPerksStrip() {
     };
   }, []);
 
-  const safePerks = getSafePerks(rawItems);
+  const livePerks = getSafePerks(rawItems);
+  const safePerks =
+    livePerks.length > 0
+      ? livePerks
+      : getSafePerks(NEW_ARRIVAL_PERKS).length > 0
+        ? getSafePerks(NEW_ARRIVAL_PERKS)
+        : [
+            {
+              title: "Early Access",
+              desc: "Shop new launches before everyone else.",
+              icon: ICONS[0],
+            },
+            {
+              title: "Launch Offers",
+              desc: "Extra savings on freshly added products.",
+              icon: ICONS[1],
+            },
+            {
+              title: "Curated Picks",
+              desc: "Handpicked products from top brands.",
+              icon: ICONS[2],
+            },
+            {
+              title: "Fresh Inventory",
+              desc: "Stock rotates with every new drop.",
+              icon: ICONS[3],
+            },
+          ] satisfies SafePerk[];
 
   if (isLoading) {
     return (
@@ -199,43 +225,6 @@ export default function NewArrivalsPerksStrip() {
     );
   }
 
-  if (loadError) {
-    return (
-      <section
-        className="
-          bg-white
-          border
-          border-line
-          rounded-card
-          px-6
-          py-6
-        "
-        aria-labelledby="new-arrivals-perks-title"
-      >
-        <h2
-          id="new-arrivals-perks-title"
-          className="sr-only"
-        >
-          New Arrivals Benefits
-        </h2>
-        <div
-          className="
-            min-h-[90px]
-            flex
-            items-center
-            justify-center
-            text-center
-            text-[12px]
-            text-red-500
-          "
-          role="alert"
-        >
-          {loadError}
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section
       className="
@@ -248,7 +237,6 @@ export default function NewArrivalsPerksStrip() {
       "
       aria-labelledby="new-arrivals-perks-title"
     >
-      {/* Hidden semantic heading */}
       <h2
         id="new-arrivals-perks-title"
         className="sr-only"
@@ -256,93 +244,74 @@ export default function NewArrivalsPerksStrip() {
         New Arrivals Benefits
       </h2>
 
-      {safePerks.length > 0 ? (
-        <div
-          className="
-            grid
-            grid-cols-2
-            lg:grid-cols-4
-            gap-6
-          "
-        >
-          {safePerks.map(
-            (perk, index) => {
-              const Icon = perk.icon;
+      <div
+        className="
+          grid
+          grid-cols-2
+          lg:grid-cols-4
+          gap-6
+        "
+      >
+        {safePerks.map(
+          (perk, index) => {
+            const Icon = perk.icon;
 
-              return (
-                <div
-                  key={`${perk.title}-${index}`}
+            return (
+              <div
+                key={`${perk.title}-${index}`}
+                className="
+                  text-center
+                  px-2
+                "
+              >
+                {/* Icon */}
+                <span
                   className="
-                    text-center
-                    px-2
+                    w-11
+                    h-11
+                    rounded-full
+                    bg-green/10
+                    text-green-deep
+                    flex
+                    items-center
+                    justify-center
+                    mx-auto
+                    mb-3
                   "
                 >
-                  {/* Icon */}
-                  <span
-                    className="
-                      w-11
-                      h-11
-                      rounded-full
-                      bg-green/10
-                      text-green-deep
-                      flex
-                      items-center
-                      justify-center
-                      mx-auto
-                      mb-3
-                    "
-                  >
-                    <Icon
-                      size={18}
-                      aria-hidden="true"
-                    />
-                  </span>
+                  <Icon
+                    size={18}
+                    aria-hidden="true"
+                  />
+                </span>
 
-                  {/* Title */}
-                  <div
-                    className="
-                      text-[12.5px]
-                      font-bold
-                      text-navy
-                      mb-1
-                    "
-                  >
-                    {perk.title}
-                  </div>
-
-                  {/* Description */}
-                  <p
-                    className="
-                      text-[11px]
-                      text-ink-soft
-                      leading-relaxed
-                    "
-                  >
-                    {perk.desc}
-                  </p>
+                {/* Title */}
+                <div
+                  className="
+                    text-[12.5px]
+                    font-bold
+                    text-navy
+                    mb-1
+                  "
+                >
+                  {perk.title}
                 </div>
-              );
-            },
-          )}
-        </div>
-      ) : (
-        /* Empty State */
-        <div
-          className="
-            min-h-[90px]
-            flex
-            items-center
-            justify-center
-            text-center
-            text-[12px]
-            text-ink-faint
-          "
-          role="status"
-          aria-live="polite"
-        >
-          No benefits available right now.
-        </div>
-      )}
+
+                {/* Description */}
+                <p
+                  className="
+                    text-[11px]
+                    text-ink-soft
+                    leading-relaxed
+                  "
+                >
+                  {perk.desc}
+                </p>
+              </div>
+            );
+          },
+        )}
+      </div>
     </section>
   );
 }

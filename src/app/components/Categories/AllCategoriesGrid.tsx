@@ -26,7 +26,11 @@ interface Category {
 // COMPONENT
 // =====================================================
 
-export default function AllCategoriesGrid() {
+type AllCategoriesGridProps = {
+  activeCategory?: string;
+};
+
+export default function AllCategoriesGrid({ activeCategory }: AllCategoriesGridProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,12 +117,17 @@ export default function AllCategoriesGrid() {
       : 12;
 
   // =====================================================
-  // VISIBLE CATEGORIES
+  // FILTERED + VISIBLE CATEGORIES — actually honors the pill selection
   // =====================================================
 
+  const filteredCategories =
+    !activeCategory || activeCategory.toLowerCase() === "all"
+      ? categories
+      : categories.filter((c) => c.categoryName.toLowerCase() === activeCategory.toLowerCase());
+
   const visibleCategories = showAll
-    ? categories
-    : categories.slice(0, safeInitialCount);
+    ? filteredCategories
+    : filteredCategories.slice(0, safeInitialCount);
 
   // =====================================================
   // TOGGLE WISHLIST

@@ -4,7 +4,15 @@
 import { useEffect, useState } from "react";
 import { categoriesApi } from "@/app/api/services";
 
-export default function CategoryFilterTabs() {
+type CategoryFilterTabsProps = {
+  active?: string;
+  onChange?: (filter: string) => void;
+};
+
+export default function CategoryFilterTabs({
+  active: controlledActive,
+  onChange,
+}: CategoryFilterTabsProps) {
   // =====================================================
   // LIVE DATA — GET /api/v1/categories (#20), derive names
   // =====================================================
@@ -24,7 +32,8 @@ export default function CategoryFilterTabs() {
         const names = items
           .map((raw: any) => String(raw?.categoryName ?? "").trim())
           .filter((name: string) => name.length > 0);
-        setFilters(names);
+        // "All" as first pill — matches screenshot request
+        setFilters(["All", ...names]);
       } catch {
         if (!cancelled) setFilters([]);
       } finally {
@@ -52,14 +61,19 @@ export default function CategoryFilterTabs() {
     : [];
 
   // =====================================================
-  // ACTIVE FILTER
+  // ACTIVE FILTER — controlled if parent provides active/onChange
   // =====================================================
 
-  const [active, setActive] = useState<string>("");
+  const [internalActive, setInternalActive] = useState<string>("");
+
+  const isControlled = controlledActive !== undefined && onChange !== undefined;
+  const active = isControlled ? (controlledActive as string) : internalActive;
 
   useEffect(() => {
     if (!active && validFilters.length > 0) {
-      setActive(validFilters[0] ?? "");
+      const first = validFilters[0] ?? "";
+      if (isControlled) onChange?.(first);
+      else setInternalActive(first);
     }
   }, [validFilters, active]);
 
@@ -67,23 +81,11 @@ export default function CategoryFilterTabs() {
   // FILTER CLICK VALIDATION
   // =====================================================
 
-  const handleFilterChange = (
-    filter: string
-  ) => {
-    // Reject invalid filter
-    if (
-      typeof filter !== "string" ||
-      filter.trim().length === 0
-    ) {
-      return;
-    }
-
-    // Only allow filters that exist
-    if (!validFilters.includes(filter)) {
-      return;
-    }
-
-    setActive(filter);
+  const handleFilterChange = (filter: string) => {
+    if (typeof filter !== "string" || filter.trim().length === 0) return;
+    if (!validFilters.includes(filter)) return;
+    if (isControlled) onChange?.(filter);
+    else setInternalActive(filter);
   };
 
   // =====================================================

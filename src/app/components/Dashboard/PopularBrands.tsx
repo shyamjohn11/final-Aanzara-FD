@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { storefrontBrandsApi } from "@/app/api/services";
 
 export default function PopularBrands() {
+  return null;
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
 
   /* ============================================================

@@ -287,7 +287,15 @@ export function notifySessionChanged() {
 
 export function hasSession(): boolean {
   if (typeof window === "undefined") return false;
-  return Boolean(localStorage.getItem(ACCESS_TOKEN_KEY));
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!token) return false;
+  // Also check expiry to avoid sending an expired token that will 401 and trigger a needless refresh loop on public pages
+  try {
+    const payload = decodeJwtPayload(token);
+    const exp = payload?.exp as number | undefined;
+    if (typeof exp === "number" && exp * 1000 < Date.now() + 5000) return false;
+  } catch {}
+  return true;
 }
 
 /**

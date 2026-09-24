@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { PRODUCT_TABS, SPEC_TABLE } from "@/app/data/productDetail";
 
-export default function ProductTabs() {
+type ProductTabsProps = {
+  productName?: string;
+  specification?: string | null;
+};
+
+export default function ProductTabs({ productName, specification }: ProductTabsProps) {
+  const displayName = productName?.trim() || "Product";
   const defaultTab = "Product Specifications";
 
   const [active, setActive] = useState<string>(
@@ -103,112 +109,64 @@ export default function ProductTabs() {
       <div className="p-5">
         {isSpecificationsTab ? (
           <>
-            <h3 className="
-              font-sora
-              font-bold
-              text-[14.5px]
-              text-ink
-              mb-3
-            ">
-              Fortune Sunflower Oil Specifications
-            </h3>
-
-            {Array.isArray(SPEC_TABLE) &&
-            SPEC_TABLE.length > 0 ? (
-              <div className="
-                border
-                border-line
-                rounded-lg
-                overflow-hidden
-              ">
-                {SPEC_TABLE.map(
-                  (row, i) => {
-                    if (
-                      !row ||
-                      typeof row !== "object"
-                    ) {
-                      return null;
+            <h3 className="font-sora font-bold text-[14.5px] text-ink mb-3">{displayName} Specifications</h3>
+            {(() => {
+              // Try to parse specification as JSON array of {label,value} or as plain text lines
+              const specText = specification?.trim();
+              let rows: { label: string; value: string }[] = [];
+              if (specText) {
+                try {
+                  const parsed = JSON.parse(specText);
+                  if (Array.isArray(parsed)) {
+                    rows = parsed
+                      .map((r: any) => ({
+                        label: String(r.label ?? r.key ?? "").trim(),
+                        value: String(r.value ?? "").trim(),
+                      }))
+                      .filter((r) => r.label);
+                  } else {
+                    // Single object case
+                    const label = String((parsed as any).label ?? "").trim();
+                    const value = String((parsed as any).value ?? "").trim();
+                    if (label) rows = [{ label, value }];
+                  }
+                } catch {
+                  // Plain text fallback: split by lines, each line "Label: Value" or just "Label"
+                  const lines = specText.split("\n").map((l) => l.trim()).filter(Boolean);
+                  rows = lines.map((line, idx) => {
+                    const sepIdx = line.indexOf(":");
+                    if (sepIdx > 0) {
+                      return { label: line.slice(0, sepIdx).trim(), value: line.slice(sepIdx + 1).trim() };
                     }
-
-                    const label =
-                      typeof row.label === "string"
-                        ? row.label.trim()
-                        : "";
-
-                    const value =
-                      typeof row.value === "string"
-                        ? row.value.trim()
-                        : String(
-                            row.value ?? ""
-                          );
-
-                    if (!label) {
-                      return null;
-                    }
-
+                    return { label: `Spec ${idx + 1}`, value: line };
+                  });
+                }
+              }
+              // Fallback to static SPEC_TABLE if no dynamic spec
+              const displayRows = rows.length > 0 ? rows : SPEC_TABLE;
+              return displayRows.length > 0 ? (
+                <div className="border border-line rounded-lg overflow-hidden">
+                  {displayRows.map((row: any, i: number) => {
+                    const label = String(row.label ?? "").trim();
+                    const value = String(row.value ?? "").trim();
+                    if (!label) return null;
                     return (
                       <div
                         key={`${label}-${i}`}
-                        className={`
-                          flex
-                          flex-col
-                          sm:flex-row
-                          sm:items-center
-                          px-4
-                          py-3
-                          text-[12.5px]
-                          ${
-                            i % 2 === 0
-                              ? "bg-white"
-                              : "bg-paper"
-                          }
-                          ${
-                            i > 0
-                              ? "border-t border-line"
-                              : ""
-                          }
-                        `}
+                        className={`flex flex-col sm:flex-row sm:items-center px-4 py-3 text-[12.5px] ${i % 2 === 0 ? "bg-white" : "bg-paper"} ${i > 0 ? "border-t border-line" : ""}`}
                       >
-                        <span className="
-                          sm:w-[220px]
-                          shrink-0
-                          text-ink-soft
-                          font-medium
-                        ">
-                          {label}
-                        </span>
-
-                        <span className="
-                          text-ink
-                          font-semibold
-                          mt-1
-                          sm:mt-0
-                        ">
-                          {value || "—"}
-                        </span>
+                        <span className="sm:w-[220px] shrink-0 text-ink-soft font-medium">{label}</span>
+                        <span className="text-ink font-semibold mt-1 sm:mt-0">{value || "—"}</span>
                       </div>
                     );
-                  }
-                )}
-              </div>
-            ) : (
-              <div
-                role="status"
-                className="
-                  border
-                  border-line
-                  rounded-lg
-                  bg-paper
-                  px-4
-                  py-4
-                  text-[12.5px]
-                  text-ink-soft
-                "
-              >
-                Product specifications are
-                currently unavailable.
-              </div>
-            )}
+                  })}
+                </div>
+              ) : (
+                <div role="status" className="border border-line rounded-lg bg-paper px-4 py-4 text-[12.5px] text-ink-soft">
+                  Product specifications are currently unavailable.
+                </div>
+              );
+            })()}
           </>
         ) : (
           <p className="

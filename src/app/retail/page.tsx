@@ -1250,6 +1250,7 @@ export default function RetailPage() {
         <ShoppingListSavePopup
           productId={shoppingListProduct.id}
           productName={shoppingListProduct.name}
+          product={shoppingListProduct}
           onClose={() => {
             setShowShoppingListPopup(false);
             setShoppingListProduct(null);

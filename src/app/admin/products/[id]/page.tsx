@@ -48,6 +48,7 @@ type Product = {
   isGstFree: boolean;
   status: "active" | "inactive";
   description?: string;
+  specification?: string;
   categoryName?: string;
   subCategoryName?: string;
   brandName?: string;
@@ -116,6 +117,7 @@ export default function ProductDetailsPage() {
   const [isGstFree, setIsGstFree] = useState(false);
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [description, setDescription] = useState("");
+  const [specification, setSpecification] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<{ warehouseId: string; warehouseName: string; city?: string }[]>([]);
   const [stockQuantity, setStockQuantity] = useState("");
@@ -148,6 +150,7 @@ export default function ProductDetailsPage() {
       setIsGstFree(data.isGstFree || false);
       setStatus(data.status || "active");
       setDescription(data.description || "");
+      setSpecification(data.specification || "");
     } catch (err) {
       const message = extractErrorMessage(err, "Failed to load product.");
       setError(message);
@@ -405,6 +408,7 @@ export default function ProductDetailsPage() {
         productName: productName.trim(),
         sku: sku.trim().toUpperCase(),
         description: description.trim(),
+        specification: specification.trim(),
         price: Number(price),
         mrp: Number(mrp),
         discount: discount ? Number(discount) : 0,
@@ -484,6 +488,7 @@ export default function ProductDetailsPage() {
       setIsGstFree(product.isGstFree || false);
       setStatus(product.status || "active");
       setDescription(product.description || "");
+      setSpecification(product.specification || "");
     }
     setErrors({});
     setIsEditing(false);
@@ -838,6 +843,26 @@ export default function ProductDetailsPage() {
                     <div className="rounded-lg bg-[#F8FAFC] px-3 py-3">
                       <p className="text-[11px] leading-5 text-[#647287]">
                         {description || "No description available."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* SPECIFICATION */}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">Specification</label>
+                  {isEditing ? (
+                    <textarea
+                      value={specification}
+                      onChange={(event) => setSpecification(event.target.value)}
+                      rows={4}
+                      placeholder="Enter product specifications (e.g. Weight: 5kg, Dimensions: 10x10x10, Shelf Life: 12 months...)"
+                      className="w-full resize-none rounded-lg border border-[#DCE2EA] px-3 py-3 text-[11px] leading-5 text-[#33415A] outline-none placeholder:text-[#9AA5B4] focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10"
+                    />
+                  ) : (
+                    <div className="rounded-lg bg-[#F8FAFC] px-3 py-3">
+                      <p className="text-[11px] leading-5 whitespace-pre-line text-[#647287]">
+                        {specification || "No specification available."}
                       </p>
                     </div>
                   )}

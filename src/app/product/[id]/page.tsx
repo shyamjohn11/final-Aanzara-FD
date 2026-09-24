@@ -265,7 +265,7 @@ export default function ProductDetailPage() {
         ==================================================== */}
 
         <section className="mt-6">
-          <ProductTabs />
+          <ProductTabs productName={liveProduct?.name} specification={(liveProduct as any)?.specification ?? (liveProduct as any)?.Specification} />
         </section>
 
         {/* ===================================================

@@ -578,6 +578,7 @@ export default function NewArrivalProductCard({
         <ShoppingListSavePopup
           productId={product.id}
           productName={productName}
+          product={product}
           onClose={() =>
             setShowShoppingListPopup(false)
           }

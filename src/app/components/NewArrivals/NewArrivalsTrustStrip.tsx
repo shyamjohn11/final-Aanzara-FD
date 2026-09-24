@@ -10,11 +10,8 @@ import {
 
 import type { LucideIcon } from "lucide-react";
 
-import { contentApi, type ContentItem } from "@/app/api/services";
-
-/* =========================================================
-   TYPES
-========================================================= */
+import { contentApi } from "@/app/api/services";
+import { NEW_ARRIVAL_TRUST_STRIP } from "@/app/data/newArrivals";
 
 interface TrustItem {
   label: string;
@@ -24,20 +21,12 @@ interface SafeTrustItem extends TrustItem {
   icon: LucideIcon;
 }
 
-/* =========================================================
-   ICONS
-========================================================= */
-
 const ICONS: LucideIcon[] = [
   ShieldCheck,
   Lock,
   RotateCcw,
   FileText,
 ];
-
-/* =========================================================
-   TEXT VALIDATION
-========================================================= */
 
 function isValidText(
   value: unknown,
@@ -48,19 +37,11 @@ function isValidText(
   );
 }
 
-/* =========================================================
-   TRUST ITEM VALIDATION
-========================================================= */
-
 function isValidTrustItem(
   value: unknown,
 ): value is string {
   return isValidText(value);
 }
-
-/* =========================================================
-   SAFE TRUST ITEMS
-========================================================= */
 
 function getSafeTrustItems(
   value: unknown,
@@ -91,41 +72,54 @@ function getSafeTrustItems(
     });
 }
 
-/* =========================================================
-   MAIN COMPONENT
-========================================================= */
-
 export default function NewArrivalsTrustStrip() {
   const [rawLabels, setRawLabels] = useState<string[]>(
     [],
   );
   const [isLoading, setIsLoading] =
     useState<boolean>(true);
-  const [loadError, setLoadError] =
-    useState<string>("");
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       setIsLoading(true);
-      setLoadError("");
       try {
         const { data } =
           await contentApi.list("na_trust");
-        const rows: ContentItem[] = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
-        const mapped: string[] = rows.map(
-          (row) => row.title ?? "",
-        );
+        const container = data as {
+          items?: unknown;
+          data?: unknown;
+        } | null;
+        const candidate: unknown[] = Array.isArray(data)
+          ? data
+          : container && Array.isArray(container.items)
+            ? container.items
+            : container && Array.isArray(container.data)
+              ? container.data
+              : [];
+        const mapped: string[] = candidate
+          .map((row) => {
+            if (typeof row === "string") return row.trim();
+            const rec = row as Record<string, unknown>;
+            if (
+              typeof (rec.title ?? rec.Title) === "string"
+            ) {
+              return String(rec.title ?? rec.Title).trim();
+            }
+            if (
+              typeof (rec.name ?? rec.Name) === "string"
+            ) {
+              return String(rec.name ?? rec.Name).trim();
+            }
+            return "";
+          })
+          .filter((title) => title.length > 0);
         if (mounted) {
           setRawLabels(mapped);
         }
       } catch {
-        if (mounted) {
-          setLoadError(
-            "Failed to load trust information.",
-          );
-        }
+        // Static NEW_ARRIVAL_TRUST_STRIP is used below when rawLabels is empty.
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -140,7 +134,12 @@ export default function NewArrivalsTrustStrip() {
     };
   }, []);
 
-  const safeItems = getSafeTrustItems(rawLabels);
+  const liveItems = getSafeTrustItems(rawLabels);
+  const safeItems = getSafeTrustItems(
+    liveItems.length > 0
+      ? liveItems.map((item) => item.label)
+      : NEW_ARRIVAL_TRUST_STRIP,
+  );
 
   const displayItems = safeItems.slice(0, 4);
 
@@ -168,34 +167,6 @@ export default function NewArrivalsTrustStrip() {
           aria-live="polite"
         >
           Loading trust information…
-        </div>
-      </section>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <section
-        className="w-full bg-white border-t border-gray-200"
-        aria-label="Wholesale trust and service guarantees"
-      >
-        <div
-          className="
-            mx-auto
-            w-full
-            max-w-[1360px]
-            px-4
-            sm:px-6
-            min-h-[90px]
-            flex
-            items-center
-            justify-center
-            text-[12px]
-            text-red-500
-          "
-          role="alert"
-        >
-          {loadError}
         </div>
       </section>
     );
@@ -266,9 +237,6 @@ export default function NewArrivalsTrustStrip() {
                   last:border-r-0
                 "
               >
-                {/* =================================================
-                    ICON
-                ================================================= */}
                 <div
                   className="
                     flex
@@ -289,9 +257,6 @@ export default function NewArrivalsTrustStrip() {
                   />
                 </div>
 
-                {/* =================================================
-                    TEXT
-                ================================================= */}
                 <div className="min-w-0">
                   <p
                     className="

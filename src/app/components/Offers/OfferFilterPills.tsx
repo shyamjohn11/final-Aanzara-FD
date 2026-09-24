@@ -9,6 +9,7 @@ import { dealsApi, categoriesApi } from "@/app/api/services";
 
 interface OfferFilterPillsProps {
   onChange?: (pill: string) => void;
+  active?: string;
 }
 
 /* --------------------------------
@@ -78,7 +79,8 @@ function unwrapItems(payload: unknown): Record<string, unknown>[] {
 
 export default function OfferFilterPills({
   onChange,
-}: OfferFilterPillsProps) {
+  active: controlledActive,
+}: OfferFilterPillsProps & { active?: string }) {
   const [pills, setPills] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string>("");
@@ -161,35 +163,28 @@ export default function OfferFilterPills({
     [pills],
   );
 
-  const [active, setActive] =
-    useState<string>("");
+  const [internalActive, setInternalActive] = useState<string>("");
+
+  const isControlled = controlledActive !== undefined;
+  const active = isControlled ? (controlledActive as string) : internalActive;
 
   useEffect(() => {
     if (!active && safePills.length > 0) {
-      setActive(safePills[0] ?? "");
+      const first = safePills[0] ?? "";
+      if (isControlled) onChange?.(first);
+      else setInternalActive(first);
     }
   }, [active, safePills]);
 
-  /* --------------------------------
-   * Pill Change
-   * -------------------------------- */
-
-  const handlePillChange = (
-    pill: string,
-  ): void => {
-    if (!isValidText(pill)) {
-      return;
-    }
-
+  const handlePillChange = (pill: string): void => {
+    if (!isValidText(pill)) return;
     const safePill = pill.trim();
-
-    if (!safePills.includes(safePill)) {
-      return;
+    if (!safePills.includes(safePill)) return;
+    if (isControlled) onChange?.(safePill);
+    else {
+      setInternalActive(safePill);
+      onChange?.(safePill);
     }
-
-    setActive(safePill);
-
-    onChange?.(safePill);
   };
 
   /* --------------------------------

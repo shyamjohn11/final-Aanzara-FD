@@ -224,7 +224,10 @@ export default function ProductDetailPage() {
         ==================================================== */}
 
         <section className="mt-6">
-          <ProductTabs />
+          <ProductTabs
+            productName="Fortune Sunlite Sunflower Oil 5L"
+            specification={null}
+          />
         </section>
 
         {/* ===================================================

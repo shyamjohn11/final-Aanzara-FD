@@ -55,6 +55,12 @@ function getSafeNavState(
 
 export default function AllCategoriesPage() {
   /* =======================================================
+     CATEGORY FILTER STATE — lifted to page so tabs actually filter the grid
+  ======================================================= */
+
+  const [activeCategory, setActiveCategory] = useState<string>("All");
+
+  /* =======================================================
      NAVIGATION STATE
   ======================================================= */
 
@@ -144,20 +150,12 @@ export default function AllCategoriesPage() {
             CATEGORY FILTERS
         ================================================= */}
 
-        <section
-          aria-label="Category filters"
-        >
-          <CategoryFilterTabs />
+        <section aria-label="Category filters">
+          <CategoryFilterTabs active={activeCategory} onChange={setActiveCategory} />
         </section>
 
-        {/* =================================================
-            ALL CATEGORIES
-        ================================================= */}
-
-        <section
-          aria-label="All product categories"
-        >
-          <AllCategoriesGrid />
+        <section aria-label="All product categories">
+          <AllCategoriesGrid activeCategory={activeCategory} />
         </section>
 
         {/* =================================================

@@ -68,6 +68,7 @@ export default function CreateProductPage() {
   const [isOrganic, setIsOrganic] = useState(false);
   const [isGstFree, setIsGstFree] = useState(false);
   const [description, setDescription] = useState("");
+  const [specification, setSpecification] = useState("");
   const [image, setImage] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<ProductErrors>({});
@@ -258,13 +259,14 @@ export default function CreateProductPage() {
     setApiError("");
 
     try {
-      const payload = {
+      const payload: any = {
         categoryId,
         subCategoryId: subCategoryId || null,
         brandId,
         productName: productName.trim(),
         sku: sku.trim().toUpperCase(),
         description: description.trim(),
+        specification: specification.trim(),
         price: Number(price),
         mrp: Number(mrp),
         discount: discount ? Number(discount) : 0,
@@ -624,6 +626,21 @@ export default function CreateProductPage() {
                     <p className="text-[8px] font-medium text-[#EF4444]">{errors.description || ""}</p>
                     <p className="text-[8px] text-[#9AA5B4]">{description.length}/500</p>
                   </div>
+                </div>
+
+                {/* SPECIFICATION */}
+                <div>
+                  <label htmlFor="specification" className="mb-1.5 block text-[10px] font-semibold text-[#52627A]">
+                    Specification
+                  </label>
+                  <textarea
+                    id="specification"
+                    value={specification}
+                    onChange={(event) => setSpecification(event.target.value)}
+                    placeholder="Enter product specifications (e.g. Weight: 5kg, Dimensions: 10x10x10, Shelf Life: 12 months...)"
+                    rows={4}
+                    className="w-full resize-none rounded-lg border border-[#DCE2EA] px-3 py-3 text-[11px] outline-none placeholder:text-[#9AA5B4] focus:border-[#1769F5] focus:ring-2 focus:ring-[#1769F5]/10"
+                  />
                 </div>
 
                 {/* ORGANIC & GST FREE */}
