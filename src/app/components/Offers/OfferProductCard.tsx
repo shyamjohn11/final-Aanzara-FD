@@ -695,6 +695,7 @@ export default function OfferProductCard({
         <ShoppingListSavePopup
           productId={productId}
           productName={productName}
+          product={offerProductToCartProduct(product)}
           onClose={() =>
             setShowShoppingListPopup(false)
           }

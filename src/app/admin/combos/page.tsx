@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { combosApi } from "@/app/api/services";
+import { combosApi, productsApi } from "@/app/api/services";
 import { extractErrorMessage } from "@/app/api/api";
 import {
   ArrowLeft,
@@ -39,6 +39,7 @@ type Combo = {
   startDate: string;
   endDate: string;
   sold: number;
+  productIds?: string[];
 };
 
 /* API-first: combos load from backend; empty until fetch resolves. */
@@ -95,6 +96,10 @@ export default function CombosPage() {
     endDate: "",
   });
 
+  const [products, setProducts] = useState<{ productId: string; productName: string; price: number; mrp: number; imageUrl?: string }[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+
   type FormErrors = {
     name?: string;
     description?: string;
@@ -140,7 +145,7 @@ export default function CombosPage() {
           name: String(raw.name ?? raw.title ?? "Untitled combo"),
           description: String(raw.description ?? raw.subtitle ?? ""),
           image: String(raw.image ?? raw.imageUrl ?? ""),
-          items: Number(raw.items ?? raw.itemCount ?? raw.productCount ?? 0),
+          items: Number(raw.productIds?.length ?? raw.items ?? raw.itemCount ?? raw.productCount ?? 0),
           originalPrice: Number(raw.originalPrice ?? raw.mrp ?? raw.totalPrice ?? 0),
           comboPrice: Number(raw.comboPrice ?? raw.price ?? raw.offerPrice ?? 0),
           category: String(raw.category ?? raw.categoryName ?? "Grocery"),
@@ -148,10 +153,12 @@ export default function CombosPage() {
           startDate: String(raw.startDate ?? raw.start ?? raw.validFrom ?? "").slice(0, 10),
           endDate: String(raw.endDate ?? raw.end ?? raw.validTo ?? "").slice(0, 10),
           sold: Number(raw.sold ?? raw.soldCount ?? raw.sales ?? 0),
+          productIds: Array.isArray(raw.productIds) ? raw.productIds.map((id: any) => String(id)) : [],
         }));
 
         if (mapped.length > 0) setCombos(mapped);
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED" || error?.message === "canceled") return;
         console.error("Unable to load combos:", error);
       }
     };
@@ -162,6 +169,27 @@ export default function CombosPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!showForm) return;
+    let cancelled = false;
+    const loadProducts = async () => {
+      try {
+        const res: any = await productsApi.list({ page: 1, pageSize: 100, search: productSearch || undefined });
+        const payload: any = res?.data ?? res;
+        const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
+        const mapped = items.map((p: any) => ({
+          productId: String(p.productId ?? p.id ?? ""),
+          productName: String(p.productName ?? p.name ?? "Product"),
+          price: Number(p.price ?? 0),
+          mrp: Number(p.mrp ?? p.price ?? 0),
+        })).filter((p) => p.productId);
+        if (!cancelled) setProducts(mapped);
+      } catch {}
+    };
+    loadProducts();
+    return () => { cancelled = true; };
+  }, [showForm, productSearch]);
 
   /* =====================================================
      FILTERED COMBOS
@@ -248,7 +276,8 @@ export default function CombosPage() {
       startDate: "",
       endDate: "",
     });
-
+    setSelectedProductIds([]);
+    setProductSearch("");
     setEditingId(null);
     setFormErrors({});
     setFormError("");
@@ -263,30 +292,36 @@ export default function CombosPage() {
     setShowForm(true);
   };
 
+  useEffect(() => {
+    if (selectedProductIds.length === 0) return;
+    const sum = selectedProductIds.reduce((acc, id) => {
+      const p = products.find((x) => x.productId === id);
+      return acc + (p ? Number(p.price) : 0);
+    }, 0);
+    if (sum > 0) {
+      setForm((prev) => ({ ...prev, originalPrice: String(sum), items: String(selectedProductIds.length) }));
+    }
+  }, [selectedProductIds, products]);
+
   /* =====================================================
      EDIT
   ====================================================== */
 
   const openEdit = (combo: Combo) => {
     setEditingId(combo.id);
-
+    setSelectedProductIds(combo.productIds ?? []);
     setForm({
       name: combo.name,
       description: combo.description,
       image: combo.image,
-      items: String(combo.items),
-      originalPrice: String(
-        combo.originalPrice
-      ),
-      comboPrice: String(
-        combo.comboPrice
-      ),
+      items: String(combo.productIds?.length ?? combo.items),
+      originalPrice: String(combo.originalPrice),
+      comboPrice: String(combo.comboPrice),
       category: combo.category,
       status: combo.status,
       startDate: combo.startDate,
       endDate: combo.endDate,
     });
-
     setShowForm(true);
   };
 
@@ -307,8 +342,8 @@ export default function CombosPage() {
     /* NAME */
     if (!cleanName) {
       errors.name = "Combo name is required.";
-    } else if (cleanName.length < 3) {
-      errors.name = "Combo name must be at least 3 characters.";
+    } else if (cleanName.length < 2) {
+      errors.name = "Combo name must be at least 2 characters.";
     } else if (cleanName.length > 100) {
       errors.name = "Combo name cannot exceed 100 characters.";
     } else if (!/^[A-Za-z0-9][A-Za-z0-9 &.'()\-]*$/.test(cleanName)) {
@@ -338,30 +373,13 @@ export default function CombosPage() {
         "Description cannot exceed 500 characters.";
     }
 
-    /* IMAGE */
-    if (!cleanImage) {
-      errors.image = "Image URL is required.";
-    } else {
-      try {
-        const url = new URL(cleanImage);
-
-        if (!["http:", "https:"].includes(url.protocol)) {
-          errors.image = "Image URL must use http or https.";
-        }
-      } catch {
-        errors.image = "Enter a valid image URL.";
-      }
-    }
-
-    /* ITEMS */
-    if (!form.items.trim()) {
-      errors.items = "Number of items is required.";
-    } else if (!Number.isInteger(items)) {
-      errors.items = "Number of items must be a whole number.";
-    } else if (items < 2) {
-      errors.items = "A combo must contain at least 2 items.";
-    } else if (items > 100) {
-      errors.items = "Number of items cannot exceed 100.";
+    /* PRODUCTS — at least 2 for new combos; edits may keep existing productIds or add */
+    if (selectedProductIds.length === 0 && !editingId) {
+      errors.items = "Select at least 2 products to create a combo.";
+    } else if (selectedProductIds.length > 0 && selectedProductIds.length < 2) {
+      errors.items = "Select at least 2 products to create a combo.";
+    } else if (selectedProductIds.length > 20) {
+      errors.items = "A combo cannot exceed 20 products.";
     }
 
     /* ORIGINAL PRICE */
@@ -468,23 +486,23 @@ export default function CombosPage() {
 
     const cleanName = form.name.trim();
     const cleanDescription = form.description.trim();
-    const cleanImage = form.image.trim();
+    // Image now auto-derived from first selected product's image — no manual URL required
+    const firstProductImage = selectedProductIds.length > 0 ? (products.find((p) => p.productId === selectedProductIds[0])?.imageUrl || "") : "";
+    const cleanImage = form.image.trim() || firstProductImage;
     const originalPrice = Number(form.originalPrice);
     const comboPrice = Number(form.comboPrice);
     const items = Number(form.items);
 
-    // Backend contract: {name, title, description, productIds[],
-    // price, originalPrice, imageUrl, status} (+ JSON imageUrl variant).
     const payload: Record<string, unknown> = {
       name: cleanName,
       title: cleanName,
       description: cleanDescription,
-      productIds: [] as string[],
+      productIds: selectedProductIds,
       price: comboPrice,
       originalPrice,
       image: cleanImage,
       imageUrl: cleanImage,
-      items,
+      items: selectedProductIds.length,
       comboPrice,
       category: form.category,
       status: form.status,
@@ -1017,21 +1035,16 @@ export default function CombosPage() {
 
                                 <div className="h-[54px] w-[82px] shrink-0 overflow-hidden rounded-lg bg-[#EEF2F6]">
 
-                                  {combo.image ? (
-                                    <img
-                                      src={
-                                        combo.image
-                                      }
-                                      alt={
-                                        combo.name
-                                      }
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
-                                      <Package size={20} />
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const prodImg = combo.image || (combo.productIds?.[0] ? products.find((p) => p.productId === combo.productIds![0])?.imageUrl : "");
+                                    return prodImg ? (
+                                      <img src={prodImg} alt={combo.name} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
+                                        <Package size={20} />
+                                      </div>
+                                    );
+                                  })()}
 
                                 </div>
 
@@ -1264,22 +1277,16 @@ export default function CombosPage() {
                         <div className="flex gap-3">
 
                           <div className="h-[70px] w-[96px] shrink-0 overflow-hidden rounded-lg bg-[#EEF2F6]">
-
-                            {combo.image ? (
-                              <img
-                                src={
-                                  combo.image
-                                }
-                                alt={
-                                  combo.name
-                                }
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
-                                <Package size={22} />
-                              </div>
-                            )}
+                            {(() => {
+                              const prodImg = combo.image || (combo.productIds?.[0] ? products.find((p) => p.productId === combo.productIds![0])?.imageUrl : "");
+                              return prodImg ? (
+                                <img src={prodImg} alt={combo.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
+                                  <Package size={22} />
+                                </div>
+                              );
+                            })()}
 
                           </div>
 
@@ -1568,24 +1575,84 @@ export default function CombosPage() {
 
               </div>
 
-              {/* IMAGE */}
+              {/* PRODUCTS — select existing products to merge into a combo */}
+              <div>
+                <label className="text-[9px] font-semibold text-[#52627A]">
+                  Select Products <span className="ml-1 text-[#EF4444]">*</span>
+                  <span className="ml-2 text-[8px] font-normal text-[#8995A5]">({selectedProductIds.length} selected)</span>
+                </label>
+                <div className="mt-1.5">
+                  <div className="relative">
+                    <input
+                      type="search"
+                      value={productSearch}
+                      onChange={(event) => setProductSearch(event.target.value)}
+                      placeholder="Search products by name or SKU..."
+                      className="h-10 w-full rounded-lg border border-[#DCE2EA] bg-white pl-3 pr-3 text-[10px] outline-none placeholder:text-[#A0AAB8] focus:border-[#1769F5]"
+                    />
+                  </div>
+                  <div className="mt-2 max-h-[220px] overflow-y-auto rounded-lg border border-[#E5E9EF] bg-[#FAFBFD] p-2">
+                    {products.length === 0 ? (
+                      <p className="py-6 text-center text-[10px] text-[#8995A5]">No products found. Add products first.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {products.map((p) => {
+                          const isSelected = selectedProductIds.includes(p.productId);
+                          return (
+                            <label
+                              key={p.productId}
+                              className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[10px] transition ${isSelected ? "border-[#1769F5] bg-[#EAF0FF]" : "border-[#E5E9EF] bg-white hover:border-[#B8CCEC]"}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedProductIds((prev) => [...prev, p.productId]);
+                                  else setSelectedProductIds((prev) => prev.filter((id) => id !== p.productId));
+                                }}
+                                className="h-4 w-4 shrink-0 accent-[#1769F5]"
+                              />
+                              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[#EEF2F6] border border-[#E5E9EF]">
+                                {p.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={p.imageUrl} alt={p.productName} className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
+                                    <Package size={16} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-semibold text-[#33415A]">{p.productName}</p>
+                                <p className="text-[8px] text-[#8995A5]">SKU: {p.productId.slice(0, 8)} • ₹{p.price} • MRP ₹{p.mrp}</p>
+                              </div>
+                              {isSelected && <CheckCircle2 size={14} className="shrink-0 text-[#1769F5]" />}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {selectedProductIds.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {selectedProductIds.map((id) => {
+                        const prod = products.find((x) => x.productId === id);
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1 rounded-full bg-[#1769F5] px-2.5 py-1 text-[9px] font-semibold text-white">
+                            {prod?.productName ?? id.slice(0, 8)}
+                            <button type="button" onClick={() => setSelectedProductIds((prev) => prev.filter((x) => x !== id))} className="ml-1 rounded-full bg-white/20 p-0.5 hover:bg-white/30">
+                              <X size={10} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {formErrors.items && <p className="mt-1 text-[8px] font-medium text-[#EF4444]">{formErrors.items}</p>}
+                </div>
+              </div>
 
-              <FormInput
-                label="Image URL"
-                value={form.image}
-                placeholder="https://example.com/combo.jpg"
-                onChange={(value) => {
-                  setForm({
-                    ...form,
-                    image: value,
-                  });
-                  setFormErrors((current) => ({
-                    ...current,
-                    image: undefined,
-                  }));
-                  setFormError("");
-                }}
-              />
+              {/* IMAGE */}
 
               {formErrors.image && (
                 <p className="-mt-2 text-[8px] font-medium text-[#EF4444]">
@@ -1593,23 +1660,16 @@ export default function CombosPage() {
                 </p>
               )}
 
-              {form.image && (
-                <div className="overflow-hidden rounded-xl border border-[#E5E9EF] bg-[#F7F9FC]">
-
-                  <div className="aspect-[3/1]">
-
-                    <img
-                      src={
-                        form.image
-                      }
-                      alt="Combo preview"
-                      className="h-full w-full object-cover"
-                    />
-
+              {(() => {
+                const previewSrc = form.image.trim() || (selectedProductIds[0] ? products.find((p) => p.productId === selectedProductIds[0])?.imageUrl : "");
+                return previewSrc ? (
+                  <div className="overflow-hidden rounded-xl border border-[#E5E9EF] bg-[#F7F9FC]">
+                    <div className="aspect-[3/1]">
+                      <img src={previewSrc} alt="Combo preview" className="h-full w-full object-cover" />
+                    </div>
                   </div>
-
-                </div>
-              )}
+                ) : null;
+              })()}
 
               {/* ITEMS + PRICES */}
 
@@ -1936,21 +1996,16 @@ export default function CombosPage() {
 
                 <div className="aspect-[3/1]">
 
-                  {viewCombo.image ? (
-                    <img
-                      src={
-                        viewCombo.image
-                      }
-                      alt={
-                        viewCombo.name
-                      }
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
-                      <Package size={28} />
-                    </div>
-                  )}
+                  {(() => {
+                    const prodImg = viewCombo.image || (viewCombo.productIds?.[0] ? products.find((p) => p.productId === viewCombo.productIds![0])?.imageUrl : "");
+                    return prodImg ? (
+                      <img src={prodImg} alt={viewCombo.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[#A0AAB8]">
+                        <Package size={28} />
+                      </div>
+                    );
+                  })()}
 
                 </div>
 
@@ -1981,6 +2036,26 @@ export default function CombosPage() {
                 />
 
               </div>
+
+              {/* PRODUCTS IN COMBO — merged from existing catalog */}
+              {viewCombo.productIds && viewCombo.productIds.length > 0 && (
+                <div className="mt-4 rounded-xl border border-[#E5E9EF] bg-[#FAFBFD] p-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-[#8995A5]">
+                    Products in this combo ({viewCombo.productIds.length})
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {viewCombo.productIds.map((pid: string) => {
+                      const prod = products.find((p) => p.productId === pid);
+                      return (
+                        <div key={pid} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-[10px] border border-[#E5E9EF]">
+                          <span className="font-medium text-[#33415A] truncate">{prod ? prod.productName : pid.slice(0, 8)}</span>
+                          <span className="text-[#1769F5] font-semibold">{prod ? `₹${prod.price}` : ""}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* PRICE */}
 

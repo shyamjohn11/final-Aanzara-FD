@@ -11,16 +11,19 @@ import {
 import {
   useShoppingLists,
 } from "@/app/context/shoppinglistcontext";
+import type { Product } from "@/app/data/products";
 
 interface ShoppingListSavePopupProps {
   productId: string;
   productName?: string;
+  product?: Product;
   onClose: () => void;
 }
 
 export default function ShoppingListSavePopup({
   productId,
   productName,
+  product,
   onClose,
 }: ShoppingListSavePopupProps) {
   const {
@@ -54,21 +57,10 @@ export default function ShoppingListSavePopup({
    * =========================================================
    */
 
-  const isProductInList = (
-    listId: string
-  ): boolean => {
-    const products =
-      getProductsForList(listId);
-
-    if (!Array.isArray(products)) {
-      return false;
-    }
-
-    return products.some(
-      (product) =>
-        String(product.id).trim() ===
-        normalizedProductId
-    );
+  const isProductInList = (listId: string): boolean => {
+    const list = shoppingLists.find((l) => l.id === listId);
+    if (!list) return false;
+    return list.productIds.map((id) => String(id).trim()).includes(normalizedProductId);
   };
 
   /*
@@ -101,7 +93,8 @@ export default function ShoppingListSavePopup({
     } else {
       addProductToList(
         normalizedProductId,
-        listId
+        listId,
+        product
       );
     }
   };
@@ -136,7 +129,8 @@ export default function ShoppingListSavePopup({
        */
       addProductToList(
         normalizedProductId,
-        newListId
+        newListId,
+        product
       );
 
       /*
@@ -554,15 +548,7 @@ export default function ShoppingListSavePopup({
                             list.id
                           );
 
-                        const products =
-                          getProductsForList(
-                            list.id
-                          );
-
-                        const productCount =
-                          Array.isArray(products)
-                            ? products.length
-                            : 0;
+                        const productCount = list.productIds.length;
 
                         return (
                           <button

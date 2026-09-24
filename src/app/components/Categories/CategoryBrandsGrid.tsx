@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Building2,
   ArrowRight,
@@ -9,11 +10,18 @@ import {
 import { storefrontBrandsApi } from "@/app/api/services";
 
 type BrandTile = {
+  brandId?: string;
   name: string;
   count: string | number;
 };
 
+function slugify(value: string): string {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 export default function CategoryBrandsGrid() {
+  const router = useRouter();
+
   // =====================================================
   // LIVE DATA — GET /api/v1/brands (public, active only)
   // =====================================================
@@ -36,20 +44,16 @@ export default function CategoryBrandsGrid() {
         const live: BrandTile[] = items
           .map((raw: any) => {
             const name = String(raw?.brandName ?? raw?.name ?? "").trim();
-            // Brand list carries no product count; keep a generic label
-            // so the existing count validation + JSX stay intact.
+            const brandId = String(raw?.brandId ?? raw?.id ?? "").trim();
             const count =
               typeof raw?.productCount === "number" && Number.isFinite(raw.productCount)
                 ? raw.productCount
                 : typeof raw?.count === "string" && raw.count.trim().length > 0
                   ? raw.count
                   : "Explore range";
-            return { name, count };
+            return { brandId: brandId || undefined, name, count };
           })
-          .filter(
-            (brand: BrandTile) =>
-              typeof brand.name === "string" && brand.name.trim().length > 0
-          );
+          .filter((brand: BrandTile) => typeof brand.name === "string" && brand.name.trim().length > 0);
 
         setTiles(live);
       } catch {
@@ -185,12 +189,14 @@ export default function CategoryBrandsGrid() {
         </div>
       ) : validBrands.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-          {validBrands.map(
-            (brand, index) => (
+          {validBrands.map((brand, index) => {
+            const href = brand.brandId ? `/brands/${brand.brandId}` : `/brands/${slugify(brand.name)}`;
+            return (
               <button
                 key={`${brand.name}-${index}`}
                 type="button"
                 aria-label={`Explore ${brand.name}`}
+                onClick={() => router.push(href)}
                 className="
                   flex
                   items-center
@@ -203,6 +209,7 @@ export default function CategoryBrandsGrid() {
                   hover:border-blue
                   hover:shadow-card
                   transition-all
+                  cursor-pointer
                 "
               >
                 {/* ==========================================
@@ -257,8 +264,8 @@ export default function CategoryBrandsGrid() {
 
                 </div>
               </button>
-            )
-          )}
+            );
+          })}
         </div>
       ) : (
         /* =================================================

@@ -3,7 +3,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { contentApi, type ContentItem } from "@/app/api/services";
+import { contentApi } from "@/app/api/services";
+import { OFFICE_LOCATION } from "@/app/data/contact";
 
 function isValidText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -11,12 +12,12 @@ function isValidText(value: unknown): value is string {
 
 export default function ContactMapSection() {
   const [officeName, setOfficeName] =
-    useState<string>("Aanzara Market");
-  const [officeAddress, setOfficeAddress] =
-    useState<string>("");
+    useState<string>(OFFICE_LOCATION.name || "Aanzara Market");
+  const [officeAddress, setOfficeAddress] = useState<string>(
+    OFFICE_LOCATION.address,
+  );
   const [loading, setLoading] =
     useState<boolean>(true);
-  const [error, setError] = useState<string>("");
 
   useEffect(() => {
     let mounted = true;
@@ -24,47 +25,57 @@ export default function ContactMapSection() {
     async function load() {
       try {
         setLoading(true);
-        setError("");
 
         const res = await contentApi.list(
           "contact_office",
         );
 
-        const data = res.data as
-          | ContentItem[]
-          | { items: ContentItem[] };
-
-        const rows: ContentItem[] = Array.isArray(data)
+        const data = res.data as unknown;
+        const rows: unknown[] = Array.isArray(data)
           ? data
-          : Array.isArray((data as any)?.items)
-            ? (data as any).items
-            : [];
+          : Array.isArray(
+                (data as { items?: unknown })?.items,
+              )
+            ? ((data as { items: unknown[] }).items as unknown[])
+            : Array.isArray(
+                  (data as { data?: unknown })?.data,
+                )
+              ? ((data as { data: unknown[] }).data as unknown[])
+              : [];
 
         if (!mounted) {
           return;
         }
 
-        const first = rows[0];
+        const first = rows[0] as
+          | Record<string, unknown>
+          | undefined;
 
         if (first) {
-          if (isValidText(first.title)) {
-            setOfficeName(first.title.trim());
+          const title =
+            typeof first.title === "string"
+              ? first.title.trim()
+              : typeof first.Title === "string"
+                ? first.Title.trim()
+                : "";
+          const description =
+            typeof first.description === "string"
+              ? first.description.trim()
+              : typeof first.Description === "string"
+                ? first.Description.trim()
+                : "";
+
+          if (title) {
+            setOfficeName(title);
           }
-          if (isValidText(first.description)) {
-            setOfficeAddress(
-              (first.description as string).trim(),
-            );
+          if (description) {
+            setOfficeAddress(description);
           } else {
-            setOfficeAddress("");
+            setOfficeAddress(OFFICE_LOCATION.address);
           }
         }
       } catch {
-        if (!mounted) {
-          return;
-        }
-        setError(
-          "The office location could not be loaded. Please try again later.",
-        );
+        // Static OFFICE_LOCATION is already the default.
       } finally {
         if (mounted) {
           setLoading(false);
@@ -104,43 +115,6 @@ export default function ContactMapSection() {
           <div className="text-[13px] font-bold text-ink">
             Loading office location...
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !mapQuery) {
-    return (
-      <div
-        role="alert"
-        className="relative rounded-card overflow-hidden h-[280px] sm:h-[340px] border border-line bg-paper flex items-center justify-center px-6 text-center"
-      >
-        <div>
-          <div className="text-[13px] font-bold text-ink">
-            Office location unavailable
-          </div>
-
-          <p className="text-[11.5px] text-ink-soft mt-1">
-            {error}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  if (!mapQuery) {
-    return (
-      <div
-        role="status"
-        className="relative rounded-card overflow-hidden h-[280px] sm:h-[340px] border border-line bg-paper flex items-center justify-center px-6 text-center"
-      >
-        <div>
-          <div className="text-[13px] font-bold text-ink">
-            Office location unavailable
-          </div>
-
-          <p className="text-[11.5px] text-ink-soft mt-1">
-            The office location could not be loaded. Please try again later.
-          </p>
         </div>
       </div>
     );
