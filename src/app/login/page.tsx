@@ -260,9 +260,7 @@ function LoginPageContent() {
       const destination =
         userRole === "admin"
           ? mayUseRedirect ?? "/admin"
-          : userRole === "agent"
-            ? mayUseRedirect ?? "/agent-shop-onboarding"
-            : mayUseRedirect ?? "/dashboard";
+          : mayUseRedirect ?? "/dashboard";
 
       setLoading(false);
 

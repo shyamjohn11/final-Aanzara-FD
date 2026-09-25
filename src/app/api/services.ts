@@ -24,7 +24,7 @@
 //   #75-99  marketing (AdminMarketingControllers) -> bannersApi, offersApi,
 //            couponsApi, combosApi, cartRulesApi
 //   #100-121 store/accounts (AdminStoreAccountControllers) -> storesApi,
-//            storeOffersApi, businessAccountsApi, agentOnboardingApi
+//            storeOffersApi, businessAccountsApi
 //   #122-138 requests (AdminRequestControllers) -> quotesApi,
 //            reviewsApi, enquiriesApi, pricingRequestsApi
 //   #139-147 misc (AdminMiscControllers) -> notificationsApi, reportsApi,
@@ -1081,11 +1081,7 @@ export const storeOffersApi = adminResource("/api/admin/store-offers");
 export const businessAccountsApi = adminResource(
   "/api/admin/business-accounts"
 );
-// #116 · #117 · #118 · #119 · #120
-// #121 PATCH /api/admin/agent-onboarding/{id}/status (approve/reject)
-export const agentOnboardingApi = adminResource(
-  "/api/admin/agent-onboarding"
-);
+// #116-121 agent-onboarding API removed (agent-shop-onboarding deleted).
 
 // ============================================================
 // #150-161 AGENTS & DEALERS — AdminDealerControllers
