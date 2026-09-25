@@ -568,7 +568,15 @@ export default function OrdersPage() {
       return;
     }
 
-    setSuccess("Order tracking is available here.");
+    if (!order.backendId || !isGuid(order.backendId)) {
+      setError(
+        "Unable to track this order because the order information is invalid."
+      );
+
+      return;
+    }
+
+    router.push(`/orders/${order.backendId}/tracking`);
   };
 
   /* =====================================================

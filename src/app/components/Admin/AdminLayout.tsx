@@ -14,6 +14,7 @@ import AdminHeader from "@/app/components/Admin/AdminHeader";
 import {
   getSessionRole,
   hasSession,
+  restoreSessionFromCookies,
 } from "@/app/api/api";
 
 /* =========================================================
@@ -38,22 +39,43 @@ export default function AdminLayout({
   /* =======================================================
      CLIENT ROLE GUARD (defense-in-depth: the edge middleware
      + backend enforce first; this avoids flashing admin UI)
+
+     Restore-first: sessionStorage is per-tab but the HttpOnly
+     cookies survive new tabs and browser restarts. When this tab
+     has no session state yet, attempt one silent cookie refresh
+     before bouncing — otherwise a still-valid session ping-pongs
+     forever between here (/login) and the edge guard (/admin),
+     reaching neither.
   ======================================================= */
 
   useEffect(() => {
-    if (!hasSession()) {
-      router.replace(
-        `/login?redirect=${encodeURIComponent(pathname || "/admin")}`
-      );
-      return;
-    }
+    let cancelled = false;
 
-    if (getSessionRole() !== "admin") {
-      router.replace("/dashboard");
-      return;
-    }
+    void (async () => {
+      if (!hasSession()) {
+        const restored = await restoreSessionFromCookies({
+          force: true,
+        }).catch(() => null);
+        if (cancelled) return;
+        if (!restored) {
+          router.replace(
+            `/login?redirect=${encodeURIComponent(pathname || "/admin")}`
+          );
+          return;
+        }
+      }
 
-    setAllowed(true);
+      if (getSessionRole() !== "admin") {
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (!cancelled) setAllowed(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, pathname]);
 
   /* =======================================================

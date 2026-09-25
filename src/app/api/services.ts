@@ -845,6 +845,16 @@ export const cartApi = {
   clear() {
     return api.delete("/api/v1/cart/clear");
   },
+
+  // POST /api/v1/cart/coupon { code } — apply shopper coupon, returns summary
+  applyCoupon(code: string) {
+    return api.post<CartSummaryResponse>("/api/v1/cart/coupon", { code });
+  },
+
+  // DELETE /api/v1/cart/coupon — clear applied coupon, returns summary
+  removeCoupon() {
+    return api.delete<CartSummaryResponse>("/api/v1/cart/coupon");
+  },
 };
 
 // ============================================================
@@ -1250,8 +1260,7 @@ export const reviewsApi = {
 };
 
 // #131 list · #132 details · POST create · PUT update · #133 status · #134 delete
-export const enquiriesApi = {
-  list: (page = 1, pageSize = 25) =>
+export const enquiriesApi = {  list: (page = 1, pageSize = 25) =>
     adminResource("/api/admin/enquiries").list(page, pageSize),
   details: (id: string | number) =>
     adminResource("/api/admin/enquiries").details(id),
@@ -1263,6 +1272,22 @@ export const enquiriesApi = {
     api.patch(`/api/admin/enquiries/${id}/status`, { status }),
   remove: (id: string | number) =>
     adminResource("/api/admin/enquiries").remove(id),
+};
+
+// Storefront public contact submit — no login required.
+// POST /api/v1/enquiries — creates an Enquiry (status Open)
+// visible in /admin/enquiries. (The admin enquiriesApi above
+// stays admin-only: guests get 401 and customers 403 on it.)
+export const contactEnquiriesApi = {
+  submit(payload: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    subject?: string;
+    message?: string;
+  }) {
+    return api.post("/api/v1/enquiries", payload);
+  },
 };
 
 // #135 list · #136 details · POST create · PUT update · #137 status · #138 delete
@@ -1279,6 +1304,24 @@ export const pricingRequestsApi = {
     api.patch(`/api/admin/pricing-requests/${id}/status`, { status }),
   remove: (id: string | number) =>
     adminResource("/api/admin/pricing-requests").remove(id),
+};
+
+// Storefront public bulk-quote submit — no login required.
+// POST /api/v1/quote-requests — creates a PricingRequest (status
+// Pending) visible in /admin/pricing-requests.
+export const quoteRequestsApi = {
+  submit(payload: {
+    customerName?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    product?: string;
+    quantity?: number;
+    requestedPrice?: number;
+    message?: string;
+  }) {
+    return api.post("/api/v1/quote-requests", payload);
+  },
 };
 
 // ============================================================

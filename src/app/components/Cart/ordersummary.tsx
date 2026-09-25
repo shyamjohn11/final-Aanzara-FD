@@ -15,8 +15,18 @@ import {
   CART_CONFIG,
   PAYMENT_METHODS,
 } from "@/app/data/cartdata";
-import { addressesApi } from "@/app/api/services";
-import { hasSession } from "@/app/api/api";
+import {
+  clearPendingCouponCode,
+  computeCouponDiscount,
+  loadStorefrontCoupons,
+  readPendingCouponCode,
+  validateCouponForSubtotal,
+  writePendingCouponCode,
+  type StorefrontCoupon,
+} from "@/app/data/storefrontcoupons";
+import { addressesApi, cartApi } from "@/app/api/services";
+import { extractErrorMessage, hasSession } from "@/app/api/api";
+import BulkQuoteDialog from "@/app/components/BulkQuoteDialog";
 
 // UI fallback — no backend publishes accepted-method labels.
 const FALLBACK_PAYMENT_METHODS: string[] = [
@@ -39,13 +49,25 @@ export default function OrderSummary({
   items: CartLine[];
 }) {
   const [couponApplied, setCouponApplied] =
-    useState(true);
+    useState(false);
 
   const [couponInput, setCouponInput] =
     useState("");
 
   const [couponError, setCouponError] =
     useState("");
+
+  const [appliedCouponCode, setAppliedCouponCode] =
+    useState("");
+
+  const [appliedCouponDiscount, setAppliedCouponDiscount] =
+    useState(0);
+
+  const [liveCoupons, setLiveCoupons] = useState<
+    StorefrontCoupon[]
+  >([]);
+
+  const [quoteOpen, setQuoteOpen] = useState(false);
 
   // =====================================================
   // BASIC ITEMS VALIDATION
@@ -133,19 +155,6 @@ export default function OrderSummary({
     Number(CART_CONFIG.handlingFee) >= 0
       ? Number(CART_CONFIG.handlingFee)
       : 0;
-
-  const safeCouponDiscount =
-    Number.isFinite(
-      Number(CART_CONFIG?.couponDiscount)
-    ) &&
-    Number(CART_CONFIG.couponDiscount) >= 0
-      ? Number(CART_CONFIG.couponDiscount)
-      : 0;
-
-  const safeCouponCode =
-    typeof CART_CONFIG?.couponCode === "string"
-      ? CART_CONFIG.couponCode.trim().toUpperCase()
-      : "";
 
   const safeDeliveryFree =
     CART_CONFIG?.deliveryFree === true;
@@ -238,8 +247,8 @@ export default function OrderSummary({
   // =====================================================
 
   const couponDiscount =
-    couponApplied
-      ? safeCouponDiscount
+    couponApplied && appliedCouponDiscount > 0
+      ? Math.min(appliedCouponDiscount, itemsTotal)
       : 0;
 
   // =====================================================
@@ -300,49 +309,134 @@ export default function OrderSummary({
   };
 
   // =====================================================
+  // LOAD LIVE COUPONS + AUTO-APPLY PENDING
+  // =====================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadStorefrontCoupons(50)
+      .then((coupons) => {
+        if (cancelled) return;
+        setLiveCoupons(coupons);
+      })
+      .catch(() => {
+        // Keep empty list — apply shows unavailable.
+      });
+
+    const pending = readPendingCouponCode();
+    if (pending) {
+      setCouponInput(pending);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (liveCoupons.length === 0 || !couponInput) {
+      return;
+    }
+    if (couponApplied) return;
+
+    const pending = readPendingCouponCode();
+    const target = pending || couponInput.trim().toUpperCase();
+    if (!target) return;
+
+    const match = liveCoupons.find(
+      (coupon) => coupon.code === target
+    );
+    if (!match) return;
+
+    applyCouponCode(match.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveCoupons, couponInput]);
+
+  // =====================================================
   // APPLY COUPON
   // =====================================================
 
-  const applyCoupon = () => {
+  const applyCouponCode = async (rawCode: string) => {
+    const enteredCode = rawCode.trim().toUpperCase();
     setCouponError("");
 
-    const enteredCode =
-      couponInput
-        .trim()
-        .toUpperCase();
-
-    // Empty coupon
     if (!enteredCode) {
-      setCouponError(
-        "Please enter a coupon code."
-      );
+      setCouponError("Please enter a coupon code.");
       return;
     }
 
-    // Coupon configuration missing
-    if (!safeCouponCode) {
-      setCouponError(
-        "Coupon service is currently unavailable."
-      );
-      return;
-    }
+    const match = liveCoupons.find(
+      (coupon) => coupon.code === enteredCode
+    );
 
-    // Invalid coupon
-    if (
-      enteredCode !== safeCouponCode
-    ) {
+    if (!match) {
       setCouponApplied(false);
+      setAppliedCouponCode("");
+      setAppliedCouponDiscount(0);
       setCouponError(
-        "Invalid coupon code."
+        liveCoupons.length === 0
+          ? "Coupons are currently unavailable."
+          : "Invalid coupon code."
       );
-      setCouponInput("");
       return;
     }
 
-    // Valid coupon
+    const localError = validateCouponForSubtotal(
+      match,
+      itemsTotal
+    );
+    if (localError) {
+      setCouponError(localError);
+      return;
+    }
+
+    if (hasSession()) {
+      try {
+        const { data } = await cartApi.applyCoupon(
+          enteredCode
+        );
+        const discount = Number(
+          data?.discountTotal
+        );
+        setCouponApplied(true);
+        setAppliedCouponCode(
+          (data?.appliedCouponCode || enteredCode)
+            .trim()
+            .toUpperCase()
+        );
+        setAppliedCouponDiscount(
+          Number.isFinite(discount) && discount > 0
+            ? discount
+            : computeCouponDiscount(match, itemsTotal)
+        );
+        setCouponInput("");
+        setCouponError("");
+        clearPendingCouponCode();
+        return;
+      } catch (error) {
+        setCouponError(
+          extractErrorMessage(
+            error,
+            "Unable to apply coupon. Please try again."
+          )
+        );
+        return;
+      }
+    }
+
     setCouponApplied(true);
+    setAppliedCouponCode(match.code);
+    setAppliedCouponDiscount(
+      computeCouponDiscount(match, itemsTotal)
+    );
     setCouponInput("");
     setCouponError("");
+    writePendingCouponCode(match.code);
+  };
+
+  const applyCoupon = () => {
+    void applyCouponCode(couponInput);
   };
 
   // =====================================================
@@ -351,8 +445,17 @@ export default function OrderSummary({
 
   const removeCoupon = () => {
     setCouponApplied(false);
+    setAppliedCouponCode("");
+    setAppliedCouponDiscount(0);
     setCouponInput("");
     setCouponError("");
+    clearPendingCouponCode();
+
+    if (hasSession()) {
+      cartApi.removeCoupon().catch(() => {
+        // Best-effort — UI already cleared.
+      });
+    }
   };
 
   // =====================================================
@@ -646,22 +749,22 @@ export default function OrderSummary({
 
           {/* AVAILABLE COUPONS */}
 
-          <button
-            type="button"
-            className="text-blue text-[12.5px] font-semibold hover:underline mt-2"
+          <Link
+            href="/offers"
+            className="inline-block text-blue text-[12.5px] font-semibold hover:underline mt-2"
           >
             View Available Coupons
-          </button>
+          </Link>
 
           {/* APPLIED COUPON */}
 
           {couponApplied &&
-            safeCouponCode && (
+            appliedCouponCode && (
               <div className="mt-2">
 
                 <span className="inline-flex items-center gap-1.5 bg-paper border border-line text-[12px] font-semibold text-ink px-3 py-1.5 rounded-full">
 
-                  {safeCouponCode} applied
+                  {appliedCouponCode} applied
 
                   <button
                     type="button"
@@ -861,11 +964,14 @@ export default function OrderSummary({
         )}
 
         {/* =================================================
-            BULK QUOTE
+            BULK QUOTE — opens the quote request dialog,
+            prefilled with the cart contents. Submissions
+            land in /admin/pricing-requests.
         ================================================== */}
 
-        <Link
-          href="/contact"
+        <button
+          type="button"
+          onClick={() => setQuoteOpen(true)}
           className="
             block
             w-full
@@ -882,7 +988,7 @@ export default function OrderSummary({
           "
         >
           Request Bulk Quote
-        </Link>
+        </button>
 
         {/* =================================================
             CONTINUE SHOPPING
@@ -905,6 +1011,27 @@ export default function OrderSummary({
         </Link>
 
       </div>
+
+      <BulkQuoteDialog
+        open={quoteOpen}
+        onClose={() => setQuoteOpen(false)}
+        defaultProduct={
+          validItems.length === 1
+            ? String(validItems[0].product.name ?? "")
+            : ""
+        }
+        defaultMessage={
+          validItems.length > 1
+            ? validItems
+                .slice(0, 8)
+                .map(
+                  (line) =>
+                    `- ${String(line.product.name ?? "Item")} × ${Number(line.qty) || 1}`
+                )
+                .join("\n")
+            : ""
+        }
+      />
     </section>
   );
 }

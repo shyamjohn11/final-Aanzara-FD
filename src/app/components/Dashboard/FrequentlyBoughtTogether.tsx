@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Plus } from "lucide-react";
 import { productsApi } from "@/app/api/services";
 import {
@@ -94,6 +95,9 @@ function normalizeItem(
     name: value.name.trim(),
     price: getSafePrice(value.price),
     swatch: getSafeSwatch(value.swatch),
+    image: isValidText(value.image)
+      ? value.image.trim()
+      : undefined,
   };
 }
 
@@ -413,10 +417,11 @@ export default function FrequentlyBoughtTogether() {
 
               <div className="flex items-center gap-2.5 min-w-0">
                 {item.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={item.image}
                     alt={item.name}
+                    width={44}
+                    height={44}
                     className="h-11 w-11 rounded-lg object-cover border border-line shrink-0"
                   />
                 ) : (

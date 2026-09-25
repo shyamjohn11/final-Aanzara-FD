@@ -148,6 +148,23 @@ export default function AdminOrdersPage() {
               raw?.totalAmount ??
               raw?.total_amount ??
               "";
+            const itemsRaw = raw?.items ?? raw?.itemCount ?? raw?.items_count;
+            const itemCount = Array.isArray(itemsRaw)
+              ? itemsRaw.length
+              : Number(itemsRaw) || 0;
+            const dateRaw =
+              raw?.date ??
+              raw?.orderDate ??
+              raw?.order_date ??
+              raw?.createdAt ??
+              "";
+            let dateStr = "";
+            if (typeof dateRaw === "string" && dateRaw) {
+              const parsed = new Date(dateRaw);
+              dateStr = Number.isNaN(parsed.getTime())
+                ? dateRaw.slice(0, 10)
+                : parsed.toISOString().slice(0, 10);
+            }
             return {
               id: Date.now() + index,
               serverId: String(
@@ -160,23 +177,23 @@ export default function AdminOrdersPage() {
                   raw?.customer_name ??
                   "Unknown customer"
               ),
-              email: String(raw?.email ?? ""),
+              email: String(
+                raw?.email ??
+                  raw?.customerEmail ??
+                  raw?.customer_email ??
+                  ""
+              ),
               phone: String(
                 raw?.phone ?? raw?.phoneNumber ?? ""
               ),
               company: String(
                 raw?.company ?? raw?.companyName ?? ""
               ),
-              items: Number(
-                raw?.items ??
-                  raw?.itemCount ??
-                  raw?.items_count ??
-                  0
-              ),
+              items: itemCount,
               amount:
                 typeof amountRaw === "number"
-                  ? `₹${amountRaw.toLocaleString("en-IN")}`
-                  : String(amountRaw),
+                  ? amountRaw.toLocaleString("en-IN")
+                  : String(amountRaw).replace(/^₹/, ""),
               payment: (
                 validPayments.includes(paymentRaw as PaymentStatus)
                   ? paymentRaw
@@ -187,13 +204,7 @@ export default function AdminOrdersPage() {
                   ? statusRaw
                   : "Pending"
               ) as OrderStatus,
-              date: String(
-                raw?.date ??
-                  raw?.orderDate ??
-                  raw?.order_date ??
-                  raw?.createdAt ??
-                  ""
-              ),
+              date: dateStr,
               address: String(
                 raw?.address ??
                   raw?.deliveryAddress ??
@@ -283,27 +294,42 @@ export default function AdminOrdersPage() {
 
   const totalOrders = orders.length;
 
-  const pendingCount = orders.filter(
-    (order) => order.status === "Pending"
-  ).length;
+  const statusCounts = useMemo(() => {
+    let pending = 0;
+    let processing = 0;
+    let shipped = 0;
+    let delivered = 0;
+    let cancelled = 0;
 
-  const processingCount = orders.filter(
-    (order) =>
-      order.status === "Processing" ||
-      order.status === "Confirmed"
-  ).length;
+    for (const order of orders) {
+      switch (order.status) {
+        case "Pending":
+          pending += 1;
+          break;
+        case "Processing":
+        case "Confirmed":
+          processing += 1;
+          break;
+        case "Shipped":
+          shipped += 1;
+          break;
+        case "Delivered":
+          delivered += 1;
+          break;
+        case "Cancelled":
+          cancelled += 1;
+          break;
+      }
+    }
 
-  const shippedCount = orders.filter(
-    (order) => order.status === "Shipped"
-  ).length;
+    return { pending, processing, shipped, delivered, cancelled };
+  }, [orders]);
 
-  const deliveredCount = orders.filter(
-    (order) => order.status === "Delivered"
-  ).length;
-
-  const cancelledCount = orders.filter(
-    (order) => order.status === "Cancelled"
-  ).length;
+  const pendingCount = statusCounts.pending;
+  const processingCount = statusCounts.processing;
+  const shippedCount = statusCounts.shipped;
+  const deliveredCount = statusCounts.delivered;
+  const cancelledCount = statusCounts.cancelled;
 
   /* =====================================================
      RESET FORM
@@ -364,18 +390,21 @@ export default function AdminOrdersPage() {
      SAVE
   ====================================================== */
 
-  const saveOrder = () => {
-    if (
-      !form.customer.trim() ||
-      !form.email.trim() ||
-      !form.items.trim() ||
-      !form.amount.trim() ||
-      !form.date
-    ) {
+  const saveOrder = async () => {
+    const missing: string[] = [];
+    if (!form.customer.trim()) missing.push("customer name");
+    if (!form.email.trim()) missing.push("email");
+    if (!form.items.trim() || !(Number(form.items) > 0)) missing.push("items");
+    if (!form.amount.trim()) missing.push("amount");
+    if (!form.date) missing.push("order date");
+    if (missing.length > 0) {
+      toast.error(`Please fill in: ${missing.join(", ")}`);
       return;
     }
 
     if (editingId !== null) {
+      const previous = orders.find((order) => order.id === editingId);
+
       setOrders((current) =>
         current.map((order) =>
           order.id === editingId
@@ -392,7 +421,7 @@ export default function AdminOrdersPage() {
                 items:
                   Number(form.items) || 0,
                 amount:
-                  `₹${form.amount.trim()}`,
+                  form.amount.trim(),
                 payment:
                   form.payment,
                 status:
@@ -405,35 +434,41 @@ export default function AdminOrdersPage() {
             : order
         )
       );
+
+      if (previous?.serverId && previous.status !== form.status) {
+        try {
+          await ordersAdminApi.setStatus(previous.serverId, form.status);
+        } catch (error) {
+          void extractErrorMessage(
+            error,
+            "Order updated locally, but status failed to save on server."
+          );
+        }
+      }
+
+      setShowForm(false);
+      resetForm();
+      showSuccess();
+      toast.success("Order updated");
+      return;
     } else {
-      const nextNumber =
-        10000 + orders.length + 1;
+      const nextNumber = 10000 + orders.length + 1;
 
       setOrders((current) => [
         ...current,
         {
           id: Date.now(),
           orderNo: `AZ${nextNumber}`,
-          customer:
-            form.customer.trim(),
-          email:
-            form.email.trim(),
-          phone:
-            form.phone.trim(),
-          company:
-            form.company.trim(),
-          items:
-            Number(form.items) || 0,
-          amount:
-            `₹${form.amount.trim()}`,
-          payment:
-            form.payment,
-          status:
-            form.status,
-          date:
-            form.date,
-          address:
-            form.address.trim(),
+          customer: form.customer.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          company: form.company.trim(),
+          items: Number(form.items) || 0,
+          amount: form.amount.trim(),
+          payment: form.payment,
+          status: form.status,
+          date: form.date,
+          address: form.address.trim(),
         },
       ]);
     }
@@ -441,7 +476,9 @@ export default function AdminOrdersPage() {
     setShowForm(false);
     resetForm();
     showSuccess();
-    toast.success(editingId !== null ? "Order updated (local)" : "Order created (local) — customer orders come from checkout");
+    toast.success(
+      "Order created (local) — customer orders come from checkout"
+    );
   };
 
   /* =====================================================
@@ -566,8 +603,8 @@ export default function AdminOrdersPage() {
               items: Number(d.items ?? d.itemCount ?? current.items),
               amount:
                 typeof amountRaw === "number"
-                  ? `₹${amountRaw.toLocaleString("en-IN")}`
-                  : String(amountRaw),
+                  ? amountRaw.toLocaleString("en-IN")
+                  : String(amountRaw).replace(/^₹/, ""),
               payment: paymentRaw as PaymentStatus,
               status: statusRaw as OrderStatus,
               date: String(
@@ -1032,7 +1069,7 @@ export default function AdminOrdersPage() {
                           <td className="px-5 py-4">
 
                             <span className="text-[10px] font-bold text-[#263650]">
-                              {order.amount}
+                              ₹{order.amount}
                             </span>
 
                           </td>
@@ -1180,7 +1217,7 @@ export default function AdminOrdersPage() {
                             <InfoSmall
                               label="Amount"
                               value={
-                                order.amount
+                                `₹${order.amount}`
                               }
                             />
 

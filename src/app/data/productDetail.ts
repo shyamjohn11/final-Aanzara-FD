@@ -53,8 +53,22 @@ export type SpecRow = {
   value: string;
 };
 
-export const SPEC_TABLE: SpecRow[] = [];
-export const PRODUCT_TABS: string[] = [];
+// Generic fallback rows when a product has no Specification field
+// (mirrors typical admin-entered spec format).
+export const SPEC_TABLE: SpecRow[] = [
+  { label: "Brand", value: "Aanzara" },
+  { label: "Category", value: "FMCG" },
+  { label: "Pack Type", value: "Retail pack" },
+  { label: "Country of Origin", value: "India" },
+  { label: "Storage", value: "Cool, dry place" },
+  { label: "Availability", value: "In stock" },
+];
+
+export const PRODUCT_TABS: string[] = [
+  "Product Specifications",
+  "Description",
+  "Shipping & Returns",
+];
 
 export type EnterpriseInfoItem = {
   title: string;

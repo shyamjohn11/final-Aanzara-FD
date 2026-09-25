@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import { CartLine } from "@/app/context/cartcontext";
 import { useWishlist } from "@/app/context/wishlistcontext";
 import { useSaveForLater } from "@/app/context/saveforlatercontext";
+import BulkQuoteDialog from "@/app/components/BulkQuoteDialog";
 
 import {
   Minus,
@@ -15,10 +18,13 @@ export default function CartItemCard({
   line,
   onQtyChange,
   onRemove,
+  onSaveForLater,
 }: {
   line: CartLine;
   onQtyChange: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
+  /** Move this line to Save for Later (parent handles cart removal + toast). */
+  onSaveForLater?: (id: string, qty: number) => void;
 }) {
   // =====================================================
   // BASIC LINE VALIDATION
@@ -64,6 +70,13 @@ export default function CartItemCard({
   const {
     addToSaveForLater,
   } = useSaveForLater();
+
+  // =====================================================
+  // BULK QUOTE DIALOG (prefilled with this product)
+  // Submissions land in /admin/pricing-requests.
+  // =====================================================
+
+  const [quoteOpen, setQuoteOpen] = useState(false);
 
   // =====================================================
   // FIELD VALIDATION
@@ -342,14 +355,12 @@ export default function CartItemCard({
     }
 
     try {
-      // Save the product with its current cart quantity.
-      addToSaveForLater(
-        product,
-        qty
-      );
+      if (onSaveForLater) {
+        onSaveForLater(product.id, qty);
+        return;
+      }
 
-      // Remove the product from the cart
-      // after adding it to Save for Later.
+      addToSaveForLater(product, qty);
       onRemove(product.id);
     } catch (error) {
       console.error(
@@ -379,6 +390,7 @@ export default function CartItemCard({
   // =====================================================
 
   return (
+    <>
     <article className="bg-white border border-line rounded-card p-5">
       <div className="flex flex-col sm:flex-row gap-4">
 
@@ -387,12 +399,12 @@ export default function CartItemCard({
         ====================================================== */}
 
         {product.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={product.image}
             alt={product.name}
+            width={130}
+            height={110}
             className="w-full sm:w-[130px] h-[110px] shrink-0 rounded-lg object-contain border border-line bg-white p-2"
-            loading="lazy"
           />
         ) : (
           <div
@@ -548,10 +560,12 @@ export default function CartItemCard({
               |
             </span>
 
-            {/* BULK QUOTE */}
+            {/* BULK QUOTE — opens the quote request dialog,
+                prefilled with this product. */}
 
             <button
               type="button"
+              onClick={() => setQuoteOpen(true)}
               className="text-blue font-semibold hover:underline"
               aria-label={`Request bulk quote for ${product.name}`}
             >
@@ -700,5 +714,12 @@ export default function CartItemCard({
         </div>
       </div>
     </article>
+
+    <BulkQuoteDialog
+      open={quoteOpen}
+      onClose={() => setQuoteOpen(false)}
+      defaultProduct={product.name}
+    />
+    </>
   );
 }

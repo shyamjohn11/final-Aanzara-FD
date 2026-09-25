@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Edge auth guard. Presence cookies (no credentials) are set by
-// saveSession()/clearSession() in app/api/api.ts; the backend API
-// remains the real enforcer for every data call.
+// Edge auth guard. Session + role come from HttpOnly cookies set by the
+// backend on login/refresh (aanzara_at / aanzara_session / aanzara_role).
+// Script-writable document.cookie values are never trusted for role.
+// The backend API remains the real enforcer for every data call.
 //
 // - /admin/*      → session + role=admin (else login / dashboard)
 // - /wholesale/*   → session + role=admin|agent (else login / dashboard)
@@ -12,6 +13,7 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "aanzara_session";
 const ROLE_COOKIE = "aanzara_role";
+const ACCESS_COOKIE = "aanzara_at";
 
 // Public routes that never require auth and never redirect away
 const PUBLIC_ROUTES = ["/login", "/register"];
@@ -32,6 +34,21 @@ const AUTH_ROUTES = [
   "/payment",
   "/invoice",
 ];
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const json =
+      typeof atob === "function"
+        ? atob(base64)
+        : Buffer.from(base64, "base64").toString("utf8");
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
 
 function isAdminRole(role: string): boolean {
   const normalized = role.trim().toLowerCase();
@@ -92,10 +109,37 @@ function noStore(response: NextResponse): NextResponse {
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
-  const role = request.cookies.get(ROLE_COOKIE)?.value ?? "";
+  const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
+  const accessCookie = request.cookies.get(ACCESS_COOKIE)?.value;
+  const roleCookie = request.cookies.get(ROLE_COOKIE)?.value ?? "";
 
-  const isLoggedIn = session === "1";
+  // Prefer role claims from the HttpOnly access JWT (server-issued).
+  // Fall back to the HttpOnly role cookie only when the JWT is unreadable.
+  const jwt = accessCookie ? decodeJwtPayload(accessCookie) : null;
+  const jwtExp = typeof jwt?.exp === "number" ? jwt.exp : null;
+  const jwtExpired = jwtExp !== null && jwtExp * 1000 <= Date.now();
+  let role = "";
+  if (jwt && !jwtExpired) {
+    // .NET ClaimTypes.Role serializes as the WS-* URI with an http://
+    // scheme (NOT https://) — JsonWebTokenHandler writes Claim.Type
+    // verbatim because MapInboundClaims=false. Check both schemes plus
+    // the short names so a future handler change cannot blind the guard.
+    const claim =
+      jwt["role"] ??
+      jwt["roles"] ??
+      jwt["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ??
+      jwt["https://schemas.microsoft.com/ws/2008/06/identity/claims/role"];
+    if (Array.isArray(claim)) role = String(claim[0] ?? "");
+    else if (typeof claim === "string") role = claim;
+    else if (claim && typeof claim === "object" && "value" in claim) {
+      role = String((claim as { value?: unknown }).value ?? "");
+    }
+  }
+  if (!role) role = roleCookie;
+
+  // Session: HttpOnly presence cookie or a non-expired access JWT.
+  const jwtValid = !!accessCookie && !!jwt && !jwtExpired;
+  const isLoggedIn = sessionCookie === "1" || jwtValid;
 
   // ---- Always allow public routes (login, register) for non-logged-in users ----
   if (isPublicRoute(pathname)) {
@@ -122,6 +166,8 @@ export function proxy(request: NextRequest) {
       return noStore(NextResponse.redirect(url));
     }
 
+    // Role must come from a server-issued JWT or HttpOnly role cookie —
+    // never from a JS-writable cookie (document.cookie cannot set HttpOnly).
     if (!isAdminRole(role)) {
       const url = request.nextUrl.clone();
       url.pathname = homeFor(role);

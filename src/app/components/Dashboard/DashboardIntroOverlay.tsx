@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 type Ember = {
   id: number;
@@ -221,9 +222,12 @@ export default function DashboardIntroOverlay() {
       >
         {/* LOGO */}
 
-        <img
+        <Image
           src="/images/Aanzara-logoo.png"
           alt="Aanzara"
+          width={220}
+          height={80}
+          priority
           className="
             w-[clamp(120px,32vw,220px)]
             h-auto

@@ -209,21 +209,26 @@ export default function EnquiriesPage() {
      STATS
   ====================================================== */
 
-  const newCount = enquiries.filter(
-    (item) => item.status === "New"
-  ).length;
+  const enquiryStats = useMemo(() => {
+    let newCount = 0;
+    let inProgress = 0;
+    let resolved = 0;
+    let closed = 0;
 
-  const inProgressCount = enquiries.filter(
-    (item) => item.status === "In Progress"
-  ).length;
+    for (const item of enquiries) {
+      if (item.status === "New") newCount += 1;
+      else if (item.status === "In Progress") inProgress += 1;
+      else if (item.status === "Resolved") resolved += 1;
+      else if (item.status === "Closed") closed += 1;
+    }
 
-  const resolvedCount = enquiries.filter(
-    (item) => item.status === "Resolved"
-  ).length;
+    return { newCount, inProgress, resolved, closed };
+  }, [enquiries]);
 
-  const closedCount = enquiries.filter(
-    (item) => item.status === "Closed"
-  ).length;
+  const newCount = enquiryStats.newCount;
+  const inProgressCount = enquiryStats.inProgress;
+  const resolvedCount = enquiryStats.resolved;
+  const closedCount = enquiryStats.closed;
 
   /* =====================================================
      RESET FORM

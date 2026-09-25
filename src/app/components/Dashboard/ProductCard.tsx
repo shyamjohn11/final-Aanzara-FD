@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Heart,
   Star,
@@ -506,10 +507,12 @@ function ValidatedProductCard({
 
         {/* PRODUCT VISUAL */}
 
-        {hasImage ? (
-          <img
+        {hasImage && product.image ? (
+          <Image
             src={product.image}
             alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, 160px"
             onError={() => setImgError(true)}
             className="absolute inset-0 h-full w-full object-cover"
           />

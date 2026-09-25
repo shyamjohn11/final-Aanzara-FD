@@ -377,16 +377,6 @@ export default function AdminAgentsPage() {
                           className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-semibold text-navy hover:border-navy"
                         >
                           <Eye size={13} />
-                          Details
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            router.push(`/admin/agents/${row.id}/dealers`)
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#EDF3FF] px-3 py-2 text-[12px] font-bold text-[#1769F5] hover:bg-[#DCE8FF]"
-                        >
-                          <Store size={13} />
                           Dealers
                         </button>
                         <button

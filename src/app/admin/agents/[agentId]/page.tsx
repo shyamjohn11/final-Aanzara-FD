@@ -15,10 +15,12 @@ import {
   ChevronLeft,
   ChevronRight,
   UserRound,
+  Plus,
 } from "lucide-react";
 
 import AdminLayout from "@/app/components/Admin/AdminLayout";
 import StatusBadge from "@/app/components/Admin/StatusBadge";
+import AddDealerDialog from "@/app/components/Admin/AddDealerDialog";
 import { agentsApi } from "@/app/api/services";
 import { extractErrorMessage } from "@/app/api/api";
 import { toast } from "react-toastify";
@@ -42,11 +44,19 @@ type DealerRow = {
   city?: string | null;
   status: string;
   productCount: number;
+  phone?: string | null;
+  alternatePhone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  gstNumber?: string | null;
+  panNumber?: string | null;
 };
 
 function toDealerRow(raw: Record<string, unknown>): DealerRow | null {
   const id = String(raw.id ?? raw.dealerId ?? "").trim();
   if (!id) return null;
+  const str = (v: unknown) =>
+    typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
   return {
     id,
     shopName: String(raw.shopName ?? ""),
@@ -55,6 +65,12 @@ function toDealerRow(raw: Record<string, unknown>): DealerRow | null {
     city: (raw.city as string | null) ?? null,
     status: String(raw.status ?? "Unknown"),
     productCount: Number(raw.productCount ?? 0) || 0,
+    phone: str(raw.phone),
+    alternatePhone: str(raw.alternatePhone),
+    email: str(raw.email),
+    address: str(raw.address),
+    gstNumber: str(raw.gstNumber),
+    panNumber: str(raw.panNumber),
   };
 }
 
@@ -70,6 +86,9 @@ export default function AgentDetailsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingDealer, setEditingDealer] =
+    useState<DealerRow | null>(null);
   const pageSize = 6;
 
   const loadAgent = useCallback(async () => {
@@ -193,13 +212,22 @@ export default function AgentDetailsPage() {
             <section className="rounded-xl border border-line bg-white p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-sora text-[15px] font-bold text-ink">Dealers / Shops assigned to this Agent</h2>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/admin/agents/${agentId}/dealers`)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-semibold text-navy hover:border-navy"
-                >
-                  <Eye size={13} /> View All Dealers
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-navy px-3 py-2 text-[12px] font-semibold text-white hover:opacity-90"
+                  >
+                    <Plus size={13} /> Add Dealer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/admin/agents/${agentId}/dealers`)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-semibold text-navy hover:border-navy"
+                  >
+                    <Eye size={13} /> View All Dealers
+                  </button>
+                </div>
               </div>
 
               <div className="mb-3 flex items-center gap-2">
@@ -271,6 +299,14 @@ export default function AgentDetailsPage() {
                               </button>
                               <button
                                 type="button"
+                                title="Edit dealer"
+                                onClick={() => setEditingDealer(d)}
+                                className="rounded-md border border-line p-1.5 text-ink-soft hover:border-navy hover:text-navy"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                type="button"
                                 title="Dealer products"
                                 onClick={() => router.push(`/admin/agents/${agentId}/dealers/${d.id}/products`)}
                                 className="rounded-md border border-line p-1.5 text-ink-soft hover:border-navy hover:text-navy"
@@ -315,6 +351,22 @@ export default function AgentDetailsPage() {
                 </div>
               )}
             </section>
+
+            <AddDealerDialog
+              open={addOpen || editingDealer !== null}
+              onClose={() => {
+                setAddOpen(false);
+                setEditingDealer(null);
+              }}
+              agentId={agentId}
+              agentName={agent?.name ?? ""}
+              editing={editingDealer}
+              onCreated={() => {
+                setPage(1);
+                void loadDealers();
+                void loadAgent();
+              }}
+            />
           </>
         )}
       </div>

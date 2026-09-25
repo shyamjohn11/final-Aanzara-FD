@@ -1,16 +1,57 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 /* =========================
    CONSTANTS
 ========================= */
 
 const HOME_ROUTE = "/";
+const LAST_ORDER_KEY = "lastOrder";
+
+const GUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* =========================
+   HELPERS
+========================= */
+
+// The checkout step saves the placed order to localStorage;
+// reuse it so tracking opens the live-tracking page for
+// THIS order. Falls back to null when absent/invalid.
+function readLastOrderId(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(LAST_ORDER_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    const id =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? String(
+            (parsed as Record<string, unknown>).orderId ?? ""
+          ).trim()
+        : "";
+    return GUID_RE.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
 
 /* =========================
    COMPONENT
 ========================= */
 
 export default function WhatNextCard() {
+  const router = useRouter();
+
+  const handleTrackOrder = () => {
+    const orderId = readLastOrderId();
+    router.push(
+      orderId ? `/orders/${orderId}/tracking` : "/account/orders"
+    );
+  };
+
   return (
     <section
       className="bg-white border border-line rounded-card p-5"
@@ -24,10 +65,12 @@ export default function WhatNextCard() {
       </h2>
 
       <div className="flex flex-col gap-2.5">
-        {/* TRACK ORDER */}
+        {/* TRACK ORDER — live-tracking page for this order,
+            order list as fallback. */}
 
         <button
           type="button"
+          onClick={handleTrackOrder}
           className="
             bg-green
             hover:bg-green-deep

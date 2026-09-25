@@ -1158,10 +1158,9 @@ export default function PaymentPage() {
 
                   return (
                     <div
-                      key={
-                        item.product?.id ??
-                        `item-${index}`
-                      }
+                      key={`${
+                        item.product?.id ?? "item"
+                      }-${index}`}
                       className="flex items-center justify-between gap-3"
                     >
 

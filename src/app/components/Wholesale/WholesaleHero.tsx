@@ -20,6 +20,7 @@ import {
   contentApi,
   type ContentItem,
 } from "@/app/api/services";
+import BulkQuoteDialog from "@/app/components/BulkQuoteDialog";
 
 /* =========================================================
    TYPES
@@ -145,6 +146,9 @@ export default function WholesaleHero() {
 
   const [error, setError] =
     useState<string>("");
+
+  const [quoteOpen, setQuoteOpen] =
+    useState(false);
 
   /* =======================================================
      LOAD WHOLESALE HERO DATA
@@ -434,10 +438,12 @@ export default function WholesaleHero() {
               />
             </Link>
 
-            {/* BULK QUOTE */}
+            {/* BULK QUOTE — opens the quote request dialog.
+                Submissions land in /admin/pricing-requests. */}
 
             <button
               type="button"
+              onClick={() => setQuoteOpen(true)}
               className="
                 inline-flex
                 items-center
@@ -902,6 +908,11 @@ export default function WholesaleHero() {
             })}
         </div>
       )}
+
+      <BulkQuoteDialog
+        open={quoteOpen}
+        onClose={() => setQuoteOpen(false)}
+      />
     </section>
   );
 }

@@ -127,6 +127,7 @@ export default function CartPage() {
 
   const {
     items: saveForLaterItems,
+    addToSaveForLater,
     moveToCart,
     removeFromSaveForLater,
   } = useSaveForLater();
@@ -213,6 +214,42 @@ export default function CartPage() {
         );
       }
     });
+  };
+
+  /* =======================================================
+     MOVE CART ITEM → SAVE FOR LATER
+     No remove-confirm: the user already chose "Save for Later".
+  ======================================================= */
+
+  const handleMoveToSaveForLater = (
+    id: string,
+    qty: number
+  ) => {
+    if (!id) {
+      return;
+    }
+
+    const line = safeItems.find(
+      (item) => item.product.id === id
+    );
+
+    if (!line) {
+      return;
+    }
+
+    try {
+      addToSaveForLater(line.product, qty);
+      removeFromCart(id);
+      toast.success("Saved for later");
+    } catch (error) {
+      console.error(
+        "Failed to save product for later:",
+        error
+      );
+      toast.error(
+        "Something went wrong. Please try again."
+      );
+    }
   };
 
   /* =======================================================
@@ -549,6 +586,9 @@ export default function CartPage() {
                   }
                   onRemove={
                     handleRemove
+                  }
+                  onSaveForLater={
+                    handleMoveToSaveForLater
                   }
                 />
               )

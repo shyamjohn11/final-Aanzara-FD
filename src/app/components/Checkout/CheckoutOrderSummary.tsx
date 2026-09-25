@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import {
   ShieldCheck,
@@ -20,17 +21,29 @@ import type { BusinessForm } from "@/app/components/Checkout/BusinessPurchaseSec
 
 import {
   checkoutApi,
-  couponsApi,
+  cartApi,
   contentApi,
   type CheckoutPaymentMethod,
   type ContentItem,
 } from "@/app/api/services";
-import { hasSession } from "@/app/api/api";
+import {
+  extractErrorMessage,
+  hasSession,
+} from "@/app/api/api";
 
 import {
   CART_CONFIG,
   PAYMENT_METHODS,
 } from "@/app/data/cartdata";
+import {
+  clearPendingCouponCode,
+  computeCouponDiscount,
+  loadStorefrontCoupons,
+  readPendingCouponCode,
+  validateCouponForSubtotal,
+  writePendingCouponCode,
+  type StorefrontCoupon,
+} from "@/app/data/storefrontcoupons";
 import { toast } from "react-toastify";
 
 // =====================================================
@@ -43,7 +56,56 @@ type Props = {
   selectedPaymentMethod: string;
   selectedAddressId?: string | null;
   businessDetails?: BusinessForm;
+  orderNotes?: {
+    notes: string;
+    isGift: boolean;
+    giftMessage: string;
+  };
 };
+
+export const CHECKOUT_DRAFT_KEY =
+  "aanzara_checkout_draft_v1";
+
+export type CheckoutDraft = {
+  selectedAddressId: string | null;
+  selectedPaymentMethod: string;
+  businessDetails?: BusinessForm;
+  orderNotes?: {
+    notes: string;
+    isGift: boolean;
+    giftMessage: string;
+  };
+  savedAt: string;
+};
+
+export function readCheckoutDraft(): CheckoutDraft | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      CHECKOUT_DRAFT_KEY
+    );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null
+    ) {
+      return null;
+    }
+
+    return parsed as CheckoutDraft;
+  } catch {
+    return null;
+  }
+}
 
 // =====================================================
 // PAYMENT METHODS
@@ -170,13 +232,14 @@ export default function CheckoutOrderSummary({
   selectedPaymentMethod,
   selectedAddressId,
   businessDetails,
+  orderNotes,
 }: Props) {
   const router = useRouter();
 
   const [
     couponApplied,
     setCouponApplied,
-  ] = useState(true);
+  ] = useState(false);
 
   const [
     couponInput,
@@ -391,97 +454,62 @@ export default function CheckoutOrderSummary({
 
   // ===================================================
   // COUPON
-  // Live coupons (couponsApi) with static config fallback.
+  // Live public coupons (deals API) with local fallback math.
   // ===================================================
 
   const [liveCoupons, setLiveCoupons] = useState<
-    { code: string; discount: number }[]
+    StorefrontCoupon[]
   >([]);
 
   useEffect(() => {
     let cancelled = false;
 
-    couponsApi
-      .list(1, 50)
-      .then((response) => {
-        if (cancelled) {
-          return;
+    loadStorefrontCoupons(50)
+      .then((coupons) => {
+        if (!cancelled) {
+          setLiveCoupons(coupons);
         }
-
-        const payload: unknown =
-          (response as { data?: unknown })?.data ??
-          response;
-        const rows: Record<string, unknown>[] =
-          Array.isArray(payload)
-            ? (payload as Record<string, unknown>[])
-            : Array.isArray(
-                  (payload as Record<string, unknown>)
-                    ?.items
-                )
-              ? ((payload as Record<string, unknown>)
-                  .items as Record<string, unknown>[])
-              : [];
-
-        setLiveCoupons(
-          rows
-            .map((row) => {
-              const code = String(
-                row.code ??
-                  row.couponCode ??
-                  row.name ??
-                  ""
-              )
-                .trim()
-                .toUpperCase();
-              const discount = Number(
-                row.value ??
-                  row.discount ??
-                  row.discountValue ??
-                  row.amount ??
-                  0
-              );
-              return {
-                code,
-                discount:
-                  Number.isFinite(discount) &&
-                  discount > 0
-                    ? discount
-                    : 0,
-              };
-            })
-            .filter(
-              (coupon) =>
-                coupon.code.length > 0 &&
-                coupon.discount > 0
-            )
-        );
       })
       .catch(() => {
-        // Static fallback below on failure.
+        // Static/fallback messaging in applyCoupon.
       });
+
+    const pending = readPendingCouponCode();
+    if (pending) {
+      setCouponInput(pending);
+    }
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const configuredCoupon =
-    safeString(
-      CART_CONFIG?.couponCode
-    ).toUpperCase();
+  useEffect(() => {
+    if (
+      liveCoupons.length === 0 ||
+      couponApplied ||
+      !couponInput
+    ) {
+      return;
+    }
 
-  const configuredCouponDiscount =
-    safePositiveNumber(
-      CART_CONFIG?.couponDiscount,
-      0
+    const pending = readPendingCouponCode();
+    const target =
+      pending || couponInput.trim().toUpperCase();
+    if (!target) return;
+
+    const match = liveCoupons.find(
+      (coupon) => coupon.code === target
     );
+    if (!match) return;
 
-  const couponDiscount =
-    couponApplied
-      ? configuredCoupon
-        ? configuredCouponDiscount
-        : appliedCouponDiscount
-      : 0;
+    void applyCouponCode(match.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveCoupons, couponInput, couponApplied]);
+
+  const couponDiscount = couponApplied
+    ? Math.min(appliedCouponDiscount, itemsTotal)
+    : 0;
 
   // ===================================================
   // SUBTOTAL
@@ -602,71 +630,101 @@ export default function CheckoutOrderSummary({
   // APPLY COUPON
   // ===================================================
 
-  const applyCoupon = () => {
+  const applyCouponCode = async (rawCode: string) => {
     const enteredCode =
-      safeString(
-        couponInput
-      ).toUpperCase();
+      safeString(rawCode).toUpperCase();
 
     setCouponError("");
 
     if (!enteredCode) {
-      setCouponError(
-        "Please enter a coupon code."
-      );
+      setCouponError("Please enter a coupon code.");
       return;
     }
 
-    if (
-      enteredCode ===
-      configuredCoupon
-    ) {
-      setCouponApplied(true);
-      setAppliedCouponDiscount(
-        configuredCouponDiscount
-      );
-      setAppliedCouponCode(
-        configuredCoupon
-      );
-      setCouponInput("");
-      setCouponError("");
-      return;
-    }
-
-    const liveMatch = liveCoupons.find(
+    const match = liveCoupons.find(
       (coupon) => coupon.code === enteredCode
     );
 
-    if (liveMatch) {
-      setCouponApplied(true);
-      setAppliedCouponDiscount(
-        liveMatch.discount
-      );
-      setAppliedCouponCode(
-        liveMatch.code
-      );
-      setCouponInput("");
-      setCouponError("");
-      return;
-    }
-
-    if (
-      !configuredCoupon &&
-      liveCoupons.length === 0
-    ) {
+    if (!match) {
+      setCouponApplied(false);
+      setAppliedCouponDiscount(0);
+      setAppliedCouponCode("");
       setCouponError(
-        "Coupons are currently unavailable."
+        liveCoupons.length === 0
+          ? "Coupons are currently unavailable."
+          : "Invalid coupon code."
       );
       return;
     }
 
+    const localError = validateCouponForSubtotal(
+      match,
+      itemsTotal
+    );
+    if (localError) {
+      setCouponError(localError);
+      return;
+    }
+
+    if (hasSession()) {
+      try {
+        const { data } = await cartApi.applyCoupon(
+          enteredCode
+        );
+        const discount = Number(data?.discountTotal);
+        setCouponApplied(true);
+        setAppliedCouponCode(
+          (data?.appliedCouponCode || enteredCode)
+            .trim()
+            .toUpperCase()
+        );
+        setAppliedCouponDiscount(
+          Number.isFinite(discount) && discount > 0
+            ? discount
+            : computeCouponDiscount(match, itemsTotal)
+        );
+        setCouponInput("");
+        setCouponError("");
+        clearPendingCouponCode();
+        return;
+      } catch (error) {
+        setCouponError(
+          extractErrorMessage(
+            error,
+            "Unable to apply coupon. Please try again."
+          )
+        );
+        return;
+      }
+    }
+
+    setCouponApplied(true);
+    setAppliedCouponCode(match.code);
+    setAppliedCouponDiscount(
+      computeCouponDiscount(match, itemsTotal)
+    );
+    setCouponInput("");
+    setCouponError("");
+    writePendingCouponCode(match.code);
+  };
+
+  const applyCoupon = () => {
+    void applyCouponCode(couponInput);
+  };
+
+  const removeCoupon = () => {
     setCouponApplied(false);
     setAppliedCouponDiscount(0);
-    setAppliedCouponCode('');
+    setAppliedCouponCode("");
+    setCouponInput("");
+    setCouponError("");
+    clearPendingCouponCode();
 
-    setCouponError(
-      "Invalid coupon code."
-    );
+    if (hasSession()) {
+      cartApi.removeCoupon().catch(() => {
+        // Best-effort — UI already cleared.
+      });
+    }
   };
 
   // ===================================================
@@ -773,6 +831,18 @@ export default function CheckoutOrderSummary({
     ) {
       toast.error("Selected payment method is not available.");
       return;
+    }
+
+    // -------------------------------------------------
+    // PERSIST COUPON ON SERVER (authoritative place-order pricing)
+    // -------------------------------------------------
+
+    if (couponApplied && appliedCouponCode && hasSession()) {
+      try {
+        await cartApi.applyCoupon(appliedCouponCode);
+      } catch {
+        // Server will price without the coupon; UI already showed intent.
+      }
     }
 
     // -------------------------------------------------
@@ -887,7 +957,7 @@ export default function CheckoutOrderSummary({
 
         couponCode:
           couponApplied
-            ? configuredCoupon
+            ? appliedCouponCode
             : "",
 
         subtotal,
@@ -1005,6 +1075,49 @@ export default function CheckoutOrderSummary({
     // -------------------------------------------------
 
     router.push("/payment");
+  };
+
+  // ===================================================
+  // SAVE & CONTINUE LATER
+  // ===================================================
+
+  const handleSaveAndContinueLater = () => {
+    try {
+      const draft: CheckoutDraft = {
+        selectedAddressId:
+          typeof selectedAddressId === "string" &&
+          selectedAddressId.trim().length > 0
+            ? selectedAddressId.trim()
+            : null,
+        selectedPaymentMethod:
+          typeof selectedPaymentMethod === "string"
+            ? selectedPaymentMethod.trim()
+            : "",
+        businessDetails,
+        orderNotes,
+        savedAt: new Date().toISOString(),
+      };
+
+      window.localStorage.setItem(
+        CHECKOUT_DRAFT_KEY,
+        JSON.stringify(draft)
+      );
+
+      toast.success(
+        "Checkout progress saved. Continue anytime."
+      );
+
+      router.push("/cart");
+    } catch (error) {
+      console.error(
+        "Failed to save checkout progress:",
+        error
+      );
+
+      toast.error(
+        "Could not save your progress. Please try again."
+      );
+    }
   };
 
   // ===================================================
@@ -1343,35 +1456,23 @@ export default function CheckoutOrderSummary({
           </p>
         )}
 
-        <button
-          type="button"
-          className="text-blue text-[12px] font-semibold hover:underline mt-2"
+        <Link
+          href="/offers"
+          className="inline-block text-blue text-[12px] font-semibold hover:underline mt-2"
         >
           View Available Coupons
-        </button>
+        </Link>
 
         {couponApplied &&
-          (configuredCoupon ||
-            appliedCouponCode) && (
+          appliedCouponCode && (
             <div className="mt-2">
               <span className="inline-flex items-center gap-1.5 bg-paper border border-line text-[11px] font-semibold px-3 py-1.5 rounded-full">
-                {appliedCouponCode ||
-                  configuredCoupon}{" "}
+                {appliedCouponCode}{" "}
                 applied
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setCouponApplied(
-                      false
-                    );
-                    setAppliedCouponDiscount(
-                      0
-                    );
-                    setAppliedCouponCode(
-                      ""
-                    );
-                  }}
+                  onClick={removeCoupon}
                   aria-label="Remove coupon"
                 >
                   <X
@@ -1584,6 +1685,7 @@ export default function CheckoutOrderSummary({
 
       <button
         type="button"
+        onClick={handleSaveAndContinueLater}
         className="w-full border border-line text-ink font-bold text-[13px] py-3 rounded-lg mt-3 hover:border-navy hover:text-navy"
       >
         Save & Continue Later

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -400,12 +401,15 @@ export default function WishlistCarousel() {
                     PRODUCT IMAGE
                 ===================================== */}
 
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-full h-24 object-cover rounded-md"
-                  loading="lazy"
-                />
+                {item.imageUrl ? (
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.name}
+                    width={180}
+                    height={96}
+                    className="w-full h-24 object-cover rounded-md"
+                  />
+                ) : null}
 
                 {/* =====================================
                     FALLBACK WHEN NO IMAGE

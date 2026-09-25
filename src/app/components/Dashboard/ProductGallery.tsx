@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Expand, AlertCircle } from "lucide-react";
 
 type ProductGalleryProps = {
@@ -201,12 +202,13 @@ function ValidatedProductGallery({
 
         {/* PRODUCT IMAGE */}
         {activeIsImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={activeImage}
             alt={`Product image ${safeActive + 1}`}
+            width={340}
+            height={340}
+            priority
             className="max-h-[240px] sm:max-h-[340px] max-w-[90%] object-contain rounded-lg"
-            loading="eager"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
             }}
@@ -301,8 +303,13 @@ function ValidatedProductGallery({
               }
             >
               {thumbIsImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={value} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <Image
+                  src={value}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="w-5 h-8 rounded-sm" style={{ background: safeThumbnailColor }} />
               )}

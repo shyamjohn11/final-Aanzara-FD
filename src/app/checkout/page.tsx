@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import TopBar from "@/app/components/Dashboard/TopBar";
 import Header from "@/app/components/Header";
@@ -24,7 +24,9 @@ import OrderNotesSection, {
   OrderNotesForm,
 } from "@/app/components/Checkout/OrderNotesSection";
 
-import CheckoutOrderSummary from "@/app/components/Checkout/CheckoutOrderSummary";
+import CheckoutOrderSummary, {
+  readCheckoutDraft,
+} from "@/app/components/Checkout/CheckoutOrderSummary";
 
 import { useCart } from "@/app/context/cartcontext";
 
@@ -147,6 +149,47 @@ export default function CheckoutPage() {
   ======================================================= */
 
   const { items } = useCart();
+
+  /* =======================================================
+     RESTORE SAVED CHECKOUT DRAFT
+  ======================================================= */
+
+  useEffect(() => {
+    const draft = readCheckoutDraft();
+
+    if (!draft) {
+      return;
+    }
+
+    if (
+      typeof draft.selectedAddressId === "string" &&
+      draft.selectedAddressId.trim().length > 0
+    ) {
+      setSelectedAddressId(draft.selectedAddressId);
+    }
+
+    if (
+      typeof draft.selectedPaymentMethod ===
+        "string" &&
+      draft.selectedPaymentMethod.trim().length > 0
+    ) {
+      setSelectedPaymentMethod(
+        draft.selectedPaymentMethod
+      );
+
+      if (draft.selectedPaymentMethod.trim()) {
+        setPaymentReady(true);
+      }
+    }
+
+    if (draft.businessDetails) {
+      setBusinessDetails(draft.businessDetails);
+    }
+
+    if (draft.orderNotes) {
+      setOrderNotes(draft.orderNotes);
+    }
+  }, []);
 
   /* =======================================================
      SAFE CART ITEMS
@@ -553,6 +596,8 @@ export default function CheckoutPage() {
               }
 
               businessDetails={businessDetails}
+
+              orderNotes={orderNotes}
             />
           </aside>
 

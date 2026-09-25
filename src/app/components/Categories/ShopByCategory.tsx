@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { ALL_CATEGORIES } from "@/app/data/categories";
 import { categoriesApi } from "@/app/api/services";
@@ -233,10 +234,11 @@ export default function ShopByCategory() {
                   aria-label={`${cat.name} category preview`}
                 >
                   {cat.image && !brokenImages[cat.id] ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Image
                       src={cat.image}
                       alt=""
+                      fill
+                      sizes="56px"
                       className="h-full w-full object-cover"
                       onError={() =>
                         setBrokenImages((prev) => ({

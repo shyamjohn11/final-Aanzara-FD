@@ -1,152 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { NextResponse } from "next/server";
 
-const dataDir = path.join(process.cwd(), "data");
-const usersFile = path.join(dataDir, "users.json");
+// Demo/local auth is disabled — the real API owns login and registration.
+// Kept as a 401 stub so any stray client calling /api/auth/* fails closed
+// instead of silently hitting a plaintext users.json store.
 
-function getUsers() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(usersFile)) {
-    fs.writeFileSync(usersFile, "[]", "utf8");
-  }
-
-  const content = fs.readFileSync(usersFile, "utf8");
-
-  try {
-    return JSON.parse(content);
-  } catch {
-    return [];
-  }
-}
-
-function generateJwt(userId: string, email: string, accountType: string): string {
-  const payload = JSON.stringify({
-    userId,
-    email,
-    accountType,
-    role: accountType || "customer",
-  });
-  // Simplified JWT-like token for demo; replace with real JWT signing in production
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const claims = btoa(payload);
-  const signature = btoa("signature");
-  return `${header}.${claims}.${signature}`;
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-
-    const {
-      email,
-      password,
-      accountType,
-    } = body;
-
-    if (!email || !password) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Email and password are required.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const users = getUsers();
-
-    const loginValue =
-      email.trim().toLowerCase();
-
-    const user = users.find(
-      (item: any) =>
-        (
-          item.email?.toLowerCase ===
-            loginValue ||
-          item.mobile === email.trim()
-        ) &&
-        item.password === password
-    );
-
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Invalid email or password.",
-        },
-        { status: 401 }
-      );
-    }
-
-    if (
-      accountType &&
-      user.accountType !== accountType
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Account type does not match.",
-        },
-        { status: 401 }
-      );
-    }
-
-    const accessToken = generateJwt(user.id, user.email, user.accountType || "customer");
-    const refreshToken = "ref_" + Date.now() + "_" + user.id;
-
-    const response = NextResponse.json({
-      success: true,
-      message: "Login successful.",
-      user: {
-        id: user.id,
-        name: user.name,
-        mobile: user.mobile,
-        email: user.email,
-        accountType: user.accountType,
-      },
-      accessToken,
-      refreshToken,
-    });
-
-    response.cookies.set(
-      "aanzara_user",
-      JSON.stringify({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        accountType: user.accountType,
-      }),
-      {
-        httpOnly: true,
-        sameSite: "lax",
-        secure:
-          process.env.NODE_ENV ===
-          "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      }
-    );
-
-    return response;
-  } catch (error) {
-    console.error(
-      "LOGIN ERROR:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Login failed.",
-      },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      type: "https://httpstatuses.io/401",
+      title: "Unauthorized",
+      status: 401,
+      detail: "Direct demo login is disabled. Use /api/v1/auth/login.",
+      code: "auth.demo_disabled",
+    },
+    { status: 401, headers: { "Content-Type": "application/problem+json" } },
+  );
 }
