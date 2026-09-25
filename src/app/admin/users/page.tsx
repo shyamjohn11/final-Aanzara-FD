@@ -207,12 +207,31 @@ export default function UsersPage() {
   // STATS
   // =============================================================
 
-  const activeUsers = users.filter((user) => user.status === "active").length;
-  const pendingUsers = users.filter((user) => user.status === "pending").length;
-  const inactiveUsers = users.filter((user) => user.status === "inactive").length;
-  const adminUsers = users.filter((user) => user.role === "admin").length;
-  const agentUsers = users.filter((user) => user.role === "agent").length;
-  const customerUsers = users.filter((user) => user.role === "customer").length;
+  const statusRoleCounts = useMemo(() => {
+    let active = 0;
+    let pending = 0;
+    let inactive = 0;
+    let admin = 0;
+    let agent = 0;
+    let customer = 0;
+
+    for (const user of users) {
+      if (user.status === "active") active += 1;
+      else if (user.status === "pending") pending += 1;
+      else if (user.status === "inactive") inactive += 1;
+
+      if (user.role === "admin") admin += 1;
+      else if (user.role === "agent") agent += 1;
+      else if (user.role === "customer") customer += 1;
+    }
+
+    return { active, pending, inactive, admin, agent, customer };
+  }, [users]);
+
+  const activeUsers = statusRoleCounts.active;
+  const pendingUsers = statusRoleCounts.pending;
+  const inactiveUsers = statusRoleCounts.inactive;
+  const adminUsers = statusRoleCounts.admin;
 
   // =============================================================
   // FILTER USERS

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Store, Search } from "lucide-react";
 import AdminLayout from "@/app/components/Admin/AdminLayout";
-import { agentsApi, dealersApi } from "@/app/api/services";
+import AddDealerDialog from "@/app/components/Admin/AddDealerDialog";
+import { agentsApi } from "@/app/api/services";
 import { toast } from "react-toastify";
 import { extractErrorMessage } from "@/app/api/api";
 
@@ -27,6 +28,7 @@ export default function AgentDealersPage() {
   const [rows, setRows] = useState<DealerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,12 +39,14 @@ export default function AgentDealersPage() {
         setAgentName(String(agentData.name ?? agentData.agentName ?? ""));
         setAgentStatus(String(agentData.status ?? ""));
       }
-      const res: any = await dealersApi.list(1, 100);
+      // Agent-scoped list: only this agent's dealers.
+      const res: any = await agentsApi.dealers(agentId, {
+        page: 1,
+        pageSize: 100,
+      });
       const payload: any = res?.data ?? res;
       const items: any[] = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-      // Filter by agentId if backend doesn't filter automatically
-      const filtered = items.filter((r: any) => !agentId || String(r.agentId ?? r.agentId) === agentId || true);
-      const mapped: DealerRow[] = filtered.map((r: any) => ({
+      const mapped: DealerRow[] = items.map((r: any) => ({
         id: String(r.id ?? r.dealerId ?? ""),
         shopName: String(r.shopName ?? "Shop"),
         dealerCode: String(r.dealerCode ?? ""),
@@ -50,7 +54,7 @@ export default function AgentDealersPage() {
         city: String(r.city ?? ""),
         status: String(r.status ?? "Active"),
       }));
-      setRows(mapped);
+      setRows(mapped.filter((r) => r.id));
     } catch (e) {
       toast.error(extractErrorMessage(e, "Unable to load dealers."));
     } finally {
@@ -88,7 +92,7 @@ export default function AgentDealersPage() {
                 </p>
               </div>
             </div>
-            <button type="button" onClick={() => router.push(`/admin/agents/${agentId}`)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-navy px-4 py-2.5 text-[12.5px] font-bold text-white hover:opacity-90">
+            <button type="button" onClick={() => setAddOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-navy px-4 py-2.5 text-[12.5px] font-bold text-white hover:opacity-90">
               <Plus size={15} />
               Add Dealer
             </button>
@@ -128,6 +132,14 @@ export default function AgentDealersPage() {
             )}
           </div>
         </div>
+
+        <AddDealerDialog
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          agentId={agentId}
+          agentName={agentName}
+          onCreated={() => void load()}
+        />
       </div>
     </AdminLayout>
   );

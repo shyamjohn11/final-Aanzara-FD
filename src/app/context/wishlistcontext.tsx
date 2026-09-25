@@ -15,7 +15,9 @@
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -209,7 +211,7 @@ export function WishlistProvider({
   // REMOTE LOAD (backend rows + local-only mock products)
   // ========================================
 
-  const loadRemote = async () => {
+  const loadRemote = useCallback(async () => {
     if (!hasSession()) {
       setItems(readLocalItems());
       setMode("local");
@@ -237,7 +239,7 @@ export function WishlistProvider({
       }
       throw error;
     }
-  };
+  }, []);
 
   // ========================================
   // SESSION SYNC (login/logout + cross-tab)
@@ -354,105 +356,89 @@ export function WishlistProvider({
   // CHECK WISHLIST
   // ========================================
 
-  const isInWishlist = (id: string) => {
-    if (!id) {
-      return false;
-    }
+  const isInWishlist = useCallback(
+    (id: string) => {
+      if (!id) {
+        return false;
+      }
 
-    return items.some(
-      (product) => product.id === id
-    );
-  };
+      return items.some((product) => product.id === id);
+    },
+    [items]
+  );
 
   // ========================================
   // TOGGLE WISHLIST
   // ========================================
 
-  const toggleWishlist = (product: Product) => {
-    if (!isValidProduct(product)) {
-      console.error(
-        "Cannot add invalid product to wishlist."
-      );
-      return;
-    }
+  const toggleWishlist = useCallback(
+    (product: Product) => {
+      if (!isValidProduct(product)) {
+        console.error("Cannot add invalid product to wishlist.");
+        return;
+      }
 
-    const exists = items.some(
-      (item) => item.id === product.id
-    );
+      const exists = items.some((item) => item.id === product.id);
 
-    // Remember the display fields so backend rows can be
-    // re-enriched on later loads.
-    if (!exists) {
-      saveProductSnapshot(product);
-    }
+      if (!exists) {
+        saveProductSnapshot(product);
+      }
 
-    const flip = (prev: Product[]) =>
-      exists
-        ? prev.filter((item) => item.id !== product.id)
-        : [...prev, product];
+      const flip = (prev: Product[]) =>
+        exists
+          ? prev.filter((item) => item.id !== product.id)
+          : [...prev, product];
 
-    if (mode === "remote" && isGuid(product.id)) {
+      if (mode === "remote" && isGuid(product.id)) {
+        setItems(flip);
+
+        const request = exists
+          ? wishlistApi.remove(product.id)
+          : wishlistApi.add(product.id);
+
+        request.catch(async (error) => {
+          console.error("Unable to sync wishlist:", error);
+          if (!isAuthoritativeRejection(error)) {
+            return;
+          }
+          try {
+            await loadRemote();
+          } catch {
+            setItems((prev) =>
+              exists
+                ? prev.some((item) => item.id === product.id)
+                  ? prev
+                  : [...prev, product]
+                : prev.filter((item) => item.id !== product.id)
+            );
+          }
+        });
+        return;
+      }
+
       setItems(flip);
-
-      const request = exists
-        ? wishlistApi.remove(product.id)
-        : wishlistApi.add(product.id);
-
-      request.catch(async (error) => {
-        console.error(
-          "Unable to sync wishlist:",
-          error
-        );
-        if (!isAuthoritativeRejection(error)) {
-          // Network-level failure: keep the optimistic change so the
-          // UI stays responsive; it reconciles on the next load.
-          return;
-        }
-        // The server refused (inactive product, duplicate, unknown id):
-        // revert so the UI never shows phantom items.
-        try {
-          await loadRemote();
-        } catch {
-          // Best-effort inverse of the optimistic flip.
-          setItems((prev) =>
-            exists
-              ? prev.some((item) => item.id === product.id)
-                ? prev
-                : [...prev, product]
-              : prev.filter((item) => item.id !== product.id)
-          );
-        }
-      });
-      return;
-    }
-
-    setItems(flip);
-  };
+    },
+    [items, mode, loadRemote]
+  );
 
   // ========================================
   // REMOVE FROM WISHLIST
   // ========================================
 
-  const removeFromWishlist = (id: string) => {
-    if (!id) return;
+  const removeFromWishlist = useCallback(
+    (id: string) => {
+      if (!id) return;
 
-    const drop = (prev: Product[]) =>
-      prev.filter((product) => product.id !== id);
+      const drop = (prev: Product[]) =>
+        prev.filter((product) => product.id !== id);
 
-    if (mode === "remote" && isGuid(id)) {
-      const doomed = items.find((product) => product.id === id) ?? null;
-      setItems(drop);
+      if (mode === "remote" && isGuid(id)) {
+        const doomed = items.find((product) => product.id === id) ?? null;
+        setItems(drop);
 
-      wishlistApi
-        .remove(id)
-        .catch(async (error) => {
-          console.error(
-            "Unable to sync wishlist:",
-            error
-          );
+        wishlistApi.remove(id).catch(async (error) => {
+          console.error("Unable to sync wishlist:", error);
           if (!isAuthoritativeRejection(error)) {
-            // Network-level failure: keep the optimistic removal;
-            // it reconciles on the next load.
             return;
           }
           try {
@@ -460,24 +446,24 @@ export function WishlistProvider({
           } catch {
             if (doomed) {
               setItems((prev) =>
-                prev.some((product) => product.id === id)
-                  ? prev
-                  : [...prev, doomed]
+                prev.some((product) => product.id === id) ? prev : [...prev, doomed]
               );
             }
           }
         });
-      return;
-    }
+        return;
+      }
 
-    setItems(drop);
-  };
+      setItems(drop);
+    },
+    [items, mode, loadRemote]
+  );
 
   // ========================================
   // CLEAR WISHLIST
   // ========================================
 
-  const clearWishlist = () => {
+  const clearWishlist = useCallback(() => {
     const previous = items;
 
     setItems([]);
@@ -486,39 +472,33 @@ export function WishlistProvider({
       Promise.allSettled(
         previous
           .filter((product) => isGuid(product.id))
-          .map((product) =>
-            wishlistApi.remove(product.id)
-          )
+          .map((product) => wishlistApi.remove(product.id))
       ).then((results) => {
-        if (
-          results.some(
-            (result) => result.status === "rejected"
-          )
-        ) {
-          console.error(
-            "Unable to clear wishlist completely"
-          );
-          // Keep the cleared state; reconcile on next load.
+        if (results.some((result) => result.status === "rejected")) {
+          console.error("Unable to clear wishlist completely");
         }
       });
     }
-  };
+  }, [items, mode]);
 
   // ========================================
   // PROVIDER
   // ========================================
 
+  const value = useMemo(
+    () => ({
+      items,
+      isInWishlist,
+      toggleWishlist,
+      removeFromWishlist,
+      clearWishlist,
+      totalItems: items.length,
+    }),
+    [items, isInWishlist, toggleWishlist, removeFromWishlist, clearWishlist]
+  );
+
   return (
-    <WishlistContext.Provider
-      value={{
-        items,
-        isInWishlist,
-        toggleWishlist,
-        removeFromWishlist,
-        clearWishlist,
-        totalItems: items.length,
-      }}
-    >
+    <WishlistContext.Provider value={value}>
       {children}
     </WishlistContext.Provider>
   );

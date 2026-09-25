@@ -28,10 +28,37 @@ type InventoryItem = {
   sku: string;
   category: string;
   brand: string;
+  imageUrl?: string;
+  warehouseId?: string;
+  warehouseName?: string;
   stock: number;
   minStock: number;
   status: "In Stock" | "Low Stock" | "Out of Stock";
 };
+
+function InventoryThumb({ src }: { src?: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
+        <Package size={18} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[#EDF3FF]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
 
 const FALLBACK_CATEGORIES = [
   "Staples",
@@ -86,6 +113,12 @@ export default function InventoryPage() {
   >([]);
 
   const [warehouseId, setWarehouseId] =
+    useState("");
+
+  // Warehouse the adjust modal writes to. Decoupled from the list
+  // filter above: opening adjust on a row preselects THAT row's
+  // warehouse, so stock always lands where the row lives.
+  const [adjustWarehouseId, setAdjustWarehouseId] =
     useState("");
 
   const [warehousesLoading, setWarehousesLoading] =
@@ -158,6 +191,9 @@ export default function InventoryPage() {
             sku: String(item.sku ?? item.skuCode ?? ""),
             category: String(item.category ?? item.categoryName ?? "Uncategorized"),
             brand: String(item.brand ?? item.brandName ?? ""),
+            imageUrl: typeof item.imageUrl === "string" && item.imageUrl ? item.imageUrl : undefined,
+            warehouseId: typeof item.warehouseId === "string" && item.warehouseId ? item.warehouseId : undefined,
+            warehouseName: typeof item.warehouseName === "string" && item.warehouseName ? item.warehouseName : undefined,
             stock,
             minStock,
             status: getStatus(stock, minStock),
@@ -263,11 +299,6 @@ export default function InventoryPage() {
           );
 
         setWarehouses(rows);
-        setWarehouseId((current) =>
-          current ||
-          rows[0]?.id ||
-          ""
-        );
       } catch (error) {
         console.error(
           "Unable to load warehouses:",
@@ -382,6 +413,17 @@ export default function InventoryPage() {
     setAdjustType(type);
     setAdjustAmount("1");
     setAdjustError("");
+    // Preselect the row's own warehouse; fall back to the list
+    // filter, then the first warehouse.
+    const row = inventory.find(
+      (item) => item.id === id
+    );
+    setAdjustWarehouseId(
+      row?.warehouseId ||
+      warehouseId ||
+      warehouses[0]?.id ||
+      ""
+    );
   };
 
   /* ==========================================================
@@ -460,11 +502,11 @@ export default function InventoryPage() {
       return;
     }
 
-    // Persist (#59 adjust, or #58 receive-stock for inbound receipts).
-    // Both endpoints require the warehouse the stock belongs to.
+    // Persist (#59 adjust, or #58 receive-stock for inbound receipts)
+    // into the modal's warehouse (the row's own warehouse by default).
     const productId = selected.productId;
 
-    if (!warehouseId) {
+    if (!adjustWarehouseId) {
       setAdjustError(
         warehousesLoading
           ? "Warehouses are still loading. Please try again."
@@ -482,7 +524,7 @@ export default function InventoryPage() {
       }
       try {
         await inventoryApi.receiveStock(productId, {
-          warehouseId,
+          warehouseId: adjustWarehouseId,
           quantity: amount,
           reason: "Stock received",
         });
@@ -496,7 +538,7 @@ export default function InventoryPage() {
     } else if (productId) {
       try {
         await inventoryApi.adjust(productId, {
-          warehouseId,
+          warehouseId: adjustWarehouseId,
           quantity:
             adjustType === "remove"
               ? -amount
@@ -579,6 +621,9 @@ export default function InventoryPage() {
           sku: String(raw.sku ?? raw.skuCode ?? ""),
           category: String(raw.category ?? raw.categoryName ?? "Uncategorized"),
           brand: String(raw.brand ?? raw.brandName ?? ""),
+          imageUrl: typeof raw.imageUrl === "string" && raw.imageUrl ? raw.imageUrl : undefined,
+          warehouseId: typeof raw.warehouseId === "string" && raw.warehouseId ? raw.warehouseId : undefined,
+          warehouseName: typeof raw.warehouseName === "string" && raw.warehouseName ? raw.warehouseName : undefined,
           stock,
           minStock,
           status: getStatus(stock, minStock),
@@ -662,6 +707,7 @@ export default function InventoryPage() {
     setSearch("");
     setFilter("All");
     setCategory("All");
+    setWarehouseId("");
     setLowOnly(false);
     setLowRows(null);
     setLowError("");
@@ -899,6 +945,34 @@ export default function InventoryPage() {
 
             </select>
 
+            {/* WAREHOUSE */}
+
+            <select
+              value={warehouseId}
+              onChange={(event) =>
+                setWarehouseId(
+                  event.target.value
+                )
+              }
+              aria-label="Filter by warehouse"
+              className="h-10 rounded-lg border border-[#DFE5ED] bg-[#FAFBFD] px-3 text-[10px] text-[#5D6C80] outline-none focus:border-[#1769F5]"
+            >
+
+              <option value="">
+                All Warehouses
+              </option>
+
+              {warehouses.map((warehouse) => (
+                <option
+                  key={warehouse.id}
+                  value={warehouse.id}
+                >
+                  {warehouse.name}
+                </option>
+              ))}
+
+            </select>
+
             {/* STATUS FILTER */}
 
             <div className="flex flex-wrap items-center gap-1.5 xl:ml-auto">
@@ -1029,6 +1103,10 @@ export default function InventoryPage() {
                       </th>
 
                       <th className="px-5 py-3 text-[9px] font-semibold uppercase tracking-wide text-[#98A3B2]">
+                        Warehouse
+                      </th>
+
+                      <th className="px-5 py-3 text-[9px] font-semibold uppercase tracking-wide text-[#98A3B2]">
                         Stock
                       </th>
 
@@ -1063,9 +1141,7 @@ export default function InventoryPage() {
 
                             <div className="flex items-center gap-3">
 
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                                <Package size={18} />
-                              </div>
+                              <InventoryThumb src={item.imageUrl} />
 
                               <div>
 
@@ -1099,6 +1175,19 @@ export default function InventoryPage() {
 
                             <span className="text-[10px] text-[#5F6E82]">
                               {item.category}
+                            </span>
+
+                          </td>
+
+                          {/* WAREHOUSE */}
+
+                          <td className="px-5 py-4">
+
+                            <span
+                              title={item.warehouseName || "—"}
+                              className="inline-block max-w-[130px] truncate rounded-md bg-[#EDF3FF] px-2 py-1 text-[9px] font-semibold text-[#3260B4]"
+                            >
+                              {item.warehouseName || "—"}
                             </span>
 
                           </td>
@@ -1289,9 +1378,7 @@ export default function InventoryPage() {
 
                       <div className="flex items-start gap-3">
 
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EDF3FF] text-[#3260B4]">
-                          <Package size={18} />
-                        </div>
+                        <InventoryThumb src={item.imageUrl} />
 
                         <div className="min-w-0 flex-1">
 
@@ -1330,6 +1417,14 @@ export default function InventoryPage() {
                               label="Brand"
                               value={
                                 item.brand
+                              }
+                            />
+
+                            <MobileInfo
+                              label="Warehouse"
+                              value={
+                                item.warehouseName ||
+                                "—"
                               }
                             />
 
@@ -1598,9 +1693,15 @@ export default function InventoryPage() {
                             {selected.name}
                           </p>
 
-                          <p className="mt-1 font-mono text-[8px] text-[#8995A5]">
-                            {selected.sku}
-                          </p>
+                            <p className="mt-1 font-mono text-[8px] text-[#8995A5]">
+                              {selected.sku}
+                            </p>
+
+                            {selected.warehouseName && (
+                              <p className="mt-1 text-[8px] font-semibold text-[#3260B4]">
+                                {selected.warehouseName}
+                              </p>
+                            )}
 
                         </div>
 
@@ -1702,9 +1803,9 @@ export default function InventoryPage() {
                       </p>
                     ) : warehouses.length > 0 ? (
                       <select
-                        value={warehouseId}
+                        value={adjustWarehouseId}
                         onChange={(event) => {
-                          setWarehouseId(
+                          setAdjustWarehouseId(
                             event.target.value
                           );
                           setAdjustError("");
@@ -1892,7 +1993,7 @@ export default function InventoryPage() {
                   </h2>
 
                   <p className="mt-1 font-mono text-[8px] text-[#8995A5]">
-                    {historyItem.sku} · Stock {historyItem.stock} · Min {historyItem.minStock}
+                    {historyItem.sku} · Stock {historyItem.stock} · Min {historyItem.minStock}{historyItem.warehouseName ? ` · ${historyItem.warehouseName}` : ""}
                   </p>
 
                 </div>

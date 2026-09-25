@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Check, Heart } from "lucide-react";
 
 import type { NewArrivalProduct } from "@/app/data/newArrivals";
@@ -104,11 +105,11 @@ export default function WholesaleProductCard({
           }}
         >
           {product.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
+            <Image
               src={product.image}
               alt={product.name}
-              loading="lazy"
+              width={88}
+              height={120}
               className="
                 max-h-full
                 max-w-[85%]

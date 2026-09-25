@@ -1,5 +1,3 @@
-"use client";
-
 import { Bell } from "lucide-react";
 
 /* =========================================================
@@ -95,8 +93,8 @@ export default function AlertsEmptyState({
           leading-5
         "
       >
-        You don't have any alerts matching
-        this filter right now. We'll notify you
+        You don&apos;t have any alerts matching
+        this filter right now. We&apos;ll notify you
         when something important happens.
       </p>
     </div>

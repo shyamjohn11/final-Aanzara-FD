@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Timer } from "lucide-react";
 
 import {
@@ -630,18 +631,12 @@ export default function TodaysDeals() {
                     {/* Product Visual — real image when available (otherwise gradient placeholder) */}
                     {deal.image ? (
                       <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <Image
                           src={deal.image}
                           alt={deal.name}
+                          width={80}
+                          height={80}
                           className="w-20 h-20 object-contain drop-shadow-sm"
-                          loading="lazy"
-                          onError={(e) => {
-                            const img = e.currentTarget as HTMLImageElement;
-                            img.style.display = "none";
-                            const fallback = img.nextElementSibling as HTMLElement | null;
-                            if (fallback) fallback.style.display = "flex";
-                          }}
                         />
                         <div
                           className="hidden w-12 h-[72px] rounded-sm shadow-sm"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Heart, Check } from "lucide-react";
 
 import type { NewArrivalProduct } from "@/app/data/newArrivals";
@@ -319,11 +320,11 @@ export default function NewArrivalProductCard({
               badges/wishlist button (below) use z-10 to stay on top
               regardless of DOM order. */}
           {product.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
+            <Image
               src={product.image}
               alt={productName}
-              loading="lazy"
+              width={88}
+              height={120}
               className="
                 relative
                 z-0

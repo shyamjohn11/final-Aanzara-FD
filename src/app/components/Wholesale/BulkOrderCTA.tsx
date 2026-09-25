@@ -12,6 +12,7 @@ import {
   contentApi,
   type ContentItem,
 } from "@/app/api/services";
+import BulkQuoteDialog from "@/app/components/BulkQuoteDialog";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -30,6 +31,7 @@ export default function BulkOrderCTA() {
   const [checklist, setChecklist] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string>("");
+  const [quoteOpen, setQuoteOpen] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,10 +188,12 @@ export default function BulkOrderCTA() {
               )}
             </div>
 
-            {/* REQUEST QUOTE */}
+            {/* REQUEST QUOTE — opens the quote request dialog.
+                Submissions land in /admin/pricing-requests. */}
 
             <button
               type="button"
+              onClick={() => setQuoteOpen(true)}
               className="
                 flex
                 items-center
@@ -337,6 +341,11 @@ export default function BulkOrderCTA() {
           </button>
         </div>
       </div>
+
+      <BulkQuoteDialog
+        open={quoteOpen}
+        onClose={() => setQuoteOpen(false)}
+      />
     </section>
   );
 }

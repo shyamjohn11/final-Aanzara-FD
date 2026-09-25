@@ -5,7 +5,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Send, Lock } from "lucide-react";
-import { enquiriesApi } from "@/app/api/services";
+import { toast } from "react-toastify";
+import { contactEnquiriesApi, enquiriesApi } from "@/app/api/services";
+import { extractErrorMessage } from "@/app/api/api";
 import { SUBJECT_OPTIONS } from "@/app/data/contact";
 
 type FormData = {
@@ -343,18 +345,26 @@ export default function ContactForm() {
         message: form.message.trim(),
       };
 
-      // Live submit — POST /api/admin/enquiries.
-      await enquiriesApi.create(payload);
+      // Live submit — POST /api/v1/enquiries (public inbox, shows in /admin/enquiries).
+      await contactEnquiriesApi.submit(payload);
 
+      toast.success(
+        "Message sent successfully! Our team will get back to you."
+      );
       setSubmitted(true);
       setForm({ ...initialForm });
       setErrors({});
     } catch (error) {
       console.error("Contact form submission failed:", error);
 
+      const message = extractErrorMessage(
+        error,
+        "Unable to send your message right now. Please try again."
+      );
+      toast.error(message);
+
       setErrors({
-        message:
-          "Unable to send your message right now. Please try again.",
+        message,
       });
     } finally {
       setIsSubmitting(false);

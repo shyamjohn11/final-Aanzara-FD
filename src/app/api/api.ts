@@ -8,19 +8,27 @@ const USER_KEY = "aanzara_user";
 
 // Browser requests remain same-origin and are forwarded to ASP.NET by the
 // /api rewrite in next.config.js. This is the sole HTTP client for the app.
+// Access/refresh tokens live in HttpOnly cookies set by the backend;
+// withCredentials sends them automatically. A short-lived in-memory access
+// token is still attached as Bearer when present for compatibility.
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "/",
+  withCredentials: true,
   // No JSON Content-Type default: axios would serialize FormData bodies to
   // JSON and the multipart endpoints reject them with 415. Object payloads
   // still get application/json automatically; FormData gets the boundary.
   headers: { Accept: "application/json" },
 });
 
+// In-memory only — never persisted to localStorage (XSS cannot steal cookies).
+let memoryAccessToken: string | null = null;
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token =
-    typeof window === "undefined"
+    memoryAccessToken ??
+    (typeof window === "undefined"
       ? null
-      : localStorage.getItem(ACCESS_TOKEN_KEY);
+      : sessionStorage.getItem(ACCESS_TOKEN_KEY));
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -70,10 +78,9 @@ export interface LoginPayload {
 }
 
 // ============================================================
-// ROLE RESOLUTION — single source of truth for the auth guard.
-// saveSession() writes the aanzara_role cookie from this, and the
-// login page redirects from this, so the middleware (which only
-// sees the cookie) can never disagree with the pushed route.
+// ROLE RESOLUTION — single source of truth for client-side role
+// UI. saveSession() stores the role in sessionStorage; the edge
+// middleware reads the backend-issued HttpOnly cookies/JWT.
 // ============================================================
 
 export type AppRole = "admin" | "agent" | "customer";
@@ -163,18 +170,18 @@ export function saveSession(
   options?: { silent?: boolean },
 ) {
   const resolvedRole = resolveUserRole(auth);
-  localStorage.setItem(ACCESS_TOKEN_KEY, auth.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, auth.refreshToken);
-  localStorage.setItem(SESSION_ID_KEY, auth.sessionId);
+  // Access token: memory + sessionStorage only (not localStorage).
+  // Refresh token: HttpOnly cookie only — never written to JS storage.
+  memoryAccessToken = auth.accessToken;
+  sessionStorage.setItem(ACCESS_TOKEN_KEY, auth.accessToken);
   localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
   sessionStorage.setItem("aanzara_logged_in", "true");
   sessionStorage.setItem("aanzara_user_id", auth.user.userId);
   sessionStorage.setItem("aanzara_user_data", JSON.stringify(auth.user));
   sessionStorage.setItem("aanzara_user_role", resolvedRole);
-  // Presence cookies for the edge middleware (auth guard). The real
-  // tokens stay in storage; these carry no credentials.
-  setGuardCookie("aanzara_session", "1");
-  setGuardCookie("aanzara_role", resolvedRole);
+  // Role/session presence cookies are set HttpOnly by the backend Set-Cookie
+  // on login/refresh. Do not mirror them from JS — a script-writable role
+  // cookie is forgeable. Edge proxy reads the HttpOnly cookies.
   if (!options?.silent) notifySessionChanged();
 }
 
@@ -182,8 +189,8 @@ function setGuardCookie(
   name: string,
   value: string
 ) {
+  // Retained only for logout cleanup of any legacy non-HttpOnly cookies.
   if (typeof document === "undefined") return;
-  // 30 days; cleared on logout.
   const maxAge = 60 * 60 * 24 * 30;
   document.cookie =
     `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
@@ -196,6 +203,7 @@ function clearGuardCookie(name: string) {
 
 export function clearSession(options?: { silent?: boolean }) {
   if (typeof window === "undefined") return;
+  memoryAccessToken = null;
   [
     ACCESS_TOKEN_KEY,
     REFRESH_TOKEN_KEY,
@@ -206,12 +214,14 @@ export function clearSession(options?: { silent?: boolean }) {
     "userName",
     "aanzara-profile",
   ].forEach((key) => localStorage.removeItem(key));
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   [
     "aanzara_logged_in",
     "aanzara_user_id",
     "aanzara_user_data",
     "aanzara_user_role",
   ].forEach((key) => sessionStorage.removeItem(key));
+  // Clear legacy JS-writable cookies; HttpOnly cookies are cleared by POST /logout.
   clearGuardCookie("aanzara_session");
   clearGuardCookie("aanzara_role");
   if (!options?.silent) notifySessionChanged();
@@ -221,16 +231,10 @@ export function clearSession(options?: { silent?: boolean }) {
 export function getSessionRole(): string {
   if (typeof window === "undefined") return "";
   try {
-    const stored = sessionStorage.getItem(
-      "aanzara_user_role"
-    );
+    const stored = sessionStorage.getItem("aanzara_user_role");
     if (stored) return stored.toLowerCase();
-    const match = document.cookie.match(
-      /(?:^|;\s*)aanzara_role=([^;]*)/
-    );
-    return match
-      ? decodeURIComponent(match[1]).toLowerCase()
-      : "";
+    // HttpOnly role cookie is not readable from JS; edge proxy reads it.
+    return "";
   } catch {
     return "";
   }
@@ -287,15 +291,20 @@ export function notifySessionChanged() {
 
 export function hasSession(): boolean {
   if (typeof window === "undefined") return false;
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-  if (!token) return false;
-  // Also check expiry to avoid sending an expired token that will 401 and trigger a needless refresh loop on public pages
-  try {
-    const payload = decodeJwtPayload(token);
-    const exp = payload?.exp as number | undefined;
-    if (typeof exp === "number" && exp * 1000 < Date.now() + 5000) return false;
-  } catch {}
-  return true;
+  const token = memoryAccessToken ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (token) {
+    try {
+      const payload = decodeJwtPayload(token);
+      const exp = payload?.exp as number | undefined;
+      if (typeof exp === "number" && exp * 1000 < Date.now() + 5000) return false;
+      return true;
+    } catch {
+      return true;
+    }
+  }
+  // No JS-readable access token (cookie-only session): rely on the
+  // sessionStorage login flag; the refresh interceptor restores cookies.
+  return sessionStorage.getItem("aanzara_logged_in") === "true";
 }
 
 /**
@@ -322,31 +331,38 @@ export async function logoutAndRedirect(to = "/login"): Promise<void> {
 }
 
 /**
- * Reconcile the middleware presence cookies with real session state.
+ * Reconcile client session state with the edge guard.
  *
- * - Guard cookie without a token (e.g. a logout that only cleared
- *   storage, or a browser that kept the 30-day cookie after the
- *   token was removed): clears the whole session so the edge guard
- *   stops bouncing /login back into the app.
- * - Token without a guard cookie (cookie expired, storage kept):
- *   re-issues the cookies so logged-in users are recognized again.
+ * HttpOnly cookies are set only by the backend on login/refresh and are
+ * not readable from JS — never mirror them from document.cookie.
  *
- * Returns what happened, or null when nothing drifted.
+ * - Token/session flag gone: clear leftover client state so the edge
+ *   guard stops bouncing /login back into the app.
+ * - Logged-in but access token missing from JS: trigger a silent cookie
+ *   refresh so the backend re-issues HttpOnly cookies (no-op failure
+ *   leaves state cleared).
  */
 export function reconcileGuardCookies(): "cleared" | "restored" | null {
   if (typeof window === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)aanzara_session=([^;]*)/);
-  const hasCookie = match ? decodeURIComponent(match[1]) === "1" : false;
   const loggedIn = hasSession();
+  const token = memoryAccessToken ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
 
-  if (hasCookie && !loggedIn) {
-    clearSession({ silent: true });
-    return "cleared";
+  if (!loggedIn) {
+    if (sessionStorage.getItem("aanzara_user_data") || localStorage.getItem(USER_KEY)) {
+      clearSession({ silent: true });
+      return "cleared";
+    }
+    return null;
   }
 
-  if (!hasCookie && loggedIn) {
-    setGuardCookie("aanzara_session", "1");
-    setGuardCookie("aanzara_role", getSessionRole() || "customer");
+  if (!token) {
+    // Cookie-only session (flag present, token gone from JS): restore in
+    // the background via the shared refresh singleton. On failure drop
+    // the stale client state silently; the backend drops the dead
+    // cookies, and the next guard evaluation bounces correctly.
+    void performRefresh().then((auth) => {
+      if (!auth) clearSession({ silent: true });
+    });
     return "restored";
   }
 
@@ -388,7 +404,73 @@ function redirectToLogin(): void {
   );
 }
 
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<AuthResponse | null> | null = null;
+
+/**
+ * Single shared cookie refresh. Every caller (401 interceptor, guard
+ * reconcile, session restore) dedupes onto the same in-flight promise:
+ * refresh tokens are single-use rotations, so two concurrent refresh
+ * POSTs would make the second look like a replay and nuke ALL of the
+ * user's sessions server-side.
+ */
+function performRefresh(): Promise<AuthResponse | null> {
+  refreshInFlight ??= api
+    .post<AuthResponse>("/api/v1/auth/refresh", {})
+    .then(({ data }) => {
+      saveSession(data, { silent: true });
+      return data;
+    })
+    .catch(() => null)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+/**
+ * Restore client session state from the HttpOnly cookies.
+ *
+ * sessionStorage is per-tab but cookies are shared: a fresh tab, a
+ * browser restart, or a cleared storage leaves hasSession() false while
+ * the backend session is still alive. Bouncing straight to /login then
+ * makes the edge guard bounce back (cookies are valid) — an infinite
+ * redirect loop that never reaches login OR the dashboard.
+ *
+ * Instead, attempt one silent cookie refresh first:
+ * - success → sessionStorage repopulated, resolved role returned.
+ * - failure → stale client state cleared; the backend also drops the
+ *   dead cookies on refresh failure, so a subsequent /login renders.
+ *
+ * Skipped entirely for guests with no session traces (avoids a pointless
+ * refresh POST — and auth rate-limit spend — on every public page load)
+ * unless `force` is set (protected routes: the edge guard already proved
+ * cookies exist by letting the page render).
+ */
+export function restoreSessionFromCookies(options?: {
+  force?: boolean;
+}): Promise<AppRole | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (hasSession()) {
+    const role = getSessionRole();
+    return Promise.resolve(role ? (role as AppRole) : "customer");
+  }
+  let hasTraces = false;
+  try {
+    hasTraces =
+      !!sessionStorage.getItem("aanzara_user_data") ||
+      !!localStorage.getItem(USER_KEY);
+  } catch {
+    hasTraces = false;
+  }
+  if (!hasTraces && !options?.force) return Promise.resolve(null);
+  return performRefresh().then((auth) => {
+    if (!auth) {
+      clearSession({ silent: true });
+      return null;
+    }
+    return resolveUserRole(auth);
+  });
+}
 
 api.interceptors.response.use(
   (response) => response,
@@ -409,30 +491,19 @@ api.interceptors.response.use(
     }
 
     request._retried = true;
-    refreshInFlight ??= api
-      .post<AuthResponse>("/api/v1/auth/refresh", {
-        refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY),
-      })
-      .then(({ data }) => {
-        saveSession(data, { silent: true });
-        return data.accessToken;
-      })
-      .catch(() => {
-        // The session is really gone: clear state AND get the user
-        // back to the login page (never silent — cart/wishlist must
-        // drop to guest mode too).
-        clearSession();
-        redirectToLogin();
-        return null;
-      })
-      .finally(() => {
-        refreshInFlight = null;
-      });
+    const refreshed = await performRefresh();
+    if (!refreshed) {
+      // The session is really gone: clear state AND get the user
+      // back to the login page (never silent — cart/wishlist must
+      // drop to guest mode too). The backend drops the dead HttpOnly
+      // cookies on refresh failure, so the edge guard lets /login
+      // render instead of bouncing back into the app.
+      clearSession();
+      redirectToLogin();
+      return Promise.reject(error);
+    }
 
-    const token = await refreshInFlight;
-    if (!token) return Promise.reject(error);
-
-    request.headers.Authorization = `Bearer ${token}`;
+    request.headers.Authorization = `Bearer ${refreshed.accessToken}`;
     return api.request(request);
   },
 );

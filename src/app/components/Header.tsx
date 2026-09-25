@@ -18,7 +18,9 @@ import {
 
 import {
   useEffect,
+  useRef,
   useState,
+  type FocusEvent,
   type KeyboardEvent,
 } from "react";
 
@@ -31,6 +33,10 @@ import {
   hasSession,
   SESSION_CHANGED_EVENT,
 } from "@/app/api/api";
+import { productsApi } from "@/app/api/services";
+import { mapProductSummaries } from "@/app/api/productmap";
+import type { Product } from "@/app/data/products";
+import BulkQuoteDialog from "@/app/components/BulkQuoteDialog";
 import { customerNotificationsApi } from "@/app/api/services";
 import {
   isTypeAllowed,
@@ -76,6 +82,189 @@ type AlertNotification = {
 
 const ALERTS_PREVIEW_COUNT = 3;
 
+const SUGGEST_MIN_CHARS = 2;
+const SUGGEST_COUNT = 6;
+const SUGGEST_DEBOUNCE_MS = 300;
+
+/* =========================================================
+   SEARCH SUGGESTIONS — live product dropdown under the
+   header search box. Typing a product name fetches matching
+   products (GET /api/v1/products?search=) and shows them;
+   picking one opens its detail page, Enter/Search runs the
+   full /search results page.
+========================================================= */
+
+type SearchSuggestionsProps = {
+  open: boolean;
+  loading: boolean;
+  query: string;
+  suggestions: Product[];
+  activeIndex: number;
+  onHover: (index: number) => void;
+  onPick: (product: Product) => void;
+  onSubmitAll: () => void;
+};
+
+function formatINR(value: number): string {
+  try {
+    return `₹${value.toLocaleString("en-IN")}`;
+  } catch {
+    return `₹${value}`;
+  }
+}
+
+function SearchSuggestions({
+  open,
+  loading,
+  query,
+  suggestions,
+  activeIndex,
+  onHover,
+  onPick,
+  onSubmitAll,
+}: SearchSuggestionsProps) {
+  if (!open) return null;
+
+  return (
+    <div
+      role="listbox"
+      aria-label="Product suggestions"
+      className="
+        absolute
+        left-0 right-0
+        top-full
+        z-50
+        mt-2
+        overflow-hidden
+        rounded-xl
+        border
+        border-line
+        bg-white
+        shadow-xl
+      "
+    >
+      {loading && suggestions.length === 0 ? (
+        <p className="px-4 py-3 text-[12px] text-ink-soft">
+          Searching…
+        </p>
+      ) : suggestions.length === 0 ? (
+        <p className="px-4 py-3 text-[12px] text-ink-soft">
+          {`No products found for “${query}”.`}
+        </p>
+      ) : (
+        <ul className="max-h-[320px] overflow-y-auto py-1">
+          {suggestions.map((product, index) => (
+            <li key={product.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={index === activeIndex}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onPick(product)}
+                onMouseEnter={() => onHover(index)}
+                className={`
+                  flex
+                  w-full
+                  items-center
+                  gap-3
+                  px-3
+                  py-2
+                  text-left
+                  transition-colors
+                  ${index === activeIndex ? "bg-[#F2F6FC]" : "hover:bg-[#F2F6FC]"}
+                `}
+              >
+                {product.image ? (
+                  <img
+                    src={product.image}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display =
+                        "none";
+                    }}
+                    className="
+                      h-9
+                      w-9
+                      shrink-0
+                      rounded-md
+                      border
+                      border-line
+                      object-cover
+                    "
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="
+                      flex
+                      h-9
+                      w-9
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-md
+                      bg-[#EDF2F9]
+                      text-[13px]
+                      font-bold
+                      text-navy
+                    "
+                  >
+                    {product.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold text-ink">
+                    {product.name}
+                  </span>
+
+                  <span className="block truncate text-[11px] text-ink-soft">
+                    {product.brand}
+                  </span>
+                </span>
+
+                <span className="shrink-0 text-[13px] font-bold text-navy">
+                  {formatINR(product.price)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onSubmitAll}
+        className="
+          flex
+          w-full
+          items-center
+          justify-center
+          gap-1.5
+          border-t
+          border-line
+          bg-[#F8FAFC]
+          px-3
+          py-2.5
+          text-[12px]
+          font-semibold
+          text-navy
+          hover:bg-[#EFF4FA]
+        "
+      >
+        <Search size={13} />
+
+        <span className="truncate">
+          {`See all results for “${query}”`}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 /* =========================================================
    HEADER
 ========================================================= */
@@ -101,6 +290,135 @@ export default function Header({
 
   const [searchQuery, setSearchQuery] =
     useState("");
+
+  /* =======================================================
+     BULK QUOTE DIALOG
+  ======================================================= */
+
+  const [quoteOpen, setQuoteOpen] =
+    useState(false);
+
+  /* =======================================================
+     SEARCH SUGGESTIONS (live dropdown)
+  ======================================================= */
+
+  const [suggestions, setSuggestions] =
+    useState<Product[]>([]);
+
+  const [suggestOpen, setSuggestOpen] =
+    useState(false);
+
+  const [suggestLoading, setSuggestLoading] =
+    useState(false);
+
+  const [activeSuggest, setActiveSuggest] =
+    useState(-1);
+
+  const suggestTimer =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const suggestSeq = useRef(0);
+
+  const closeSuggestions = () => {
+    setSuggestOpen(false);
+    setActiveSuggest(-1);
+  };
+
+  const pickSuggestion = (product: Product) => {
+    closeSuggestions();
+    setSuggestions([]);
+    setSearchQuery("");
+    router.push(`/product/${product.id}`);
+  };
+
+  const handleSuggestBlur = (
+    e: FocusEvent<HTMLDivElement>
+  ) => {
+    // Focus moving to another element inside the search box
+    // (suggestion buttons use onMouseDown-preventDefault, so the
+    // input never blurs on picking) — only close when focus
+    // truly leaves the search container.
+    if (
+      !e.currentTarget.contains(
+        e.relatedTarget as Node | null
+      )
+    ) {
+      closeSuggestions();
+    }
+  };
+
+  const reopenSuggestions = () => {
+    if (
+      searchQuery.trim().length >=
+        SUGGEST_MIN_CHARS &&
+      suggestions.length > 0
+    ) {
+      setSuggestOpen(true);
+    }
+  };
+
+  // Debounced suggestion fetch as the user types. Stale
+  // responses are dropped via the sequence guard so a slow
+  // earlier query can never overwrite newer results.
+  useEffect(() => {
+    const query = searchQuery.trim();
+
+    if (suggestTimer.current) {
+      clearTimeout(suggestTimer.current);
+      suggestTimer.current = null;
+    }
+
+    if (query.length < SUGGEST_MIN_CHARS) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      setSuggestOpen(false);
+      setActiveSuggest(-1);
+      return;
+    }
+
+    setSuggestLoading(true);
+
+    suggestTimer.current = setTimeout(() => {
+      const seq = ++suggestSeq.current;
+
+      void (async () => {
+        try {
+          const response =
+            await productsApi.list({
+              search: query,
+              page: 1,
+              pageSize: SUGGEST_COUNT,
+            });
+
+          if (suggestSeq.current !== seq) return;
+
+          setSuggestions(
+            mapProductSummaries(
+              (response as { data?: unknown })?.data ?? response
+            ).slice(0, SUGGEST_COUNT)
+          );
+          setActiveSuggest(-1);
+          setSuggestOpen(true);
+        } catch {
+          if (suggestSeq.current !== seq) return;
+          setSuggestions([]);
+          setActiveSuggest(-1);
+          setSuggestOpen(false);
+        } finally {
+          if (suggestSeq.current === seq) {
+            setSuggestLoading(false);
+          }
+        }
+      })();
+    }, SUGGEST_DEBOUNCE_MS);
+
+    return () => {
+      if (suggestTimer.current) {
+        clearTimeout(suggestTimer.current);
+        suggestTimer.current = null;
+      }
+    };
+  }, [searchQuery]);
 
   /* =======================================================
      USER
@@ -318,6 +636,9 @@ export default function Header({
 
     if (!query) return;
 
+    closeSuggestions();
+    setSuggestions([]);
+
     router.push(
       `/search?query=${encodeURIComponent(
         query
@@ -330,8 +651,45 @@ export default function Header({
   const handleSearchKeyDown = (
     e: KeyboardEvent<HTMLInputElement>
   ) => {
+    if (e.key === "Escape") {
+      closeSuggestions();
+      return;
+    }
+
+    if (
+      suggestOpen &&
+      (e.key === "ArrowDown" ||
+        e.key === "ArrowUp")
+    ) {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      setActiveSuggest((prev) => {
+        const next =
+          e.key === "ArrowDown"
+            ? prev + 1
+            : prev - 1;
+        if (next < -1)
+          return suggestions.length - 1;
+        if (next >= suggestions.length)
+          return -1;
+        return next;
+      });
+      return;
+    }
+
     if (e.key === "Enter") {
       e.preventDefault();
+
+      if (
+        suggestOpen &&
+        activeSuggest >= 0 &&
+        activeSuggest < suggestions.length
+      ) {
+        pickSuggestion(
+          suggestions[activeSuggest]
+        );
+        return;
+      }
 
       handleSearch();
     }
@@ -440,7 +798,10 @@ export default function Header({
             DESKTOP SEARCH
         =================================================== */}
 
-        <div className="hidden max-w-[700px] flex-1 md:flex">
+        <div
+          onBlur={handleSuggestBlur}
+          className="hidden max-w-[700px] flex-1 md:flex relative"
+        >
 
           <div
             className="
@@ -472,9 +833,11 @@ export default function Header({
               onKeyDown={
                 handleSearchKeyDown
               }
+              onFocus={reopenSuggestions}
               placeholder="Search products, brands, SKU, categories..."
               autoComplete="off"
               aria-label="Search products"
+              aria-expanded={suggestOpen}
               className="
                 w-full
                 bg-transparent
@@ -505,6 +868,17 @@ export default function Header({
           >
             Search
           </button>
+
+          <SearchSuggestions
+            open={suggestOpen}
+            loading={suggestLoading}
+            query={searchQuery.trim()}
+            suggestions={suggestions}
+            activeIndex={activeSuggest}
+            onHover={setActiveSuggest}
+            onPick={pickSuggestion}
+            onSubmitAll={handleSearch}
+          />
 
         </div>
 
@@ -1300,11 +1674,13 @@ export default function Header({
           </Link>
 
           {/* =================================================
-              BULK QUOTE
+              BULK QUOTE — opens the quote request dialog.
+              Submissions land in /admin/pricing-requests.
           ================================================= */}
 
-          <Link
-            href="/contact"
+          <button
+            type="button"
+            onClick={() => setQuoteOpen(true)}
             className="
               flex
               items-center
@@ -1327,7 +1703,7 @@ export default function Header({
 
             Bulk Quote
 
-          </Link>
+          </button>
 
         </div>
 
@@ -1460,6 +1836,7 @@ export default function Header({
       ===================================================== */}
 
       <div
+        onBlur={handleSuggestBlur}
         className="
           border-t
           border-line
@@ -1467,6 +1844,7 @@ export default function Header({
           pb-3
           pt-2
           md:hidden
+          relative
         "
       >
 
@@ -1499,9 +1877,11 @@ export default function Header({
             onKeyDown={
               handleSearchKeyDown
             }
+            onFocus={reopenSuggestions}
             placeholder="Search products, brands, SKU..."
             autoComplete="off"
             aria-label="Search products"
+            aria-expanded={suggestOpen}
             className="
               w-full
               bg-transparent
@@ -1537,7 +1917,26 @@ export default function Header({
 
         </div>
 
+        <SearchSuggestions
+          open={suggestOpen}
+          loading={suggestLoading}
+          query={searchQuery.trim()}
+          suggestions={suggestions}
+          activeIndex={activeSuggest}
+          onHover={setActiveSuggest}
+          onPick={pickSuggestion}
+          onSubmitAll={handleSearch}
+        />
+
       </div>
+
+      <BulkQuoteDialog
+        open={quoteOpen}
+        onClose={() => setQuoteOpen(false)}
+        defaultName={user?.name ?? ""}
+        defaultPhone={user?.mobile ?? ""}
+        defaultEmail={user?.email ?? ""}
+      />
 
     </header>
   );

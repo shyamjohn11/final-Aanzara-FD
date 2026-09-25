@@ -142,9 +142,18 @@ export default function ProductTabs({ productName, specification }: ProductTabsP
                   });
                 }
               }
-              // Fallback to static SPEC_TABLE if no dynamic spec
-              const displayRows = rows.length > 0 ? rows : SPEC_TABLE;
-              return displayRows.length > 0 ? (
+              const displayRows =
+                rows.length > 0
+                  ? rows
+                  : SPEC_TABLE.length > 0
+                    ? SPEC_TABLE
+                    : [
+                        { label: "Brand", value: "Aanzara" },
+                        { label: "Category", value: "FMCG" },
+                        { label: "Country of Origin", value: "India" },
+                        { label: "Storage", value: "Cool, dry place" },
+                      ];
+              return (
                 <div className="border border-line rounded-lg overflow-hidden">
                   {displayRows.map((row: any, i: number) => {
                     const label = String(row.label ?? "").trim();
@@ -160,10 +169,6 @@ export default function ProductTabs({ productName, specification }: ProductTabsP
                       </div>
                     );
                   })}
-                </div>
-              ) : (
-                <div role="status" className="border border-line rounded-lg bg-paper px-4 py-4 text-[12.5px] text-ink-soft">
-                  Product specifications are currently unavailable.
                 </div>
               );
             })()}

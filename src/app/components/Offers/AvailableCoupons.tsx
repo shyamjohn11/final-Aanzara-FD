@@ -5,13 +5,18 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   Check,
 } from "lucide-react";
 
 import type { Coupon as CouponType } from "@/app/data/offers";
-import { couponsApi } from "@/app/api/services";
+import {
+  loadStorefrontCoupons,
+  writePendingCouponCode,
+  type StorefrontCoupon,
+} from "@/app/data/storefrontcoupons";
 
 /* --------------------------------
  * Types
@@ -21,6 +26,7 @@ type Coupon = CouponType;
 
 interface CouponCardProps {
   coupon: Coupon;
+  onApply?: (code: string) => void;
 }
 
 /* --------------------------------
@@ -95,94 +101,40 @@ function getSafeCoupons(
 }
 
 /* --------------------------------
- * API mapping (couponsApi.list)
+ * API mapping (public deals coupons)
  * -------------------------------- */
 
-function unwrapItems(payload: unknown): Record<string, unknown>[] {
-  if (Array.isArray(payload)) {
-    return payload as Record<string, unknown>[];
-  }
-  if (payload && typeof payload === "object") {
-    const rec = payload as Record<string, unknown>;
-    if (Array.isArray(rec.items)) {
-      return rec.items as Record<string, unknown>[];
-    }
-    if (Array.isArray(rec.data)) {
-      return rec.data as Record<string, unknown>[];
-    }
-  }
-  return [];
-}
-
-function mapCouponRaw(
-  raw: Record<string, unknown>,
-  index: number,
+function mapStorefrontCoupon(
+  coupon: StorefrontCoupon,
 ): Coupon {
-  const code =
-    String(
-      raw.code ??
-        raw.couponCode ??
-        raw.offerCode ??
-        "",
-    ).trim().toUpperCase() || `COUPON${index + 1}`;
-
-  const name = String(
-    raw.name ??
-      raw.title ??
-      "Coupon",
-  ).trim();
-
-  const type = String(raw.type ?? "").trim();
-  const value = Number(
-    raw.value ??
-      raw.discount ??
-      raw.discountValue ??
-      0,
+  const isPercent = ["percent", "percentage", "%"].includes(
+    coupon.discountType.trim().toLowerCase(),
   );
-  const minOrder = Number(
-    raw.minOrder ??
-      raw.minimumOrder ??
-      raw.minOrderValue ??
-      0,
-  );
+  const value = Number(coupon.discountValue) || 0;
+  const minOrder = Number(coupon.minOrderValue) || 0;
 
   const discountLabel =
-    Number.isFinite(value) && value > 0
-      ? type === "Flat"
-        ? `₹${Math.floor(value).toLocaleString("en-IN")} off`
-        : `${value}% off`
+    value > 0
+      ? isPercent
+        ? `${Math.floor(value)}% off`
+        : `₹${Math.floor(value).toLocaleString("en-IN")} off`
       : "Special discount";
   const minLabel =
-    Number.isFinite(minOrder) && minOrder > 0
+    minOrder > 0
       ? ` on orders above ₹${Math.floor(minOrder).toLocaleString("en-IN")}`
       : "";
 
-  const descRaw = String(
-    raw.description ??
-      raw.subtitle ??
-      "",
-  ).trim();
   const desc =
-    descRaw ||
-    `${name || "Coupon"}: ${discountLabel}${minLabel}`;
+    coupon.description?.trim() ||
+    `${coupon.title || coupon.code}: ${discountLabel}${minLabel}`;
 
-  const endRaw = String(
-    raw.endDate ??
-      raw.end ??
-      raw.validTo ??
-      raw.validTill ??
-      "",
-  ).trim();
+  const endRaw = (coupon.endsAt ?? "").trim();
   const validity = endRaw
     ? `Valid till ${endRaw.slice(0, 10)}`
-    : String(
-        raw.validity ??
-          raw.validTill ??
-          "Limited period offer",
-      ).trim() || "Limited period offer";
+    : "Limited period offer";
 
   return {
-    code,
+    code: coupon.code,
     desc,
     validity,
   };
@@ -194,6 +146,7 @@ function mapCouponRaw(
 
 function CouponCard({
   coupon,
+  onApply,
 }: CouponCardProps) {
   const [copied, setCopied] =
     useState<boolean>(false);
@@ -363,6 +316,7 @@ function CouponCard({
         {/* Apply */}
         <button
           type="button"
+          onClick={() => onApply?.(coupon.code)}
           className="
             text-[11.5px]
             font-semibold
@@ -402,6 +356,7 @@ function CouponCard({
  * -------------------------------- */
 
 export default function AvailableCoupons() {
+  const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string>("");
@@ -413,13 +368,9 @@ export default function AvailableCoupons() {
       setLoading(true);
       setFetchError("");
       try {
-        const response = await couponsApi.list(1, 25);
-        const payload: unknown =
-          (response as { data?: unknown })?.data ?? response;
-        const rawItems = unwrapItems(payload);
-        const mapped = rawItems.map(mapCouponRaw);
+        const rows = await loadStorefrontCoupons(50);
         if (!cancelled) {
-          setCoupons(mapped);
+          setCoupons(rows.map(mapStorefrontCoupon));
         }
       } catch (error) {
         console.error("Unable to load coupons:", error);
@@ -442,6 +393,14 @@ export default function AvailableCoupons() {
       cancelled = true;
     };
   }, []);
+
+  const handleApply = useCallback(
+    (code: string) => {
+      writePendingCouponCode(code);
+      router.push("/cart");
+    },
+    [router],
+  );
 
   const safeCoupons = getSafeCoupons(coupons);
 
@@ -511,6 +470,7 @@ export default function AvailableCoupons() {
               <CouponCard
                 key={coupon.code}
                 coupon={coupon}
+                onApply={handleApply}
               />
             ),
           )}

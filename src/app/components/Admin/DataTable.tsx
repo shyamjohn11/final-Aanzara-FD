@@ -2,6 +2,7 @@
 
 import {
   ReactNode,
+  useMemo,
   useState,
 } from "react";
 
@@ -145,28 +146,23 @@ export default function DataTable<
      LOCAL FILTER
   ========================================================== */
 
-  const filteredData =
-    search !== undefined ||
-    onSearchChange
-      ? data
-      : data.filter((item) => {
-          if (!localSearch.trim()) {
-            return true;
-          }
+  const filteredData = useMemo(() => {
+    if (search !== undefined || onSearchChange) {
+      return data;
+    }
 
-          const query =
-            localSearch
-              .trim()
-              .toLowerCase();
+    if (!localSearch.trim()) {
+      return data;
+    }
 
-          return Object.values(
-            item
-          ).some((value) =>
-            String(value)
-              .toLowerCase()
-              .includes(query)
-          );
-        });
+    const query = localSearch.trim().toLowerCase();
+
+    return data.filter((item) =>
+      Object.values(item).some((value) =>
+        String(value).toLowerCase().includes(query)
+      )
+    );
+  }, [data, localSearch, search, onSearchChange]);
 
   /* ==========================================================
      PAGINATION

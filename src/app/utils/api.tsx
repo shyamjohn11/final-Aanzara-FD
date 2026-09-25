@@ -9,8 +9,7 @@ const useApi = () => {
   /**
    * Get the latest authentication token.
    *
-   * localStorage is checked first because it may contain
-   * a newer token than the React context.
+   * Access tokens live in sessionStorage (session-only); never localStorage.
    */
   const getToken = (): string => {
     if (typeof window === "undefined") {
@@ -18,7 +17,7 @@ const useApi = () => {
     }
 
     return (
-      window.localStorage.getItem("accessToken") ??
+      window.sessionStorage.getItem("accessToken") ??
       authContext?.accessToken ??
       ""
     );

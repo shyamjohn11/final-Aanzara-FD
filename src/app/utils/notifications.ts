@@ -2,8 +2,9 @@
 // customer-facing notification flow.
 //
 // Backend contract (no new tables required):
-// - GET /api/v1/notifications?count= is DERIVED from order history and
-//   READ-ONLY. Every row arrives with IsRead=false; there is no PATCH/DELETE.
+// - GET /api/v1/notifications?count= is DERIVED from the caller's order
+//   status history plus their enquiries and bulk-quote requests (matched
+//   by account email) and READ-ONLY. Every row arrives with IsRead=false; there is no PATCH/DELETE.
 //   Read state therefore lives in localStorage under READ_IDS_KEY, shared by
 //   the header bell, /alerts, and /account/alerts so all three agree.
 // - GET /api/admin/notifications (+PATCH read / DELETE) is the persisted

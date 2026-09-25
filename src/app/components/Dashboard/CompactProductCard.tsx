@@ -1,6 +1,8 @@
 // File: app/components/Dashboard/CompactProductCard.tsx
 "use client";
 
+import Image from "next/image";
+
 type CompactProductCardProps = {
   name: string;
   price: number;
@@ -141,8 +143,13 @@ export default function CompactProductCard({
         className="flex h-24 items-center justify-center overflow-hidden bg-white border-b border-line"
       >
         {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt={safeName} className="h-full w-full object-contain p-2" loading="lazy" />
+          <Image
+            src={image}
+            alt={safeName}
+            width={96}
+            height={96}
+            className="h-full w-full object-contain p-2"
+          />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center"

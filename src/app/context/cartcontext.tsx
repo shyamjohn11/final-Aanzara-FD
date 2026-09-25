@@ -18,6 +18,7 @@ import {
   useContext,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -349,183 +350,156 @@ export function CartProvider({
   // ADD TO CART
   // ========================================
 
-  const addToCart = (
-    product: Product,
-    qty: number = product.moq || 1
-  ) => {
-    if (!product?.id) {
-      console.error(
-        "Cannot add product without an ID."
-      );
-      return;
-    }
-
-    const safeQty = Number(qty);
-
-    if (
-      !Number.isFinite(safeQty) ||
-      safeQty <= 0
-    ) {
-      return;
-    }
-
-    // Remember the display fields so backend rows can be
-    // re-enriched on later loads.
-    saveProductSnapshot(product);
-
-    // The backend rejects inactive/out-of-stock products with 400, so
-    // block them before the optimistic update instead of syncing a
-    // phantom line that the server will never accept.
-    if (product.inStock === false) {
-      toast.error(
-        `${product.name} is currently unavailable.`
-      );
-      return;
-    }
-
-    const mergeLine = (
-      prev: CartLine[]
-    ): CartLine[] => {
-      const existing = prev.find(
-        (line) => line.product.id === product.id
-      );
-
-      if (existing) {
-        return prev.map((line) =>
-          line.product.id === product.id
-            ? { ...line, qty: line.qty + safeQty }
-            : line
-        );
+  const addToCart = useCallback(
+    (product: Product, qty: number = product.moq || 1) => {
+      if (!product?.id) {
+        console.error("Cannot add product without an ID.");
+        return;
       }
 
-      return [
-        ...prev,
-        { product, qty: safeQty },
-      ];
-    };
+      const safeQty = Number(qty);
 
-    if (mode === "remote" && isGuid(product.id)) {
-      setItems(mergeLine);
+      if (!Number.isFinite(safeQty) || safeQty <= 0) {
+        return;
+      }
 
-      cartApi
-        .addItem(product.id, safeQty)
-        .then(reloadRemote)
-        .catch((error) => {
-          // Roll back the optimistic line so the cart matches the
-          // server, and show the real reason (e.g. insufficient stock)
-          // instead of a generic sync warning.
-          console.error("Unable to sync cart:", error);
-          toast.error(
-            extractErrorMessage(
-              error,
-              "Unable to sync cart. Please try again."
-            )
+      saveProductSnapshot(product);
+
+      if (product.inStock === false) {
+        toast.error(`${product.name} is currently unavailable.`);
+        return;
+      }
+
+      const mergeLine = (prev: CartLine[]): CartLine[] => {
+        const existing = prev.find((line) => line.product.id === product.id);
+
+        if (existing) {
+          return prev.map((line) =>
+            line.product.id === product.id
+              ? { ...line, qty: line.qty + safeQty }
+              : line
           );
-          void reloadRemote();
-        });
-      return;
-    }
+        }
 
-    setItems(mergeLine);
-  };
+        return [...prev, { product, qty: safeQty }];
+      };
+
+      if (mode === "remote" && isGuid(product.id)) {
+        setItems(mergeLine);
+
+        cartApi
+          .addItem(product.id, safeQty)
+          .then(reloadRemote)
+          .catch((error) => {
+            console.error("Unable to sync cart:", error);
+            toast.error(
+              extractErrorMessage(error, "Unable to sync cart. Please try again.")
+            );
+            void reloadRemote();
+          });
+        return;
+      }
+
+      setItems(mergeLine);
+    },
+    [mode, reloadRemote]
+  );
 
   // ========================================
   // UPDATE QUANTITY
   // ========================================
 
-  const updateQty = (id: string, qty: number) => {
-    if (!id) return;
+  const updateQty = useCallback(
+    (id: string, qty: number) => {
+      if (!id) return;
 
-    const safeQty = Number(qty);
+      const safeQty = Number(qty);
 
-    if (
-      !Number.isFinite(safeQty) ||
-      safeQty <= 0
-    ) {
-      return;
-    }
-
-    const clampedQty = Math.max(
-      1,
-      Math.floor(safeQty)
-    );
-
-    const bumpLine = (prev: CartLine[]) =>
-      prev.map((line) =>
-        line.product.id === id
-          ? { ...line, qty: clampedQty }
-          : line
-      );
-
-    if (mode === "remote" && isGuid(id)) {
-      setItems(bumpLine);
-
-      const cartItemId =
-        cartItemIdsRef.current[id];
-
-      if (cartItemId) {
-        cartApi
-          .updateItem(cartItemId, clampedQty)
-          .then(reloadRemote)
-          .catch((error) => {
-            console.error("Unable to sync cart:", error);
-            toast.error(
-              extractErrorMessage(
-                error,
-                "Unable to sync cart. Please try again."
-              )
-            );
-            void reloadRemote();
-          });
+      if (!Number.isFinite(safeQty) || safeQty <= 0) {
+        return;
       }
-      return;
-    }
 
-    setItems(bumpLine);
-  };
+      const clampedQty = Math.max(1, Math.floor(safeQty));
+
+      const bumpLine = (prev: CartLine[]) =>
+        prev.map((line) =>
+          line.product.id === id
+            ? { ...line, qty: clampedQty }
+            : line
+        );
+
+      if (mode === "remote" && isGuid(id)) {
+        setItems(bumpLine);
+
+        const cartItemId = cartItemIdsRef.current[id];
+
+        if (cartItemId) {
+          cartApi
+            .updateItem(cartItemId, clampedQty)
+            .then(reloadRemote)
+            .catch((error) => {
+              console.error("Unable to sync cart:", error);
+              toast.error(
+                extractErrorMessage(
+                  error,
+                  "Unable to sync cart. Please try again."
+                )
+              );
+              void reloadRemote();
+            });
+        }
+        return;
+      }
+
+      setItems(bumpLine);
+    },
+    [mode, reloadRemote]
+  );
 
   // ========================================
   // REMOVE FROM CART
   // ========================================
 
-  const removeFromCart = (id: string) => {
-    if (!id) return;
+  const removeFromCart = useCallback(
+    (id: string) => {
+      if (!id) return;
 
-    const dropLine = (prev: CartLine[]) =>
-      prev.filter((line) => line.product.id !== id);
+      const dropLine = (prev: CartLine[]) =>
+        prev.filter((line) => line.product.id !== id);
 
-    if (mode === "remote" && isGuid(id)) {
-      setItems(dropLine);
+      if (mode === "remote" && isGuid(id)) {
+        setItems(dropLine);
 
-      const cartItemId =
-        cartItemIdsRef.current[id];
+        const cartItemId = cartItemIdsRef.current[id];
 
-      if (cartItemId) {
-        cartApi
-          .removeItem(cartItemId)
-          .then(reloadRemote)
-          .catch((error) => {
-            console.error("Unable to sync cart:", error);
-            toast.error(
-              extractErrorMessage(
-                error,
-                "Unable to sync cart. Please try again."
-              )
-            );
-            void reloadRemote();
-          });
+        if (cartItemId) {
+          cartApi
+            .removeItem(cartItemId)
+            .then(reloadRemote)
+            .catch((error) => {
+              console.error("Unable to sync cart:", error);
+              toast.error(
+                extractErrorMessage(
+                  error,
+                  "Unable to sync cart. Please try again."
+                )
+              );
+              void reloadRemote();
+            });
+        }
+        return;
       }
-      return;
-    }
 
-    setItems(dropLine);
-  };
+      setItems(dropLine);
+    },
+    [mode, reloadRemote]
+  );
 
   // ========================================
   // CLEAR CART
   // ========================================
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setItems([]);
 
     if (mode === "remote") {
@@ -536,7 +510,7 @@ export function CartProvider({
           console.error("Unable to clear cart:", error)
         );
     }
-  };
+  }, [mode, reloadRemote]);
 
   // ========================================
   // TOTAL UNITS
@@ -551,17 +525,20 @@ export function CartProvider({
   // PROVIDER
   // ========================================
 
+  const value = useMemo(
+    () => ({
+      items,
+      addToCart,
+      updateQty,
+      removeFromCart,
+      clearCart,
+      totalUnits,
+    }),
+    [items, addToCart, updateQty, removeFromCart, clearCart, totalUnits]
+  );
+
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        addToCart,
-        updateQty,
-        removeFromCart,
-        clearCart,
-        totalUnits,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

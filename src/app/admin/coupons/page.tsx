@@ -184,26 +184,25 @@ export default function CouponsPage() {
      STATS
   ====================================================== */
 
-  const activeCount = coupons.filter(
-    (coupon) =>
-      coupon.status === "Active"
-  ).length;
+  const couponStats = useMemo(() => {
+    let active = 0;
+    let scheduled = 0;
+    let expired = 0;
+    let totalUsed = 0;
 
-  const scheduledCount = coupons.filter(
-    (coupon) =>
-      coupon.status === "Scheduled"
-  ).length;
+    for (const coupon of coupons) {
+      if (coupon.status === "Active") active += 1;
+      else if (coupon.status === "Scheduled") scheduled += 1;
+      else if (coupon.status === "Expired") expired += 1;
+      totalUsed += coupon.used;
+    }
 
-  const expiredCount = coupons.filter(
-    (coupon) =>
-      coupon.status === "Expired"
-  ).length;
+    return { active, scheduled, expired, totalUsed };
+  }, [coupons]);
 
-  const totalUsed = coupons.reduce(
-    (total, coupon) =>
-      total + coupon.used,
-    0
-  );
+  const activeCount = couponStats.active;
+  const scheduledCount = couponStats.scheduled;
+  const totalUsed = couponStats.totalUsed;
 
   /* =====================================================
      RESET FORM

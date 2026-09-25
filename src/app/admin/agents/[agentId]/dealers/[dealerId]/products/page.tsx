@@ -599,7 +599,7 @@ export default function DealerProductsPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 p-4 sm:p-6">
         {/* Header */}
         <div>
           <button
@@ -614,7 +614,7 @@ export default function DealerProductsPage() {
             <ArrowLeft size={13} />
             Back to Dealer
           </button>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="font-sora text-[20px] font-bold text-navy">
                 Dealer Products{dealerName ? ` — ${dealerName}` : ""}
@@ -656,7 +656,7 @@ export default function DealerProductsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] outline-none"
+            className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[13px] outline-none sm:w-auto sm:shrink-0"
             aria-label="Filter by status"
           >
             <option value="All">All statuses</option>
@@ -667,9 +667,9 @@ export default function DealerProductsPage() {
 
         {/* Table */}
         <div className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="min-w-[900px] min-w-full text-left">
+          <table className="w-full min-w-[900px] text-left">
             <thead>
-              <tr className="border-b border-line text-[11px] uppercase tracking-wide text-ink-faint">
+              <tr className="border-b border-line bg-paper text-[11px] uppercase tracking-wide text-ink-faint">
                 <th className="px-4 py-3 font-semibold">Product</th>
                 <th className="px-4 py-3 font-semibold">SKU</th>
                 <th className="px-4 py-3 font-semibold">Category</th>

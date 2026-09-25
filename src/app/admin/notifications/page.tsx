@@ -230,11 +230,32 @@ export default function AdminNotificationsPage() {
     void load();
 
     // Refresh so new order/enquiry/payment events appear live.
-    const timer = window.setInterval(load, 30000);
+    // Skip ticks while the tab is hidden; catch up on visibilitychange.
+    let timer: number | undefined;
+    const start = () => {
+      if (timer !== undefined) return;
+      timer = window.setInterval(load, 30000);
+    };
+    const stop = () => {
+      if (timer === undefined) return;
+      window.clearInterval(timer);
+      timer = undefined;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+        start();
+      } else {
+        stop();
+      }
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loadNotifications]);
 

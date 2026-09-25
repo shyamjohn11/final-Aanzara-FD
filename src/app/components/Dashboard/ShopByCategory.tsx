@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { categoriesApi } from "@/app/api/services";
 
@@ -179,10 +180,11 @@ export default function ShopByCategory() {
               }}
             >
               {cat.image && !brokenImages[cat.id] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={cat.image}
                   alt={cat.name}
+                  fill
+                  sizes="(max-width: 640px) 33vw, 120px"
                   className="h-full w-full object-cover"
                   onError={() =>
                     setBrokenImages((prev) => ({

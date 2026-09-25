@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { productsApi } from "@/app/api/services";
 import {
   mapProductSummary,
@@ -146,12 +147,12 @@ export default function RecentlyViewedProducts() {
               >
                 {/* Product Visual */}
                 {item.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={item.image}
                     alt={item.name}
+                    width={40}
+                    height={40}
                     className="h-10 w-10 rounded-lg object-cover border border-line shrink-0"
-                    loading="lazy"
                   />
                 ) : (
                   <div

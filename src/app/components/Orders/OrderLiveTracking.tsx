@@ -51,8 +51,35 @@ export default function OrderLiveTracking({ orderId }: { orderId: string }) {
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 8000);
-    return () => window.clearInterval(id);
+
+    // Pause the 8s poll while the tab is hidden — no wasted API calls
+    // or state churn for a page the user cannot see.
+    let id: number | undefined;
+    const start = () => {
+      if (id !== undefined) return;
+      id = window.setInterval(() => {
+        if (document.visibilityState === "visible") void load();
+      }, 8000);
+    };
+    const stop = () => {
+      if (id === undefined) return;
+      window.clearInterval(id);
+      id = undefined;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+        start();
+      } else {
+        stop();
+      }
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [load]);
 
   if (loading && !data) {

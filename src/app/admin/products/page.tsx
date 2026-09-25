@@ -395,10 +395,25 @@ export default function ProductsAdminPage() {
      STATS
   ========================================================== */
 
-  const activeProducts = products.filter((p) => p.status === "active").length;
-  const inactiveProducts = products.filter((p) => p.status === "inactive").length;
-  const lowStockProducts = products.filter((p) => p.moq > 0 && p.moq <= 10).length;
-  const totalStock = products.reduce((total, p) => total + (p.moq || 0), 0);
+  const productStats = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    let lowStock = 0;
+    let totalStock = 0;
+
+    for (const p of products) {
+      if (p.status === "active") active += 1;
+      else if (p.status === "inactive") inactive += 1;
+      if (p.moq > 0 && p.moq <= 10) lowStock += 1;
+      totalStock += p.moq || 0;
+    }
+
+    return { active, inactive, lowStock, totalStock };
+  }, [products]);
+
+  const activeProducts = productStats.active;
+  const inactiveProducts = productStats.inactive;
+  const lowStockProducts = productStats.lowStock;
 
   /* ==========================================================
      CLEAR ERROR

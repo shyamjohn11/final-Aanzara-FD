@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   Minus,
   Plus,
@@ -278,11 +279,11 @@ function PopularProductCard({
         {/* PRODUCT VISUAL — streaming API image or swatch fallback */}
 
         {product.image ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+          <Image
             src={product.image}
             alt={product.name}
-            loading="lazy"
+            fill
+            sizes="(max-width: 640px) 50vw, 160px"
             className="
               absolute
               inset-0

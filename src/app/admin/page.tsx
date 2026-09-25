@@ -146,352 +146,375 @@ export default function AdminDashboardPage() {
     let cancelled = false;
 
     const load = async () => {
-      // Stats (stat cards + sales chart).
-      try {
-        const res: any = await dashboardApi.stats();
-        const payload: any = res?.data ?? res;
-        const s: any =
-          payload?.stats ?? payload?.data ?? payload ?? {};
-        if (!cancelled && s && typeof s === "object") {
-          const pick = (...keys: string[]): any => {
-            for (const k of keys) {
-              if (s[k] !== undefined && s[k] !== null) return s[k];
-            }
-            return undefined;
-          };
-          const revenue =
-            pick("totalRevenue", "revenue", "revenueDisplay");
-          const orders =
-            pick("totalOrders", "orders", "ordersCount");
-          const customers =
-            pick(
-              "totalCustomers",
-              "customers",
-              "customersCount",
-              "users",
-              "totalUsers"
-            );
-          const products =
-            pick(
-              "totalProducts",
-              "products",
-              "activeProducts",
-              "productsCount"
-            );
-          setStatValues((current) => ({
-            revenue:
-              revenue !== undefined
-                ? String(revenue)
-                : current.revenue,
-            orders:
-              orders !== undefined
-                ? String(orders)
-                : current.orders,
-            customers:
-              customers !== undefined
-                ? String(customers)
-                : current.customers,
-            products:
-              products !== undefined
-                ? String(products)
-                : current.products,
-            ...mapOverviewStats(s, orders),
-          }));
-
-          // Sales chart: tolerate several envelope shapes.
-          const rawChart: any =
-            s.chart ??
-            s.salesChart ??
-            s.monthlySales ??
-            s.sales ??
-            s.chartData ??
-            s.revenueByMonth;
-          const chartItems: any[] = Array.isArray(rawChart)
-            ? rawChart
-            : Array.isArray(rawChart?.items)
-              ? rawChart.items
-              : Array.isArray(rawChart?.data)
-                ? rawChart.data
-                : [];
-          if (chartItems.length > 0) {
-            const mapped = chartItems.map(
-              (entry: any, index: number) => ({
-                month: String(
-                  entry?.month ??
-                    entry?.label ??
-                    entry?.name ??
-                    `M${index + 1}`
-                ),
-                value: Number(
-                  entry?.value ??
-                    entry?.revenue ??
-                    entry?.total ??
-                    entry?.amount ??
-                    0
-                ),
-              })
-            );
-            setSalesData(mapped);
-          }
-        }
-      } catch {
-        // Leave state empty on failure.
-      }
-
-      // Recent orders widget.
-      try {
-        const res: any = await dashboardApi.recentOrders(5);
-        const payload: any = res?.data ?? res;
-        const rawItems: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
-        if (!cancelled && rawItems.length > 0) {
-          setRecentOrders(
-            rawItems.map((raw: any, index: number) => {
-              const idRaw =
-                raw?.orderNo ??
-                raw?.orderNumber ??
-                raw?.id ??
-                raw?.orderId ??
-                `#ANZ-${index}`;
-              const amountRaw =
-                raw?.amount ??
-                raw?.total ??
-                raw?.grandTotal ??
-                raw?.totalAmount ??
-                "";
-              return {
-                id: String(idRaw),
-                customer: String(
-                  raw?.customer ??
-                    raw?.customerName ??
-                    raw?.name ??
-                    "Unknown customer"
-                ),
-                amount:
-                  typeof amountRaw === "number"
-                    ? `₹${amountRaw.toLocaleString("en-IN")}`
-                    : String(amountRaw),
-                status: String(
-                  raw?.status ?? "Processing"
-                ),
-                time: String(
-                  raw?.time ??
-                    raw?.createdAt ??
-                    raw?.date ??
-                    raw?.orderDate ??
-                    ""
-                ),
-              };
-            })
-          );
-        }
-      } catch {
-        // Leave state empty on failure.
-      }
-
-      // Low-stock widget (#56) — primary via /api/admin/inventory/low-stock, fallback via product summaries
-      try {
-        const res: any = await inventoryApi.lowStock();
-        const payload: any = res?.data ?? res;
-        const rawItems: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
-        if (!cancelled && rawItems.length > 0) {
-          setLowStockProducts(
-            rawItems.map((raw: any, index: number) => ({
-              name: String(raw?.productName ?? raw?.name ?? `Product ${index + 1}`),
-              sku: String(raw?.sku ?? raw?.skuCode ?? ""),
-              stock: Number(raw?.quantity ?? raw?.stock ?? raw?.availableQuantity ?? 0),
-            }))
-          );
-        } else if (!cancelled) {
-          // No low-stock rows from inventory — derive from enriched product summaries (availableStock)
-          try {
-            const pr: any = await productsApi.list({ page: 1, pageSize: 50 });
-            const pp: any = pr?.data ?? pr;
-            const pItems: any[] = Array.isArray(pp) ? pp : Array.isArray(pp?.items) ? pp.items : Array.isArray(pp?.data) ? pp.data : [];
-            const lowFromProducts = pItems
-              .filter((p: any) => {
-                const avail = Number(p.availableStock ?? p.stock ?? p.quantity ?? 0);
-                // Consider low if explicitly low_stock/out_of_stock or avail <= reorder (10 as demo threshold)
-                const status = String(p.stockStatus ?? "").toLowerCase();
-                return status === "low_stock" || status === "out_of_stock" || (Number.isFinite(avail) && avail <= 10);
-              })
-              .slice(0, 5)
-              .map((p: any, idx: number) => ({
-                name: String(p.productName ?? p.name ?? `Product ${idx + 1}`),
-                sku: String(p.sku ?? ""),
-                stock: Number(p.availableStock ?? p.stock ?? 0),
-              }));
-            if (lowFromProducts.length > 0) setLowStockProducts(lowFromProducts);
-            else setLowStockProducts([]);
-          } catch {
-            if (!cancelled) setLowStockProducts([]);
-          }
-        }
-      } catch {
-        // Leave state empty on failure — empty placeholder will show.
-      }
-
-      // Home>Products>RIce — exact product 0de6ec0c-8018-4989-a79e-850de18f8a24 (RRS)
-      try {
-        const r: any = await productsApi.details("0de6ec0c-8018-4989-a79e-850de18f8a24");
-        const rp: any = r?.data ?? r;
-        const prod = rp && typeof rp === "object" && (rp.productId || rp.id) ? rp : null;
-        if (!cancelled && prod) {
-          const mapped: any = {
-            productId: prod.productId ?? prod.id,
-            productName: prod.productName ?? prod.name,
-            sku: prod.sku,
-            price: prod.price,
-            moq: prod.moq,
-            status: prod.status,
-            brandName: prod.brandName ?? prod.brand ?? "",
-            imageUrl: undefined,
-          };
-          // 1) Enriched list image (search is case-insensitive, so "Rice" covers "RIce")
-          try {
-            const lr: any = await productsApi.list({ search: "Rice", page: 1, pageSize: 20 });
-            const lp: any = lr?.data ?? lr;
-            const li: any[] = Array.isArray(lp) ? lp : Array.isArray(lp?.items) ? lp.items : Array.isArray(lp?.data) ? lp.data : [];
-            const found = li.find((x: any) => String(x.productId) === String(mapped.productId)) ?? li[0];
-            if (found?.imageUrl) mapped.imageUrl = found.imageUrl;
-            if (found?.brandName) mapped.brandName = found.brandName;
-            if (found?.stockStatus) mapped.stockStatus = found.stockStatus;
-          } catch {}
-          // 2) Direct product-images fallback — reliable even when list enrichment misses
-          if (!mapped.imageUrl) {
-            try {
-              const ir: any = await productImagesApi.list(mapped.productId);
-              const ip: any = ir?.data ?? ir;
-              const imgs: any[] = Array.isArray(ip) ? ip : Array.isArray(ip?.items) ? ip.items : Array.isArray(ip?.data) ? ip.data : [];
-              const primary = imgs.find((x: any) => x.isPrimary) ?? imgs[0];
-              const imageId = primary?.imageId ?? primary?.id;
-              if (imageId) {
-                mapped.imageUrl = `/api/v1/products/${mapped.productId}/images/${imageId}/file`;
+      // Fire independent widget fetches in parallel — each block keeps its
+      // own try/catch so one failure never blanks the whole dashboard.
+      const statsJob = (async () => {
+        // Stats (stat cards + sales chart).
+        try {
+          const res: any = await dashboardApi.stats();
+          const payload: any = res?.data ?? res;
+          const s: any =
+            payload?.stats ?? payload?.data ?? payload ?? {};
+          if (!cancelled && s && typeof s === "object") {
+            const pick = (...keys: string[]): any => {
+              for (const k of keys) {
+                if (s[k] !== undefined && s[k] !== null) return s[k];
               }
-            } catch {}
+              return undefined;
+            };
+            const revenue =
+              pick("totalRevenue", "revenue", "revenueDisplay");
+            const orders =
+              pick("totalOrders", "orders", "ordersCount");
+            const customers =
+              pick(
+                "totalCustomers",
+                "customers",
+                "customersCount",
+                "users",
+                "totalUsers"
+              );
+            const products =
+              pick(
+                "totalProducts",
+                "products",
+                "activeProducts",
+                "productsCount"
+              );
+            setStatValues((current) => ({
+              revenue:
+                revenue !== undefined
+                  ? String(revenue)
+                  : current.revenue,
+              orders:
+                orders !== undefined
+                  ? String(orders)
+                  : current.orders,
+              customers:
+                customers !== undefined
+                  ? String(customers)
+                  : current.customers,
+              products:
+                products !== undefined
+                  ? String(products)
+                  : current.products,
+              ...mapOverviewStats(s, orders),
+            }));
+
+            // Sales chart: tolerate several envelope shapes.
+            const rawChart: any =
+              s.chart ??
+              s.salesChart ??
+              s.monthlySales ??
+              s.sales ??
+              s.chartData ??
+              s.revenueByMonth;
+            const chartItems: any[] = Array.isArray(rawChart)
+              ? rawChart
+              : Array.isArray(rawChart?.items)
+                ? rawChart.items
+                : Array.isArray(rawChart?.data)
+                  ? rawChart.data
+                  : [];
+            if (chartItems.length > 0) {
+              const mapped = chartItems.map(
+                (entry: any, index: number) => ({
+                  month: String(
+                    entry?.month ??
+                      entry?.label ??
+                      entry?.name ??
+                      `M${index + 1}`
+                  ),
+                  value: Number(
+                    entry?.value ??
+                      entry?.revenue ??
+                      entry?.total ??
+                      entry?.amount ??
+                      0
+                  ),
+                })
+              );
+              setSalesData(mapped);
+            }
           }
-          if (!cancelled) {
-            setRiceImageBroken(false);
-            setRiceProduct(mapped);
+        } catch {
+          // Leave state empty on failure.
+        }
+      })();
+
+      const recentJob = (async () => {
+        // Recent orders widget.
+        try {
+          const res: any = await dashboardApi.recentOrders(5);
+          const payload: any = res?.data ?? res;
+          const rawItems: any[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : Array.isArray(payload?.data)
+                ? payload.data
+                : [];
+          if (!cancelled && rawItems.length > 0) {
+            setRecentOrders(
+              rawItems.map((raw: any, index: number) => {
+                const idRaw =
+                  raw?.orderNo ??
+                  raw?.orderNumber ??
+                  raw?.id ??
+                  raw?.orderId ??
+                  `#ANZ-${index}`;
+                const amountRaw =
+                  raw?.amount ??
+                  raw?.total ??
+                  raw?.grandTotal ??
+                  raw?.totalAmount ??
+                  "";
+                return {
+                  id: String(idRaw),
+                  customer: String(
+                    raw?.customer ??
+                      raw?.customerName ??
+                      raw?.name ??
+                      "Unknown customer"
+                  ),
+                  amount:
+                    typeof amountRaw === "number"
+                      ? `₹${amountRaw.toLocaleString("en-IN")}`
+                      : String(amountRaw),
+                  status: String(
+                    raw?.status ?? "Processing"
+                  ),
+                  time: String(
+                    raw?.time ??
+                      raw?.createdAt ??
+                      raw?.date ??
+                      raw?.orderDate ??
+                      ""
+                  ),
+                };
+              })
+            );
           }
+        } catch {
+          // Leave state empty on failure.
         }
-      } catch {}
-      try {
-        const r: any = await storefrontReviewsApi.list("RIce", 5);
-        const rp: any = r?.data ?? r;
-        const revs: any[] = Array.isArray(rp) ? rp : Array.isArray(rp?.items) ? rp.items : Array.isArray(rp?.data) ? rp.data : [];
-        if (!cancelled && revs.length > 0) setRiceReviews(revs.slice(0, 5));
-      } catch {}
+      })();
 
-      // Agent dealer shops (Dealers table) — show agent-added shops on Dashboard.
-      // Business Accounts quick overview now correctly reflects businessAccounts + dealers
-      try {
-        const [dealersRes, baRes] = await Promise.all([
-          dealersApi.list(1, 6),
-          businessAccountsApi.list(1, 100).catch(() => null),
-        ]);
-        const dPayload: any = (dealersRes as any)?.data ?? dealersRes;
-        const dRaw: any[] = Array.isArray(dPayload)
-          ? dPayload
-          : Array.isArray(dPayload?.items)
-            ? dPayload.items
-            : Array.isArray(dPayload?.data)
-              ? dPayload.data
-              : [];
-        const bPayload: any = (baRes as any)?.data ?? baRes;
-        const bRaw: any[] = bPayload
-          ? Array.isArray(bPayload)
-            ? bPayload
-            : Array.isArray(bPayload?.items)
-              ? bPayload.items
-              : []
-          : [];
-
-        if (!cancelled && dRaw.length > 0) {
-          setDealerShops(
-            dRaw.map((raw: any) => ({
-              id: String(raw.id ?? raw.dealerId ?? ""),
-              shopName: String(raw.shopName ?? "Shop"),
-              dealerCode: String(raw.dealerCode ?? ""),
-              ownerName: String(raw.ownerName ?? ""),
-              city: String(raw.city ?? ""),
-              phone: String(raw.phone ?? ""),
-              status: String(raw.status ?? "Active"),
-              productCount: Number(raw.productCount ?? 0),
-              agentName: String(raw.agentName ?? ""),
-            }))
-          );
-        }
-
-        // Correct balance: total accounts = businessAccounts + dealers, pct = active/total*100
-        const allDealers = dRaw;
-        const allBAs = bRaw;
-        const total = allDealers.length + allBAs.length;
-        if (!cancelled && total > 0) {
-          const activeDealers = allDealers.filter(
-            (r: any) => String(r.status ?? "").toLowerCase() === "active"
-          ).length;
-          const activeBAs = allBAs.filter(
-            (r: any) => String(r.status ?? "").toLowerCase() === "active"
-          ).length;
-          const active = activeDealers + activeBAs;
-          const pct = Math.round((active / total) * 100);
-          setStatValues((current) => ({
-            ...current,
-            businessAccounts: String(total),
-            accountsPct: Math.min(100, Math.max(0, pct)),
-          }));
-        } else if (!cancelled && dRaw.length > 0) {
-          // Fallback when BA fetch fails — dealers only
-          const active = dRaw.filter((r: any) => String(r.status ?? "").toLowerCase() === "active").length;
-          const pct = dRaw.length > 0 ? Math.round((active / dRaw.length) * 100) : 0;
-          setStatValues((current) => ({
-            ...current,
-            businessAccounts: String(dRaw.length),
-            accountsPct: pct,
-          }));
-        }
-      } catch {
-        // Leave state empty on failure.
-      }
-
-      // Catalog categories widget (primary images streamed anonymously).
-      try {
-        const res: any = await categoriesApi.list();
-        const payload: any = res?.data ?? res;
-        const rawItems: any[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
-        if (!cancelled && rawItems.length > 0) {
-          setCategories(
-            rawItems
-              .filter((raw: any) => raw?.categoryId)
-              .map((raw: any) => ({
-                categoryId: String(raw.categoryId),
-                categoryName: String(raw.categoryName ?? "Category"),
-                hasSubCategory: Boolean(raw.hasSubCategory),
-                isActive: raw.isActive !== false,
+      const lowStockJob = (async () => {
+        // Low-stock widget (#56) — primary via /api/admin/inventory/low-stock, fallback via product summaries
+        try {
+          const res: any = await inventoryApi.lowStock();
+          const payload: any = res?.data ?? res;
+          const rawItems: any[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : Array.isArray(payload?.data)
+                ? payload.data
+                : [];
+          if (!cancelled && rawItems.length > 0) {
+            setLowStockProducts(
+              rawItems.map((raw: any, index: number) => ({
+                name: String(raw?.productName ?? raw?.name ?? `Product ${index + 1}`),
+                sku: String(raw?.sku ?? raw?.skuCode ?? ""),
+                stock: Number(raw?.quantity ?? raw?.stock ?? raw?.availableQuantity ?? 0),
               }))
-          );
+            );
+          } else if (!cancelled) {
+            // No low-stock rows from inventory — derive from enriched product summaries (availableStock)
+            try {
+              const pr: any = await productsApi.list({ page: 1, pageSize: 50 });
+              const pp: any = pr?.data ?? pr;
+              const pItems: any[] = Array.isArray(pp) ? pp : Array.isArray(pp?.items) ? pp.items : Array.isArray(pp?.data) ? pp.data : [];
+              const lowFromProducts = pItems
+                .filter((p: any) => {
+                  const avail = Number(p.availableStock ?? p.stock ?? p.quantity ?? 0);
+                  // Consider low if explicitly low_stock/out_of_stock or avail <= reorder (10 as demo threshold)
+                  const status = String(p.stockStatus ?? "").toLowerCase();
+                  return status === "low_stock" || status === "out_of_stock" || (Number.isFinite(avail) && avail <= 10);
+                })
+                .slice(0, 5)
+                .map((p: any, idx: number) => ({
+                  name: String(p.productName ?? p.name ?? `Product ${idx + 1}`),
+                  sku: String(p.sku ?? ""),
+                  stock: Number(p.availableStock ?? p.stock ?? 0),
+                }));
+              if (lowFromProducts.length > 0) setLowStockProducts(lowFromProducts);
+              else setLowStockProducts([]);
+            } catch {
+              if (!cancelled) setLowStockProducts([]);
+            }
+          }
+        } catch {
+          // Leave state empty on failure — empty placeholder will show.
         }
-      } catch {
-        // Leave state empty on failure.
-      }
+      })();
+
+      const riceJob = (async () => {
+        // Home>Products>RIce — exact product 0de6ec0c-8018-4989-a79e-850de18f8a24 (RRS)
+        try {
+          const r: any = await productsApi.details("0de6ec0c-8018-4989-a79e-850de18f8a24");
+          const rp: any = r?.data ?? r;
+          const prod = rp && typeof rp === "object" && (rp.productId || rp.id) ? rp : null;
+          if (!cancelled && prod) {
+            const mapped: any = {
+              productId: prod.productId ?? prod.id,
+              productName: prod.productName ?? prod.name,
+              sku: prod.sku,
+              price: prod.price,
+              moq: prod.moq,
+              status: prod.status,
+              brandName: prod.brandName ?? prod.brand ?? "",
+              imageUrl: undefined,
+            };
+            // 1) Enriched list image (search is case-insensitive, so "Rice" covers "RIce")
+            try {
+              const lr: any = await productsApi.list({ search: "Rice", page: 1, pageSize: 20 });
+              const lp: any = lr?.data ?? lr;
+              const li: any[] = Array.isArray(lp) ? lp : Array.isArray(lp?.items) ? lp.items : Array.isArray(lp?.data) ? lp.data : [];
+              const found = li.find((x: any) => String(x.productId) === String(mapped.productId)) ?? li[0];
+              if (found?.imageUrl) mapped.imageUrl = found.imageUrl;
+              if (found?.brandName) mapped.brandName = found.brandName;
+              if (found?.stockStatus) mapped.stockStatus = found.stockStatus;
+            } catch {}
+            // 2) Direct product-images fallback — reliable even when list enrichment misses
+            if (!mapped.imageUrl) {
+              try {
+                const ir: any = await productImagesApi.list(mapped.productId);
+                const ip: any = ir?.data ?? ir;
+                const imgs: any[] = Array.isArray(ip) ? ip : Array.isArray(ip?.items) ? ip.items : Array.isArray(ip?.data) ? ip.data : [];
+                const primary = imgs.find((x: any) => x.isPrimary) ?? imgs[0];
+                const imageId = primary?.imageId ?? primary?.id;
+                if (imageId) {
+                  mapped.imageUrl = `/api/v1/products/${mapped.productId}/images/${imageId}/file`;
+                }
+              } catch {}
+            }
+            if (!cancelled) {
+              setRiceImageBroken(false);
+              setRiceProduct(mapped);
+            }
+          }
+        } catch {}
+        try {
+          const r: any = await storefrontReviewsApi.list("RIce", 5);
+          const rp: any = r?.data ?? r;
+          const revs: any[] = Array.isArray(rp) ? rp : Array.isArray(rp?.items) ? rp.items : Array.isArray(rp?.data) ? rp.data : [];
+          if (!cancelled && revs.length > 0) setRiceReviews(revs.slice(0, 5));
+        } catch {}
+      })();
+
+      const dealersJob = (async () => {
+        // Agent dealer shops (Dealers table) — show agent-added shops on Dashboard.
+        // Business Accounts quick overview now correctly reflects businessAccounts + dealers
+        try {
+          const [dealersRes, baRes] = await Promise.all([
+            dealersApi.list(1, 6),
+            businessAccountsApi.list(1, 100).catch(() => null),
+          ]);
+          const dPayload: any = (dealersRes as any)?.data ?? dealersRes;
+          const dRaw: any[] = Array.isArray(dPayload)
+            ? dPayload
+            : Array.isArray(dPayload?.items)
+              ? dPayload.items
+              : Array.isArray(dPayload?.data)
+                ? dPayload.data
+                : [];
+          const bPayload: any = (baRes as any)?.data ?? baRes;
+          const bRaw: any[] = bPayload
+            ? Array.isArray(bPayload)
+              ? bPayload
+              : Array.isArray(bPayload?.items)
+                ? bPayload.items
+                : []
+            : [];
+
+          if (!cancelled && dRaw.length > 0) {
+            setDealerShops(
+              dRaw.map((raw: any) => ({
+                id: String(raw.id ?? raw.dealerId ?? ""),
+                shopName: String(raw.shopName ?? "Shop"),
+                dealerCode: String(raw.dealerCode ?? ""),
+                ownerName: String(raw.ownerName ?? ""),
+                city: String(raw.city ?? ""),
+                phone: String(raw.phone ?? ""),
+                status: String(raw.status ?? "Active"),
+                productCount: Number(raw.productCount ?? 0),
+                agentName: String(raw.agentName ?? ""),
+              }))
+            );
+          }
+
+          // Correct balance: total accounts = businessAccounts + dealers, pct = active/total*100
+          const allDealers = dRaw;
+          const allBAs = bRaw;
+          const total = allDealers.length + allBAs.length;
+          if (!cancelled && total > 0) {
+            const activeDealers = allDealers.filter(
+              (r: any) => String(r.status ?? "").toLowerCase() === "active"
+            ).length;
+            const activeBAs = allBAs.filter(
+              (r: any) => String(r.status ?? "").toLowerCase() === "active"
+            ).length;
+            const active = activeDealers + activeBAs;
+            const pct = Math.round((active / total) * 100);
+            setStatValues((current) => ({
+              ...current,
+              businessAccounts: String(total),
+              accountsPct: Math.min(100, Math.max(0, pct)),
+            }));
+          } else if (!cancelled && dRaw.length > 0) {
+            // Fallback when BA fetch fails — dealers only
+            const active = dRaw.filter((r: any) => String(r.status ?? "").toLowerCase() === "active").length;
+            const pct = dRaw.length > 0 ? Math.round((active / dRaw.length) * 100) : 0;
+            setStatValues((current) => ({
+              ...current,
+              businessAccounts: String(dRaw.length),
+              accountsPct: pct,
+            }));
+          }
+        } catch {
+          // Leave state empty on failure.
+        }
+      })();
+
+      const categoriesJob = (async () => {
+        // Catalog categories widget (primary images streamed anonymously).
+        try {
+          const res: any = await categoriesApi.list();
+          const payload: any = res?.data ?? res;
+          const rawItems: any[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : Array.isArray(payload?.data)
+                ? payload.data
+                : [];
+          if (!cancelled && rawItems.length > 0) {
+            setCategories(
+              rawItems
+                .filter((raw: any) => raw?.categoryId)
+                .map((raw: any) => ({
+                  categoryId: String(raw.categoryId),
+                  categoryName: String(raw.categoryName ?? "Category"),
+                  hasSubCategory: Boolean(raw.hasSubCategory),
+                  isActive: raw.isActive !== false,
+                }))
+            );
+          }
+        } catch {
+          // Leave state empty on failure.
+        }
+      })();
+
+      await Promise.all([
+        statsJob,
+        recentJob,
+        lowStockJob,
+        riceJob,
+        dealersJob,
+        categoriesJob,
+      ]);
     };
 
     load();

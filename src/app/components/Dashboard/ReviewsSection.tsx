@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
 import { storefrontReviewsApi } from "@/app/api/services";
+import { hasSession } from "@/app/api/api";
+import WriteReviewDialog from "@/app/components/Dashboard/WriteReviewDialog";
 import {
   REVIEW_SUMMARY,
   REVIEWS,
@@ -109,8 +112,6 @@ function mapReviewRow(raw: Record<string, unknown>): LiveReview | null {
     return null;
   }
 
-  const status = getTextField(raw, ["status"]);
-
   return {
     name: getTextField(raw, [
       "reviewerName",
@@ -124,7 +125,8 @@ function mapReviewRow(raw: Record<string, unknown>): LiveReview | null {
     verified: Boolean(
       raw["isVerified"] ??
         raw["verified"] ??
-        (status ? status.toLowerCase() === "approved" : true),
+        raw["isVerifiedPurchase"] ??
+        false,
     ),
     helpful: Number.isFinite(Number(raw["helpfulCount"]))
       ? Number(raw["helpfulCount"])
@@ -163,9 +165,34 @@ function mapStaticReviews(): LiveReview[] {
 }
 
 export default function ReviewsSection() {
+  const router = useRouter();
+
   const [reviews, setReviews] = useState<LiveReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  // Product name from the URL slug (e.g. /product/RIce). Used both to
+  // scope the list and as the review target on submit.
+  const productName =
+    typeof window !== "undefined"
+      ? decodeURIComponent(window.location.pathname.split("/").pop() || "")
+          .replace(/-/g, " ")
+          .trim() || undefined
+      : undefined;
+
+  const handleWriteReview = () => {
+    // Buyers only: guests sign in first, then land back here.
+    if (!hasSession()) {
+      const back =
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "/";
+      router.push(`/login?redirect=${encodeURIComponent(back)}`);
+      return;
+    }
+    setReviewOpen(true);
+  };
 
   // Live reviews — public storefront GET /api/v1/reviews?productName=RIce, Approved only.
   // Tries product-specific first (Rice page), then generic latest.
@@ -175,14 +202,6 @@ export default function ReviewsSection() {
     const load = async () => {
       setLoading(true);
       setLoadError(false);
-
-      // Try to scope to the current product name if available from URL / product context
-      const productName =
-        typeof window !== "undefined"
-          ? decodeURIComponent(window.location.pathname.split("/").pop() || "")
-              .replace(/-/g, " ")
-              .trim() || undefined
-          : undefined;
 
       try {
         let live: LiveReview[] = [];
@@ -222,7 +241,7 @@ export default function ReviewsSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [productName]);
 
   // Rating summary computed from live reviews, static fallback.
   const summary = useMemo(() => {
@@ -336,9 +355,10 @@ export default function ReviewsSection() {
           ))}
         </div>
 
-        {/* Write Review */}
+        {/* Write Review — buyers only (guests go to login first) */}
         <button
           type="button"
+          onClick={handleWriteReview}
           className="
             border
             border-line
@@ -529,6 +549,12 @@ export default function ReviewsSection() {
           </p>
         </div>
       )}
+
+      <WriteReviewDialog
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        productName={productName ?? ""}
+      />
     </section>
   );
 }

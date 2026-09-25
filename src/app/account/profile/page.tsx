@@ -189,7 +189,7 @@ export default function ProfilePage() {
 
   const getAuthToken = (): string | null => {
     try {
-      return localStorage.getItem("accessToken");
+      return sessionStorage.getItem("accessToken");
     } catch (e) {
       console.error("Failed to get auth token:", e);
       return null;

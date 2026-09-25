@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { loadAllProductSnapshots } from "@/app/api/productcache";
 import type { Product } from "@/app/data/products";
 
@@ -67,11 +68,11 @@ export default function RecentlyViewed({
           >
             {/* Product Visual */}
             {item.image ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
+              <Image
                 src={item.image}
                 alt={item.name}
-                loading="lazy"
+                width={44}
+                height={44}
                 className="
                   w-11
                   h-11
